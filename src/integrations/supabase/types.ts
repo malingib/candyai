@@ -14,13 +14,217 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          created_at: string
+          id: string
+          status: string
+          updated_at: string
+          user_id: string
+          visitor_email: string | null
+          visitor_metadata: Json | null
+          visitor_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          visitor_email?: string | null
+          visitor_metadata?: Json | null
+          visitor_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          visitor_email?: string | null
+          visitor_metadata?: Json | null
+          visitor_name?: string | null
+        }
+        Relationships: []
+      }
+      knowledge_base: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      leads: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+          notes: string | null
+          phone: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          business_name: string
+          chats_limit: number
+          chats_used: number
+          created_at: string
+          id: string
+          plan: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_name?: string
+          chats_limit?: number
+          chats_used?: number
+          created_at?: string
+          id?: string
+          plan?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_name?: string
+          chats_limit?: number
+          chats_used?: number
+          created_at?: string
+          id?: string
+          plan?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      smtp_settings: {
+        Row: {
+          created_at: string
+          encryption: string
+          from_email: string
+          host: string
+          id: string
+          password: string
+          port: number
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          encryption?: string
+          from_email?: string
+          host?: string
+          id?: string
+          password?: string
+          port?: number
+          updated_at?: string
+          user_id: string
+          username?: string
+        }
+        Update: {
+          created_at?: string
+          encryption?: string
+          from_email?: string
+          host?: string
+          id?: string
+          password?: string
+          port?: number
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_conversation_owner: { Args: { conv_id: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

@@ -5,8 +5,24 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
+import ProtectedRoute from "./components/ProtectedRoute";
+import DashboardLayout from "./components/dashboard/DashboardLayout";
+import Overview from "./pages/dashboard/Overview";
+import Conversations from "./pages/dashboard/Conversations";
+import KnowledgeBase from "./pages/dashboard/KnowledgeBase";
+import SettingsPage from "./pages/dashboard/SettingsPage";
+import EmbedCode from "./pages/dashboard/EmbedCode";
+import Billing from "./pages/dashboard/Billing";
 
 const queryClient = new QueryClient();
+
+const DashboardRoute = ({ children }: { children: React.ReactNode }) => (
+  <ProtectedRoute>
+    <DashboardLayout>{children}</DashboardLayout>
+  </ProtectedRoute>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -16,7 +32,14 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/dashboard" element={<DashboardRoute><Overview /></DashboardRoute>} />
+          <Route path="/dashboard/conversations" element={<DashboardRoute><Conversations /></DashboardRoute>} />
+          <Route path="/dashboard/knowledge-base" element={<DashboardRoute><KnowledgeBase /></DashboardRoute>} />
+          <Route path="/dashboard/settings" element={<DashboardRoute><SettingsPage /></DashboardRoute>} />
+          <Route path="/dashboard/embed" element={<DashboardRoute><EmbedCode /></DashboardRoute>} />
+          <Route path="/dashboard/billing" element={<DashboardRoute><Billing /></DashboardRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
