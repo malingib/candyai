@@ -8,7 +8,12 @@ type Message = { role: "user" | "assistant"; content: string };
 
 const MAX_FREE_MESSAGES = 5;
 
-const DemoChatWidget = () => {
+interface DemoChatWidgetProps {
+  userId?: string;
+  demo?: boolean;
+}
+
+const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Hi! 👋 I'm a Mobiwave AI demo agent. Ask me anything about how AI chat agents can help your business. You have 5 free messages to try." },
@@ -16,7 +21,23 @@ const DemoChatWidget = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
+  const [contactInfo, setContactInfo] = useState({ whatsapp_number: "", call_number: "", business_name: "" });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-contact-info`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({ user_id: userId }),
+    })
+      .then((r) => r.json())
+      .then((data) => setContactInfo(data))
+      .catch(console.error);
+  }, [userId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -45,7 +66,8 @@ const DemoChatWidget = () => {
           },
           body: JSON.stringify({
             messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
-            demo: true,
+            demo,
+            user_id: userId,
           }),
         }
       );
@@ -164,16 +186,32 @@ const DemoChatWidget = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Talk to Human */}
-          <div className="border-t px-3 py-2 flex items-center justify-center gap-3">
-            <span className="text-xs text-muted-foreground">Talk to a human:</span>
-            <a href="https://wa.me/254700000000" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:underline">
-              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-            </a>
-            <a href="tel:+254700000000" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-              <Phone className="h-3.5 w-3.5" /> Call
-            </a>
-          </div>
+          {(contactInfo.whatsapp_number || contactInfo.call_number) && (
+            <div className="border-t px-3 py-2 flex items-center justify-center gap-3">
+              <span className="text-xs text-muted-foreground">Talk to a human:</span>
+              {contactInfo.whatsapp_number && (
+                <a href={`https://wa.me/${contactInfo.whatsapp_number.replace(/[^0-9]/g, "")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:underline">
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </a>
+              )}
+              {contactInfo.call_number && (
+                <a href={`tel:${contactInfo.call_number}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                  <Phone className="h-3.5 w-3.5" /> Call
+                </a>
+              )}
+            </div>
+          )}
+          {!contactInfo.whatsapp_number && !contactInfo.call_number && !userId && (
+            <div className="border-t px-3 py-2 flex items-center justify-center gap-3">
+              <span className="text-xs text-muted-foreground">Talk to a human:</span>
+              <a href="https://wa.me/254700000000" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:underline">
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </a>
+              <a href="tel:+254700000000" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                <Phone className="h-3.5 w-3.5" /> Call
+              </a>
+            </div>
+          )}
 
           <div className="border-t p-3">
             {messageCount >= MAX_FREE_MESSAGES ? (
