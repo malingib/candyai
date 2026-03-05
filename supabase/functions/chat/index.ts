@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,9 +13,33 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, demo } = await req.json();
+    const { messages, demo, user_id } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    let knowledgeContext = "";
+
+    // If a user_id is provided, fetch their knowledge base entries for context
+    if (user_id && !demo) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        const { data: kbEntries } = await supabase
+          .from("knowledge_base")
+          .select("title, content")
+          .eq("user_id", user_id)
+          .limit(50);
+
+        if (kbEntries && kbEntries.length > 0) {
+          knowledgeContext = "\n\nHere is the business's knowledge base. Use this to answer visitor questions accurately:\n\n" +
+            kbEntries.map((e: any) => `### ${e.title}\n${e.content}`).join("\n\n");
+        }
+      } catch (e) {
+        console.error("Failed to fetch knowledge base:", e);
+      }
+    }
 
     const systemPrompt = demo
       ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites. 
@@ -24,7 +49,8 @@ serve(async (req) => {
          Encourage visitors to sign up for free.`
       : `You are a helpful AI assistant for a business website. Answer questions accurately and concisely based on the context provided. 
          If a visitor asks for quotes, pricing, contact, or shows purchase intent, politely collect their name and email.
-         Keep responses professional and under 150 words.`;
+         Keep responses professional and under 150 words.
+         If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.${knowledgeContext}`;
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
