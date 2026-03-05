@@ -15,6 +15,7 @@ import KnowledgeBase from "./pages/dashboard/KnowledgeBase";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import EmbedCode from "./pages/dashboard/EmbedCode";
 import Billing from "./pages/dashboard/Billing";
+import Leads from "./pages/dashboard/Leads";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dashboard" element={<DashboardRoute><Overview /></DashboardRoute>} />
           <Route path="/dashboard/conversations" element={<DashboardRoute><Conversations /></DashboardRoute>} />
+          <Route path="/dashboard/leads" element={<DashboardRoute><Leads /></DashboardRoute>} />
           <Route path="/dashboard/knowledge-base" element={<DashboardRoute><KnowledgeBase /></DashboardRoute>} />
           <Route path="/dashboard/settings" element={<DashboardRoute><SettingsPage /></DashboardRoute>} />
           <Route path="/dashboard/embed" element={<DashboardRoute><EmbedCode /></DashboardRoute>} />

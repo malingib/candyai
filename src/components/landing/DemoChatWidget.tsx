@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, X, Bot, User } from "lucide-react";
+import { MessageSquare, Send, X, Bot, User, Phone, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -162,6 +162,17 @@ const DemoChatWidget = () => {
               </div>
             )}
             <div ref={messagesEndRef} />
+          </div>
+
+          {/* Talk to Human */}
+          <div className="border-t px-3 py-2 flex items-center justify-center gap-3">
+            <span className="text-xs text-muted-foreground">Talk to a human:</span>
+            <a href="https://wa.me/254700000000" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:underline">
+              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+            </a>
+            <a href="tel:+254700000000" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              <Phone className="h-3.5 w-3.5" /> Call
+            </a>
           </div>
 
           <div className="border-t p-3">
