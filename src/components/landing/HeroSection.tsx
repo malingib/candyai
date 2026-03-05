@@ -37,7 +37,7 @@ const HeroSection = () => {
               </Button>
             </Link>
             <a href="#demo">
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 text-base px-8">
+              <Button size="lg" variant="outline" className="border-primary-foreground/30 text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/20 text-base px-8">
                 Try Live Demo
               </Button>
             </a>
