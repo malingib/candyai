@@ -13,13 +13,19 @@ const SettingsPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [businessName, setBusinessName] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [callNumber, setCallNumber] = useState("");
   const [smtp, setSmtp] = useState({ host: "", port: 587, username: "", password: "", encryption: "tls", from_email: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("business_name").eq("user_id", user.id).single().then(({ data }) => {
-      if (data) setBusinessName(data.business_name);
+    supabase.from("profiles").select("business_name, whatsapp_number, call_number").eq("user_id", user.id).single().then(({ data }) => {
+      if (data) {
+        setBusinessName(data.business_name);
+        setWhatsappNumber(data.whatsapp_number || "");
+        setCallNumber(data.call_number || "");
+      }
     });
     supabase.from("smtp_settings").select("*").eq("user_id", user.id).single().then(({ data }) => {
       if (data) setSmtp({ host: data.host, port: data.port, username: data.username, password: data.password, encryption: data.encryption, from_email: data.from_email });
@@ -29,7 +35,7 @@ const SettingsPage = () => {
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ business_name: businessName }).eq("user_id", user.id);
+    const { error } = await supabase.from("profiles").update({ business_name: businessName, whatsapp_number: whatsappNumber, call_number: callNumber }).eq("user_id", user.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else toast({ title: "Profile updated!" });
     setSaving(false);
@@ -61,6 +67,16 @@ const SettingsPage = () => {
           <div className="space-y-2">
             <Label>Business Name</Label>
             <Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="My Business" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>WhatsApp Number</Label>
+              <Input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="+254700000000" />
+            </div>
+            <div className="space-y-2">
+              <Label>Call Number</Label>
+              <Input value={callNumber} onChange={(e) => setCallNumber(e.target.value)} placeholder="+254700000000" />
+            </div>
           </div>
           <Button onClick={handleSaveProfile} disabled={saving} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2">
             <Save className="h-4 w-4" /> Save

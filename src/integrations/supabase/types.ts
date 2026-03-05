@@ -150,6 +150,7 @@ export type Database = {
       profiles: {
         Row: {
           business_name: string
+          call_number: string
           chats_limit: number
           chats_used: number
           created_at: string
@@ -157,9 +158,11 @@ export type Database = {
           plan: string
           updated_at: string
           user_id: string
+          whatsapp_number: string
         }
         Insert: {
           business_name?: string
+          call_number?: string
           chats_limit?: number
           chats_used?: number
           created_at?: string
@@ -167,9 +170,11 @@ export type Database = {
           plan?: string
           updated_at?: string
           user_id: string
+          whatsapp_number?: string
         }
         Update: {
           business_name?: string
+          call_number?: string
           chats_limit?: number
           chats_used?: number
           created_at?: string
@@ -177,6 +182,7 @@ export type Database = {
           plan?: string
           updated_at?: string
           user_id?: string
+          whatsapp_number?: string
         }
         Relationships: []
       }
