@@ -173,20 +173,55 @@ const GitHubBot = () => {
         </CardContent>
       </Card>
 
-      {/* Status */}
+      {/* Webhook Setup */}
       {savedToken && (
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardHeader>
+            <CardTitle className="text-base">Webhook Setup</CardTitle>
+            <CardDescription>
+              Add a webhook to each repository so the bot receives PR events.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Webhook URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-webhook`}
+                  className="font-mono text-xs"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/github-webhook`
+                    );
+                    toast.success("Copied!");
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p><strong>Steps:</strong></p>
+              <ol className="list-decimal ml-4 space-y-1">
+                <li>Go to your repo → Settings → Webhooks → Add webhook</li>
+                <li>Paste the webhook URL above</li>
+                <li>Content type: <code className="bg-muted px-1 rounded">application/json</code></li>
+                <li>Select "Let me select individual events" → check <strong>Pull requests</strong></li>
+                <li>Click "Add webhook"</li>
+              </ol>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
               <div className="h-3 w-3 rounded-full bg-accent animate-pulse" />
               <span className="text-sm font-medium text-foreground">Bot Active</span>
               <span className="text-xs text-muted-foreground">
                 Monitoring {repos.length} {repos.length === 1 ? "repo" : "repos"}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              AI reviews will be posted as comments on new pull requests.
-            </p>
           </CardContent>
         </Card>
       )}
