@@ -2,6 +2,7 @@ import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
 import PricingSection from "@/components/landing/PricingSection";
+import ProductsSection from "@/components/landing/ProductsSection";
 import DemoChatWidget from "@/components/landing/DemoChatWidget";
 import Footer from "@/components/landing/Footer";
 
@@ -42,6 +43,7 @@ const Index = () => {
         </div>
       </section>
 
+      <ProductsSection />
       <PricingSection />
       <Footer />
       <DemoChatWidget />

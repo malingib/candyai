@@ -19,8 +19,9 @@ const Navbar = () => {
         {/* Desktop nav */}
         <div className="hidden items-center gap-6 md:flex">
           <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</a>
+          <a href="#products" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Products</a>
           <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
-          <a href="#demo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Demo</a>
+          <Link to="/chat" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Chat</Link>
           <Link to="/auth">
             <Button size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
               Start Free
@@ -38,8 +39,9 @@ const Navbar = () => {
       {mobileOpen && (
         <div className="border-t bg-background px-4 py-4 md:hidden space-y-3">
           <a href="#features" className="block text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>Features</a>
+          <a href="#products" className="block text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>Products</a>
           <a href="#pricing" className="block text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>Pricing</a>
-          <a href="#demo" className="block text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>Demo</a>
+          <Link to="/chat" className="block text-sm text-muted-foreground" onClick={() => setMobileOpen(false)}>AI Chat</Link>
           <Link to="/auth" onClick={() => setMobileOpen(false)}>
             <Button size="sm" className="w-full bg-accent text-accent-foreground hover:bg-accent/90">Start Free</Button>
           </Link>

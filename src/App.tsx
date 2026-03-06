@@ -16,6 +16,8 @@ import SettingsPage from "./pages/dashboard/SettingsPage";
 import EmbedCode from "./pages/dashboard/EmbedCode";
 import Billing from "./pages/dashboard/Billing";
 import Leads from "./pages/dashboard/Leads";
+import AiChat from "./pages/AiChat";
+import GitHubBot from "./pages/dashboard/GitHubBot";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,8 @@ const App = () => (
           <Route path="/dashboard/settings" element={<DashboardRoute><SettingsPage /></DashboardRoute>} />
           <Route path="/dashboard/embed" element={<DashboardRoute><EmbedCode /></DashboardRoute>} />
           <Route path="/dashboard/billing" element={<DashboardRoute><Billing /></DashboardRoute>} />
+          <Route path="/dashboard/github-bot" element={<DashboardRoute><GitHubBot /></DashboardRoute>} />
+          <Route path="/chat" element={<AiChat />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
