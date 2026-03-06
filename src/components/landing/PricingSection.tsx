@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 
 const tiers = [
   {
@@ -9,12 +10,7 @@ const tiers = [
     currency: "",
     period: "",
     description: "Try the AI agent with no commitment",
-    features: [
-      "50 chats/month",
-      "Basic AI responses",
-      "Mobiwave branding",
-      "1 website",
-    ],
+    features: ["50 chats/month", "Basic AI responses", "Mobiwave branding", "1 website"],
     cta: "Start Free",
     highlighted: false,
   },
@@ -24,13 +20,7 @@ const tiers = [
     currency: "KES",
     period: "/mo",
     description: "For small businesses getting started",
-    features: [
-      "500 chats/month",
-      "SMTP email integration",
-      "Lead capture & export",
-      "Basic analytics",
-      "Custom knowledge base",
-    ],
+    features: ["500 chats/month", "SMTP email integration", "Lead capture & export", "Basic analytics", "Custom knowledge base"],
     cta: "Get Started",
     highlighted: false,
   },
@@ -40,14 +30,7 @@ const tiers = [
     currency: "KES",
     period: "/mo",
     description: "For growing businesses that need more",
-    features: [
-      "2,000 chats/month",
-      "SMS follow-up",
-      "Remove Mobiwave branding",
-      "Advanced analytics",
-      "Priority AI responses",
-      "Custom welcome message",
-    ],
+    features: ["2,000 chats/month", "SMS follow-up", "Remove branding", "Advanced analytics", "Priority AI responses", "Custom welcome message"],
     cta: "Upgrade to Growth",
     highlighted: true,
   },
@@ -57,14 +40,7 @@ const tiers = [
     currency: "KES",
     period: "/mo",
     description: "For large businesses and agencies",
-    features: [
-      "Unlimited chats",
-      "API access",
-      "Priority support",
-      "Multiple websites",
-      "Custom integrations",
-      "Dedicated account manager",
-    ],
+    features: ["Unlimited chats", "API access", "Priority support", "Multiple websites", "Custom integrations", "Dedicated account manager"],
     cta: "Contact Sales",
     highlighted: false,
   },
@@ -72,7 +48,7 @@ const tiers = [
 
 const PricingSection = () => {
   return (
-    <section id="pricing" className="py-20 md:py-28 bg-muted/50">
+    <section id="pricing" className="py-20 md:py-28" style={{ background: "linear-gradient(180deg, hsl(40 30% 97%) 0%, hsl(38 40% 93%) 100%)" }}>
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center mb-16">
           <h2 className="text-3xl font-bold text-foreground md:text-4xl mb-4">
@@ -84,12 +60,16 @@ const PricingSection = () => {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
-          {tiers.map((tier) => (
-            <div
+          {tiers.map((tier, i) => (
+            <motion.div
               key={tier.name}
-              className={`relative rounded-xl border p-6 flex flex-col ${
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className={`relative rounded-2xl border p-6 flex flex-col ${
                 tier.highlighted
-                  ? "border-accent bg-card shadow-xl ring-2 ring-accent/20"
+                  ? "border-accent bg-card shadow-xl ring-2 ring-accent/20 scale-105"
                   : "bg-card border-border"
               }`}
             >
@@ -102,13 +82,9 @@ const PricingSection = () => {
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-card-foreground">{tier.name}</h3>
                 <div className="mt-2 flex items-baseline gap-1">
-                  {tier.currency && (
-                    <span className="text-sm text-muted-foreground">{tier.currency}</span>
-                  )}
+                  {tier.currency && <span className="text-sm text-muted-foreground">{tier.currency}</span>}
                   <span className="text-3xl font-bold text-card-foreground">{tier.price}</span>
-                  {tier.period && (
-                    <span className="text-sm text-muted-foreground">{tier.period}</span>
-                  )}
+                  {tier.period && <span className="text-sm text-muted-foreground">{tier.period}</span>}
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{tier.description}</p>
               </div>
@@ -124,17 +100,17 @@ const PricingSection = () => {
 
               <Link to="/auth">
                 <Button
-                  className={`w-full ${
+                  className={`w-full rounded-full ${
                     tier.highlighted
                       ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                      : ""
+                      : "bg-foreground text-background hover:bg-foreground/90"
                   }`}
-                  variant={tier.highlighted ? "default" : "outline"}
+                  variant={tier.highlighted ? "default" : "default"}
                 >
                   {tier.cta}
                 </Button>
               </Link>
-            </div>
+            </motion.div>
           ))}
         </div>
       </div>

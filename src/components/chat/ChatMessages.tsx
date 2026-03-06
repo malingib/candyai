@@ -1,7 +1,10 @@
 import { forwardRef } from "react";
 import ReactMarkdown from "react-markdown";
-import { Loader2, MessageSquare, Plus } from "lucide-react";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { Loader2, MessageSquare, Plus, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 type Msg = { role: "user" | "assistant"; content: string; attachments?: string[] };
 
@@ -11,6 +14,18 @@ interface ChatMessagesProps {
   isLoading: boolean;
   onCreateChat: () => void;
 }
+
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className="absolute top-2 right-2 p-1.5 rounded-md bg-muted/80 hover:bg-muted text-muted-foreground opacity-0 group-hover/code:opacity-100 transition-opacity"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+};
 
 const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
   ({ activeChatId, messages, isLoading, onCreateChat }, ref) => {
@@ -46,7 +61,6 @@ const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
                     : "bg-muted text-foreground"
                 }`}
               >
-                {/* Attachments */}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-2">
                     {msg.attachments.map((url, j) => {
@@ -63,7 +77,39 @@ const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
                 )}
                 {msg.role === "assistant" ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>p:last-child]:mb-0">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children, ...props }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          const codeString = String(children).replace(/\n$/, "");
+                          if (match) {
+                            return (
+                              <div className="relative group/code my-3 rounded-lg overflow-hidden">
+                                <div className="flex items-center justify-between bg-card border-b px-3 py-1.5">
+                                  <span className="text-xs text-muted-foreground font-mono">{match[1]}</span>
+                                </div>
+                                <CopyButton text={codeString} />
+                                <SyntaxHighlighter
+                                  style={oneDark}
+                                  language={match[1]}
+                                  PreTag="div"
+                                  customStyle={{ margin: 0, borderRadius: 0, fontSize: "0.8rem" }}
+                                >
+                                  {codeString}
+                                </SyntaxHighlighter>
+                              </div>
+                            );
+                          }
+                          return (
+                            <code className="bg-card/80 text-foreground px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
                 ) : (
                   msg.content
