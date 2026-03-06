@@ -16,7 +16,6 @@ serve(async (req) => {
     const event = req.headers.get("x-github-event");
     const payload = await req.json();
 
-    // Only handle pull_request events with "opened" or "synchronize" action
     if (event !== "pull_request" || !["opened", "synchronize"].includes(payload.action)) {
       return new Response(JSON.stringify({ message: "Ignored event" }), {
         status: 200,
@@ -26,9 +25,8 @@ serve(async (req) => {
 
     const pr = payload.pull_request;
     const repo = payload.repository;
-    const repoFullName = repo.full_name; // e.g. "owner/repo"
+    const repoFullName = repo.full_name;
 
-    // Find a user who monitors this repo
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -47,7 +45,8 @@ serve(async (req) => {
       });
     }
 
-    const githubToken = tokenRows[0].token;
+    const tokenRow = tokenRows[0];
+    const githubToken = tokenRow.token;
 
     // Fetch the PR diff
     const diffResp = await fetch(pr.diff_url, {
@@ -67,13 +66,10 @@ serve(async (req) => {
     }
 
     let diff = await diffResp.text();
-
-    // Truncate large diffs to ~15k chars for the AI context
     if (diff.length > 15000) {
       diff = diff.slice(0, 15000) + "\n\n... [diff truncated]";
     }
 
-    // Get AI review
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -143,6 +139,15 @@ Format as markdown. Be specific with line references. If the code looks good, sa
     }
 
     await commentResp.text();
+
+    // Log the review to github_reviews table
+    await supabaseAdmin.from("github_reviews").insert({
+      user_id: tokenRow.user_id,
+      repo: repoFullName,
+      pr_number: pr.number,
+      pr_title: pr.title || "",
+      review_body: reviewBody,
+    });
 
     return new Response(
       JSON.stringify({ success: true, pr: pr.number, repo: repoFullName }),

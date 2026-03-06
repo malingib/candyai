@@ -103,6 +103,36 @@ export type Database = {
         }
         Relationships: []
       }
+      github_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          pr_number: number
+          pr_title: string
+          repo: string
+          review_body: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pr_number: number
+          pr_title?: string
+          repo: string
+          review_body?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pr_number?: number
+          pr_title?: string
+          repo?: string
+          review_body?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       github_tokens: {
         Row: {
           created_at: string

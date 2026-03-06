@@ -14,7 +14,7 @@ const Index = () => {
       <FeaturesSection />
 
       {/* How it works */}
-      <section id="demo" className="py-20 md:py-28 bg-background">
+      <section id="demo" className="py-20 md:py-28" style={{ background: "linear-gradient(180deg, hsl(38 60% 90%) 0%, hsl(40 30% 97%) 100%)" }}>
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <h2 className="text-3xl font-bold text-foreground md:text-4xl mb-4">
