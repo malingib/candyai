@@ -48,15 +48,26 @@ const tiers = [
 
 const PricingSection = () => {
   return (
-    <section id="pricing" className="py-20 md:py-28" style={{ background: "linear-gradient(180deg, hsl(40 30% 97%) 0%, hsl(38 40% 93%) 100%)" }}>
+    <section id="pricing" className="py-20 md:py-28 bg-background">
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center mb-16">
-          <h2 className="text-3xl font-bold text-foreground md:text-4xl mb-4">
-            Simple, Transparent Pricing
-          </h2>
-          <p className="text-muted-foreground text-lg">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-3xl font-bold text-foreground md:text-5xl mb-4"
+          >
+            Simple, <span className="text-accent">Transparent</span> Pricing
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="text-muted-foreground text-lg"
+          >
             Start free. Upgrade when you need more. No hidden fees.
-          </p>
+          </motion.p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
@@ -67,23 +78,23 @@ const PricingSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className={`relative rounded-2xl border p-6 flex flex-col ${
+              className={`relative rounded-2xl border p-6 flex flex-col transition-all hover:shadow-xl ${
                 tier.highlighted
-                  ? "border-accent bg-card shadow-xl ring-2 ring-accent/20 scale-105"
-                  : "bg-card border-border"
+                  ? "border-accent bg-card shadow-xl shadow-accent/10 ring-2 ring-accent/20 scale-[1.03]"
+                  : "bg-card border-border hover:border-accent/20"
               }`}
             >
               {tier.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-3 py-0.5 text-xs font-medium text-accent-foreground">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-4 py-1 text-xs font-semibold text-accent-foreground">
                   Most Popular
                 </div>
               )}
 
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-card-foreground">{tier.name}</h3>
-                <div className="mt-2 flex items-baseline gap-1">
+                <div className="mt-3 flex items-baseline gap-1">
                   {tier.currency && <span className="text-sm text-muted-foreground">{tier.currency}</span>}
-                  <span className="text-3xl font-bold text-card-foreground">{tier.price}</span>
+                  <span className="text-4xl font-extrabold text-card-foreground">{tier.price}</span>
                   {tier.period && <span className="text-sm text-muted-foreground">{tier.period}</span>}
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{tier.description}</p>
@@ -91,7 +102,7 @@ const PricingSection = () => {
 
               <ul className="mb-8 flex-1 space-y-3">
                 {tier.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-sm text-card-foreground">
+                  <li key={feature} className="flex items-start gap-2.5 text-sm text-card-foreground">
                     <Check className="h-4 w-4 mt-0.5 shrink-0 text-accent" />
                     {feature}
                   </li>
@@ -102,10 +113,9 @@ const PricingSection = () => {
                 <Button
                   className={`w-full rounded-full ${
                     tier.highlighted
-                      ? "bg-accent text-accent-foreground hover:bg-accent/90"
-                      : "bg-foreground text-background hover:bg-foreground/90"
+                      ? "bg-accent text-accent-foreground hover:bg-accent/90 shadow-lg shadow-accent/20"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
                   }`}
-                  variant={tier.highlighted ? "default" : "default"}
                 >
                   {tier.cta}
                 </Button>
