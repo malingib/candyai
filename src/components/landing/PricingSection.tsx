@@ -7,10 +7,10 @@ const tiers = [
   {
     name: "Starter",
     price: "0",
-    period: "forever",
-    description: "For trying out Mobiwave AI",
-    features: ["50 chats/month", "1 website", "Basic AI responses", "Community support"],
-    cta: "Get started free",
+    period: "Free trial",
+    description: "Try Mobiwave AI risk-free",
+    features: ["20 chats/month", "1 website", "Basic AI responses", "Mobiwave branding", "Community support"],
+    cta: "Start free trial",
     highlighted: false,
   },
   {
@@ -26,8 +26,24 @@ const tiers = [
       "Advanced analytics",
       "Priority support",
     ],
-    cta: "Start free trial",
+    cta: "Get started",
     highlighted: true,
+  },
+  {
+    name: "Premium",
+    price: "8,000",
+    period: "KES/mo",
+    description: "For high-volume teams",
+    features: [
+      "10,000 chats/month",
+      "API access",
+      "Multiple websites",
+      "SMS follow-up",
+      "Custom integrations",
+      "Dedicated support",
+    ],
+    cta: "Get started",
+    highlighted: false,
   },
   {
     name: "Enterprise",
@@ -36,11 +52,11 @@ const tiers = [
     description: "For large teams and agencies",
     features: [
       "Unlimited chats",
-      "API access",
-      "Multiple websites",
-      "Custom integrations",
+      "Full API access",
       "Dedicated account manager",
       "SLA & uptime guarantee",
+      "Custom integrations",
+      "On-premise option",
     ],
     cta: "Contact sales",
     highlighted: false,
@@ -63,7 +79,7 @@ const PricingSection = () => {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-3 max-w-4xl mx-auto items-start">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-5xl mx-auto items-start">
           {tiers.map((tier, i) => (
             <motion.div
               key={tier.name}

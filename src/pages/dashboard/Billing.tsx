@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 
 const plans = [
-  { id: "free", name: "Free", price: "KES 0", chats: 50, features: ["50 chats/month", "Basic AI responses", "Mobiwave branding"] },
-  { id: "starter", name: "Starter", price: "KES 1,500/mo", chats: 500, features: ["500 chats/month", "SMTP email alerts", "Lead capture", "Basic analytics"] },
-  { id: "growth", name: "Growth", price: "KES 3,500/mo", chats: 2000, features: ["2,000 chats/month", "SMS follow-up", "Remove branding", "Advanced analytics"] },
-  { id: "enterprise", name: "Enterprise", price: "KES 8,000+/mo", chats: 99999, features: ["Unlimited chats", "API access", "Priority support", "Custom integrations"] },
+  { id: "free", name: "Starter", price: "Free Trial", chats: 20, features: ["20 chats/month", "Basic AI responses", "Mobiwave branding"] },
+  { id: "growth", name: "Growth", price: "KES 3,500/mo", chats: 2000, features: ["2,000 chats/month", "Remove branding", "Lead capture & export", "Advanced analytics"] },
+  { id: "premium", name: "Premium", price: "KES 8,000/mo", chats: 10000, features: ["10,000 chats/month", "API access", "Multiple websites", "Dedicated support"] },
+  { id: "enterprise", name: "Enterprise", price: "Custom", chats: 99999, features: ["Unlimited chats", "Full API access", "Dedicated account manager", "SLA guarantee"] },
 ];
 
 const Billing = () => {
