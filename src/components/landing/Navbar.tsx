@@ -19,9 +19,7 @@ const Navbar = () => {
     }`}>
       <div className="container mx-auto flex h-14 items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-accent flex items-center justify-center">
-            <span className="text-accent-foreground font-bold text-xs">M</span>
-          </div>
+          <img src="/logo.png" alt="Mobiwave AI" className="h-7 w-7" />
           <span className="text-sm font-bold text-hero-foreground">Mobiwave AI</span>
         </Link>
 
