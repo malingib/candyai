@@ -30,9 +30,7 @@ const Footer = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-md bg-accent flex items-center justify-center">
-                <span className="text-accent-foreground font-bold text-xs">M</span>
-              </div>
+              <img src="/logo.png" alt="Mobiwave AI" className="h-7 w-7" />
               <span className="text-sm font-semibold text-hero-foreground">Mobiwave AI</span>
             </div>
 
