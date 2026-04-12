@@ -8,7 +8,7 @@ const tiers = [
     name: "Starter",
     price: "0",
     period: "Free trial",
-    description: "Try Mobiwave AI risk-free",
+    description: "Try Mobiwave AI risk-free with 20 chats/month.",
     features: ["20 chats/month", "1 website", "Basic AI responses", "Mobiwave branding", "Community support"],
     cta: "Start free trial",
     highlighted: false,
@@ -17,46 +17,48 @@ const tiers = [
     name: "Growth",
     price: "3,500",
     period: "KES/mo",
-    description: "For businesses ready to scale",
+    description: "For businesses ready to scale their support.",
     features: [
       "2,000 chats/month",
       "Remove branding",
       "Lead capture & export",
       "Custom knowledge base",
       "Advanced analytics",
-      "Priority support",
-    ],
-    cta: "Get started",
-    highlighted: true,
-  },
-  {
-    name: "Premium",
-    price: "8,000",
-    period: "KES/mo",
-    description: "For high-volume teams",
-    features: [
-      "10,000 chats/month",
-      "API access",
-      "Multiple websites",
-      "SMS follow-up",
-      "Custom integrations",
-      "Dedicated support",
+      "Priority email support",
     ],
     cta: "Get started",
     highlighted: false,
   },
   {
+    name: "Premium",
+    price: "8,000",
+    period: "KES/mo",
+    description: "For high-volume teams that need everything.",
+    features: [
+      "10,000 chats/month",
+      "API access",
+      "Multiple websites",
+      "SMS & email follow-up",
+      "Custom integrations",
+      "Dedicated support",
+      "Priority queue",
+    ],
+    cta: "Get started",
+    highlighted: true,
+  },
+  {
     name: "Enterprise",
     price: "Custom",
     period: "",
-    description: "For large teams and agencies",
+    description: "For large orgs and agencies at scale.",
     features: [
       "Unlimited chats",
       "Full API access",
       "Dedicated account manager",
       "SLA & uptime guarantee",
-      "Custom integrations",
+      "Custom model training",
       "On-premise option",
+      "SSO & RBAC",
     ],
     cta: "Contact sales",
     highlighted: false,
@@ -65,21 +67,27 @@ const tiers = [
 
 const PricingSection = () => {
   return (
-    <section id="pricing" className="py-20 md:py-28 bg-background">
+    <section id="pricing" className="py-24 md:py-32 bg-background">
       <div className="container mx-auto px-4">
-        <div className="max-w-2xl mx-auto text-center mb-14">
-          <p className="text-sm font-semibold text-accent uppercase tracking-wider mb-3">
-            Pricing
-          </p>
-          <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4 leading-tight">
-            Start free, scale as you grow
-          </h2>
-          <p className="text-muted-foreground">
-            No hidden fees. Cancel anytime.
-          </p>
+        <div className="max-w-2xl mx-auto text-center mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
+              Pricing
+            </p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4 leading-tight">
+              Start free, scale as you grow
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              No hidden fees. No contracts. Cancel anytime.
+            </p>
+          </motion.div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-5xl mx-auto items-start">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto items-start">
           {tiers.map((tier, i) => (
             <motion.div
               key={tier.name}
@@ -87,31 +95,32 @@ const PricingSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.08 }}
-              className={`relative rounded-xl border p-6 flex flex-col ${
+              className={`relative rounded-2xl border p-7 flex flex-col ${
                 tier.highlighted
-                  ? "border-accent bg-card shadow-lg shadow-accent/10 ring-1 ring-accent/20"
-                  : "bg-card border-border"
+                  ? "border-primary bg-card shadow-xl shadow-primary/10 ring-2 ring-primary/20 scale-[1.02]"
+                  : "bg-card border-border hover:border-primary/20 hover:shadow-lg transition-all"
               }`}
             >
               {tier.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-accent px-3 py-0.5 text-xs font-semibold text-accent-foreground">
-                  Most popular
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-xs font-bold text-primary-foreground tracking-wide uppercase">
+                  Recommended
                 </div>
               )}
 
               <div className="mb-6">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{tier.name}</h3>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold text-card-foreground">{tier.price}</span>
-                  {tier.period && <span className="text-sm text-muted-foreground ml-1">{tier.period}</span>}
+                  {tier.price !== "Custom" && <span className="text-sm text-muted-foreground">KES</span>}
+                  <span className="text-4xl font-black text-card-foreground">{tier.price}</span>
+                  {tier.period && tier.price !== "0" && <span className="text-sm text-muted-foreground ml-1">/{tier.period.replace("KES/", "")}</span>}
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground">{tier.description}</p>
+                <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{tier.description}</p>
               </div>
 
               <ul className="mb-8 flex-1 space-y-3">
                 {tier.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-sm text-card-foreground">
-                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-accent" />
+                  <li key={feature} className="flex items-start gap-2.5 text-sm text-card-foreground">
+                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
                     {feature}
                   </li>
                 ))}
@@ -119,9 +128,9 @@ const PricingSection = () => {
 
               <Link to="/auth">
                 <Button
-                  className={`w-full rounded-lg ${
+                  className={`w-full rounded-xl font-medium ${
                     tier.highlighted
-                      ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20"
                       : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   }`}
                 >
