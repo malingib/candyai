@@ -18,6 +18,17 @@ import { Plus, Search, Ticket as TicketIcon, Trash2, Filter } from "lucide-react
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { TicketTimeline } from "@/components/tickets/TicketTimeline";
+
+const notifyEmail = async (ticket_id: string, event: "created" | "assigned" | "resolved", extra?: string) => {
+  try {
+    await supabase.functions.invoke("send-ticket-email", {
+      body: { ticket_id, event, extra },
+    });
+  } catch (e) {
+    console.error("Email notification failed:", e);
+  }
+};
 
 type TicketStatus = "open" | "in_progress" | "waiting" | "resolved" | "closed";
 type TicketPriority = "low" | "medium" | "high" | "urgent";
@@ -108,7 +119,7 @@ const Tickets = () => {
       toast({ title: "Subject required", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("tickets").insert({
+    const { data, error } = await supabase.from("tickets").insert({
       user_id: user.id,
       subject: form.subject,
       description: form.description,
@@ -117,11 +128,13 @@ const Tickets = () => {
       assigned_to: form.assigned_to,
       customer_name: form.customer_name,
       customer_email: form.customer_email,
-    });
+    }).select("id").single();
     if (error) {
       toast({ title: "Failed to create", description: error.message, variant: "destructive" });
       return;
     }
+    if (data) notifyEmail(data.id, "created");
+    if (data && form.assigned_to) notifyEmail(data.id, "assigned", form.assigned_to);
     toast({ title: "Ticket created" });
     setCreateOpen(false);
     resetForm();
@@ -154,13 +167,22 @@ const Tickets = () => {
       customer_email: form.customer_email,
       resolution: form.resolution,
     };
-    if ((form.status === "resolved" || form.status === "closed") && !editTicket.resolution) {
+    const becomingResolved = (form.status === "resolved" || form.status === "closed") &&
+      editTicket.status !== "resolved" && editTicket.status !== "closed";
+    if (becomingResolved) {
       updates.resolved_at = new Date().toISOString();
     }
+    const assigneeChanged = (form.assigned_to || "") !== (editTicket.assigned_to || "");
     const { error } = await supabase.from("tickets").update(updates).eq("id", editTicket.id);
     if (error) {
       toast({ title: "Failed to update", description: error.message, variant: "destructive" });
       return;
+    }
+    if (assigneeChanged && form.assigned_to) {
+      notifyEmail(editTicket.id, "assigned", form.assigned_to);
+    }
+    if (becomingResolved) {
+      notifyEmail(editTicket.id, "resolved");
     }
     toast({ title: "Ticket updated" });
     setEditTicket(null);
