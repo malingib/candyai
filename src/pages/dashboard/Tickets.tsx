@@ -448,9 +448,15 @@ const Tickets = () => {
 
       {/* Edit dialog */}
       <Dialog open={!!editTicket} onOpenChange={(o) => { if (!o) { setEditTicket(null); resetForm(); } }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit ticket</DialogTitle></DialogHeader>
-          {TicketForm}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>{TicketForm}</div>
+            <div className="md:border-l md:pl-6">
+              <h3 className="text-sm font-semibold mb-3">Activity Timeline</h3>
+              {editTicket && <TicketTimeline ticketId={editTicket.id} />}
+            </div>
+          </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setEditTicket(null)}>Cancel</Button>
             <Button onClick={handleUpdate}>Save changes</Button>
