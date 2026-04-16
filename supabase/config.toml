@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.github-webhook]
 verify_jwt = false
+
+[functions.send-ticket-email]
+verify_jwt = false
+
+[functions.auto-create-ticket]
+verify_jwt = false

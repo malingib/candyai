@@ -13,7 +13,22 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, demo, user_id } = await req.json();
+    const { messages, demo, user_id, conversation_id } = await req.json();
+
+    // Fire-and-forget: detect issue in latest user message and auto-create ticket
+    if (!demo && conversation_id && messages?.length) {
+      const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
+      if (lastUserMsg?.content) {
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/auto-create-ticket`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ conversation_id, message: lastUserMsg.content }),
+        }).catch((e) => console.error("auto-create-ticket failed:", e));
+      }
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
