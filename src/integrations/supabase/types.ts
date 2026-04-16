@@ -338,6 +338,50 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_activities: {
+        Row: {
+          activity_type: string
+          actor_name: string | null
+          comment: string | null
+          created_at: string
+          from_value: string | null
+          id: string
+          ticket_id: string
+          to_value: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          actor_name?: string | null
+          comment?: string | null
+          created_at?: string
+          from_value?: string | null
+          id?: string
+          ticket_id: string
+          to_value?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          actor_name?: string | null
+          comment?: string | null
+          created_at?: string
+          from_value?: string | null
+          id?: string
+          ticket_id?: string
+          to_value?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_activities_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           assigned_to: string | null
