@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket,
+  LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket, Zap,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -10,6 +10,7 @@ const navItems = [
   { path: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { path: "/dashboard/conversations", label: "Conversations", icon: MessageSquare },
   { path: "/dashboard/tickets", label: "Tickets", icon: Ticket },
+  { path: "/dashboard/canned-responses", label: "Canned Replies", icon: Zap },
   { path: "/dashboard/leads", label: "Leads", icon: Users },
   { path: "/dashboard/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { path: "/dashboard/settings", label: "Settings", icon: Settings },

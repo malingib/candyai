@@ -22,6 +22,7 @@ import Leads from "./pages/dashboard/Leads";
 import AiChat from "./pages/AiChat";
 import GitHubBot from "./pages/dashboard/GitHubBot";
 import Tickets from "./pages/dashboard/Tickets";
+import CannedResponses from "./pages/dashboard/CannedResponses";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +69,7 @@ const App = () => {
               <Route path="/dashboard/billing" element={<DashboardRoute><Billing /></DashboardRoute>} />
               <Route path="/dashboard/github-bot" element={<DashboardRoute><GitHubBot /></DashboardRoute>} />
               <Route path="/dashboard/tickets" element={<DashboardRoute><Tickets /></DashboardRoute>} />
+              <Route path="/dashboard/canned-responses" element={<DashboardRoute><CannedResponses /></DashboardRoute>} />
               <Route path="/chat" element={<AiChat />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

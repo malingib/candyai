@@ -8,6 +8,7 @@ import {
   Plus, ArrowRightLeft, Flag, UserPlus, MessageCircle, CheckCircle2, Loader2, Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { CannedResponsePicker } from "./CannedResponsePicker";
 
 interface Activity {
   id: string;
@@ -90,13 +91,14 @@ export const TicketTimeline = ({ ticketId }: { ticketId: string }) => {
     <div className="space-y-4">
       <div className="space-y-2">
         <Textarea
-          rows={2}
+          rows={3}
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           placeholder="Add a comment to the timeline..."
           className="resize-none"
         />
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center gap-2">
+          <CannedResponsePicker onPick={(content) => setComment((prev) => (prev ? prev + "\n\n" + content : content))} />
           <Button size="sm" onClick={addComment} disabled={!comment.trim() || posting} className="gap-2">
             {posting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             Post comment
