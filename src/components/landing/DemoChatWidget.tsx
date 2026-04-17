@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, X, Bot, User, Phone, MessageCircle } from "lucide-react";
+import { MessageSquare, Send, X, User, Phone, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type Message = { role: "user" | "assistant"; content: string };
