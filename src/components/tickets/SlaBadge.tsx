@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, CheckCircle2, Clock, Timer } from "lucide-react";
 import { computeSla, formatDuration, slaColor, type Priority } from "@/lib/sla";
 
@@ -69,16 +69,14 @@ export const SlaBadge = ({ ticket, compact }: Props) => {
   );
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Badge variant="outline" className={`gap-1 ${slaColor[worst.state]} ${compact ? "px-1.5 py-0 text-[10px]" : ""}`}>
-            <Icon className="h-3 w-3" />
-            {label}
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent>{tooltip}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>
+        <Badge variant="outline" className={`gap-1 ${slaColor[worst.state]} ${compact ? "px-1.5 py-0 text-[10px]" : ""}`}>
+          <Icon className="h-3 w-3" />
+          {label}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 };
