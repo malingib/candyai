@@ -19,6 +19,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { TicketTimeline } from "@/components/tickets/TicketTimeline";
+import { SlaBadge } from "@/components/tickets/SlaBadge";
+import { SourceBadge } from "@/components/tickets/SourceBadge";
 
 const notifyEmail = async (ticket_id: string, event: "created" | "assigned" | "resolved", extra?: string) => {
   try {
@@ -45,6 +47,9 @@ interface Ticket {
   resolution: string | null;
   created_at: string;
   updated_at: string;
+  conversation_id: string | null;
+  first_response_at: string | null;
+  resolved_at: string | null;
 }
 
 const statusConfig: Record<TicketStatus, { label: string; className: string }> = {
