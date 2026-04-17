@@ -158,8 +158,8 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
             {messages.map((msg, i) => (
               <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 {msg.role === "assistant" && (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <Bot className="h-3.5 w-3.5" />
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden">
+                    <img src="/logo.png" alt="" className="h-5 w-5 object-contain" />
                   </div>
                 )}
                 <div
