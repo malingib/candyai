@@ -70,6 +70,36 @@ export type Database = {
         }
         Relationships: []
       }
+      canned_responses: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          shortcut: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          shortcut?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          shortcut?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           created_at: string
@@ -390,6 +420,7 @@ export type Database = {
           customer_email: string | null
           customer_name: string | null
           description: string
+          first_response_at: string | null
           id: string
           priority: Database["public"]["Enums"]["ticket_priority"]
           resolution: string | null
@@ -407,6 +438,7 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string | null
           description?: string
+          first_response_at?: string | null
           id?: string
           priority?: Database["public"]["Enums"]["ticket_priority"]
           resolution?: string | null
@@ -424,6 +456,7 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string | null
           description?: string
+          first_response_at?: string | null
           id?: string
           priority?: Database["public"]["Enums"]["ticket_priority"]
           resolution?: string | null
