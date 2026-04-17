@@ -180,8 +180,8 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
             ))}
             {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex gap-2">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Bot className="h-3.5 w-3.5" />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden">
+                  <img src="/logo.png" alt="" className="h-5 w-5 object-contain" />
                 </div>
                 <div className="rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
                   <span className="flex gap-1">
