@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, X, Bot, User, Phone, MessageCircle } from "lucide-react";
+import { MessageSquare, Send, X, User, Phone, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -137,8 +137,8 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
           {/* Header */}
           <div className="flex items-center justify-between bg-primary px-4 py-3.5">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
-                <Bot className="h-4.5 w-4.5 text-primary-foreground" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 overflow-hidden">
+                <img src="/logo.png" alt="Mobiwave" className="h-6 w-6 object-contain" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-primary-foreground">Mobiwave AI</p>
@@ -158,8 +158,8 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
             {messages.map((msg, i) => (
               <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 {msg.role === "assistant" && (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <Bot className="h-3.5 w-3.5" />
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden">
+                    <img src="/logo.png" alt="" className="h-5 w-5 object-contain" />
                   </div>
                 )}
                 <div
@@ -180,8 +180,8 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
             ))}
             {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex gap-2">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Bot className="h-3.5 w-3.5" />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden">
+                  <img src="/logo.png" alt="" className="h-5 w-5 object-contain" />
                 </div>
                 <div className="rounded-2xl rounded-bl-md bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
                   <span className="flex gap-1">
