@@ -382,6 +382,7 @@ const Tickets = () => {
                       <TableHead>Customer</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Priority</TableHead>
+                      <TableHead>SLA</TableHead>
                       <TableHead>Assignee</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="w-12"></TableHead>
@@ -390,7 +391,12 @@ const Tickets = () => {
                   <TableBody>
                     {filtered.map((t) => (
                       <TableRow key={t.id} className="cursor-pointer" onClick={() => openEdit(t)}>
-                        <TableCell className="font-medium max-w-xs truncate">{t.subject}</TableCell>
+                        <TableCell className="font-medium max-w-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate">{t.subject}</span>
+                            {t.conversation_id && <SourceBadge conversationId={t.conversation_id} />}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{t.customer_name || "—"}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={statusConfig[t.status].className}>
@@ -402,6 +408,7 @@ const Tickets = () => {
                             {priorityConfig[t.priority].label}
                           </Badge>
                         </TableCell>
+                        <TableCell><SlaBadge ticket={t} /></TableCell>
                         <TableCell className="text-sm text-muted-foreground">{t.assigned_to || "Unassigned"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(t.created_at).toLocaleDateString()}
@@ -439,6 +446,8 @@ const Tickets = () => {
                       <Badge variant="outline" className={statusConfig[t.status].className}>
                         {statusConfig[t.status].label}
                       </Badge>
+                      <SlaBadge ticket={t} compact />
+                      {t.conversation_id && <SourceBadge conversationId={t.conversation_id} />}
                       <span className="text-xs text-muted-foreground">
                         {t.customer_name || "No customer"} · {new Date(t.created_at).toLocaleDateString()}
                       </span>
