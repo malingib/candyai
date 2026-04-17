@@ -59,8 +59,8 @@ const EmbedCode = () => {
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <p>1. Copy the embed code above</p>
           <p>2. Paste it into your website's HTML, just before the closing &lt;/body&gt; tag</p>
-          <p>3. Your AI chat widget will appear on your website automatically</p>
-          <p className="text-xs mt-4">Note: The standalone embed widget is coming in Phase 2. For now, the code above is a placeholder.</p>
+          <p>3. Your AI chat widget will appear in the bottom-right of your website automatically</p>
+          <p className="text-xs mt-4">The widget connects to your AI agent and uses your branding. Test it on any HTML page.</p>
         </CardContent>
       </Card>
     </div>
