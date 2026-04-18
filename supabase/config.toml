@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.auto-create-ticket]
 verify_jwt = false
+
+[functions.widget-conversation]
+verify_jwt = false
