@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Rate limit: 20 chat requests per minute per IP
+  const ip = getClientIp(req);
+  const limited = rateLimit(`chat:${ip}`, 20, 60_000, corsHeaders);
+  if (limited) return limited;
 
   try {
     const { messages, demo, user_id, conversation_id } = await req.json();

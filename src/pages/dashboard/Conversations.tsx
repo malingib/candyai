@@ -12,18 +12,92 @@ const Conversations = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
 
+  // Initial load + realtime for conversations
   useEffect(() => {
     if (!user) return;
-    supabase.from("conversations").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).then(({ data }) => {
-      setConversations(data ?? []);
-    });
+    let active = true;
+
+    supabase
+      .from("conversations")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (active) setConversations(data ?? []);
+      });
+
+    const channel = supabase
+      .channel(`conversations:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversations",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          setConversations((prev) => {
+            if (payload.eventType === "INSERT") {
+              if (prev.some((c) => c.id === payload.new.id)) return prev;
+              return [payload.new as any, ...prev];
+            }
+            if (payload.eventType === "UPDATE") {
+              return prev.map((c) => (c.id === (payload.new as any).id ? { ...c, ...payload.new } : c));
+            }
+            if (payload.eventType === "DELETE") {
+              return prev.filter((c) => c.id !== (payload.old as any).id);
+            }
+            return prev;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
+  // Load + realtime for messages of the selected conversation
   useEffect(() => {
-    if (!selectedId) return;
-    supabase.from("messages").select("*").eq("conversation_id", selectedId).order("created_at").then(({ data }) => {
-      setMessages(data ?? []);
-    });
+    if (!selectedId) {
+      setMessages([]);
+      return;
+    }
+    let active = true;
+    supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", selectedId)
+      .order("created_at")
+      .then(({ data }) => {
+        if (active) setMessages(data ?? []);
+      });
+
+    const channel = supabase
+      .channel(`messages:${selectedId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${selectedId}`,
+        },
+        (payload) => {
+          setMessages((prev) =>
+            prev.some((m) => m.id === (payload.new as any).id) ? prev : [...prev, payload.new as any]
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
   }, [selectedId]);
 
   return (
@@ -58,6 +132,10 @@ const Conversations = () => {
               <CardTitle className="text-base flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
                 Conversation Transcript
+                <Badge variant="outline" className="ml-auto text-[10px] gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" style={{ backgroundColor: "#10b981" }} />
+                  Live
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 max-h-[500px] overflow-y-auto">
