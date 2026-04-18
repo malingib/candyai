@@ -61,7 +61,9 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-5xl">
+      <div className="grid gap-6 lg:grid-cols-[1fr_auto]">
+        <div className="space-y-6 max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Business Profile</CardTitle>
