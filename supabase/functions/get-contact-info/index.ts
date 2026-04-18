@@ -7,6 +7,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const empty = {
+  whatsapp_number: "",
+  call_number: "",
+  business_name: "",
+  primary_color: "#2563eb",
+  welcome_message: "Hi! 👋 How can I help you today?",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,10 +23,9 @@ serve(async (req) => {
   try {
     const { user_id } = await req.json();
     if (!user_id) {
-      return new Response(
-        JSON.stringify({ whatsapp_number: "", call_number: "", business_name: "" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify(empty), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const supabase = createClient(
@@ -28,7 +35,7 @@ serve(async (req) => {
 
     const { data } = await supabase
       .from("profiles")
-      .select("whatsapp_number, call_number, business_name")
+      .select("whatsapp_number, call_number, business_name, primary_color, welcome_message")
       .eq("user_id", user_id)
       .single();
 
@@ -37,14 +44,16 @@ serve(async (req) => {
         whatsapp_number: data?.whatsapp_number || "",
         call_number: data?.call_number || "",
         business_name: data?.business_name || "",
+        primary_color: data?.primary_color || empty.primary_color,
+        welcome_message: data?.welcome_message || empty.welcome_message,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
     console.error("Error:", e);
-    return new Response(
-      JSON.stringify({ whatsapp_number: "", call_number: "", business_name: "" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify(empty), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

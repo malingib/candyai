@@ -299,8 +299,10 @@ export type Database = {
           created_at: string
           id: string
           plan: string
+          primary_color: string
           updated_at: string
           user_id: string
+          welcome_message: string
           whatsapp_number: string
         }
         Insert: {
@@ -311,8 +313,10 @@ export type Database = {
           created_at?: string
           id?: string
           plan?: string
+          primary_color?: string
           updated_at?: string
           user_id: string
+          welcome_message?: string
           whatsapp_number?: string
         }
         Update: {
@@ -323,8 +327,10 @@ export type Database = {
           created_at?: string
           id?: string
           plan?: string
+          primary_color?: string
           updated_at?: string
           user_id?: string
+          welcome_message?: string
           whatsapp_number?: string
         }
         Relationships: []

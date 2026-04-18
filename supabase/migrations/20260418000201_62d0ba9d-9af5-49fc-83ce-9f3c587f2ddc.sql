@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS primary_color text NOT NULL DEFAULT '#2563eb', ADD COLUMN IF NOT EXISTS welcome_message text NOT NULL DEFAULT 'Hi! 👋 How can I help you today?';
