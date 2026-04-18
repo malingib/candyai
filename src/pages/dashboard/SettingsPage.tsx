@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Save } from "lucide-react";
+import WidgetPreview from "@/components/dashboard/WidgetPreview";
 
 const SettingsPage = () => {
   const { user } = useAuth();
@@ -145,6 +146,19 @@ const SettingsPage = () => {
           </Button>
         </CardContent>
       </Card>
+        </div>
+
+        <div className="lg:sticky lg:top-6 self-start">
+          <div className="text-sm font-medium mb-2 text-muted-foreground">Live Preview</div>
+          <WidgetPreview
+            businessName={businessName}
+            welcomeMessage={welcomeMessage}
+            primaryColor={primaryColor}
+            whatsappNumber={whatsappNumber}
+            callNumber={callNumber}
+          />
+        </div>
+      </div>
     </div>
   );
 };
