@@ -17,7 +17,6 @@
   var ORIGIN = (currentScript && currentScript.src ? new URL(currentScript.src).origin : "https://candyai.lovable.app");
   var LOGO = ORIGIN + "/logo.png";
 
-  // ---- Theme defaults (overridden by get-contact-info) ----
   var theme = {
     primary: "#2563eb",
     businessName: "Mobiwave AI",
@@ -26,12 +25,12 @@
     call: "",
   };
 
-  // ---- Styles (use CSS vars for theming) ----
+  // ---- Styles ----
   var css = `
     .mw-launcher{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:9999px;background:var(--mw-primary);color:#fff;border:none;cursor:pointer;box-shadow:0 10px 25px -5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:2147483646;transition:transform .2s}
     .mw-launcher:hover{transform:scale(1.05)}
     .mw-launcher img{width:28px;height:28px;object-fit:contain}
-    .mw-panel{position:fixed;bottom:24px;right:24px;width:380px;max-width:calc(100vw - 32px);height:560px;max-height:calc(100vh - 48px);background:#fff;border-radius:16px;box-shadow:0 20px 50px -10px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;z-index:2147483647;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border:1px solid #e5e7eb}
+    .mw-panel{position:fixed;bottom:24px;right:24px;width:380px;max-width:calc(100vw - 32px);height:580px;max-height:calc(100vh - 48px);background:#fff;border-radius:16px;box-shadow:0 20px 50px -10px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;z-index:2147483647;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border:1px solid #e5e7eb}
     .mw-header{background:var(--mw-primary);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
     .mw-header-left{display:flex;align-items:center;gap:12px}
     .mw-avatar{width:36px;height:36px;border-radius:9999px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -53,18 +52,27 @@
     .mw-typing span:nth-child(2){animation-delay:.2s}
     .mw-typing span:nth-child(3){animation-delay:.4s}
     @keyframes mw-bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-6px);opacity:1}}
-    .mw-contact-bar{display:flex;gap:8px;padding:8px 12px;background:#fff;border-top:1px solid #e5e7eb}
-    .mw-contact-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;color:#111827;text-decoration:none;font-size:12px;font-weight:500;cursor:pointer;transition:background .15s}
-    .mw-contact-btn:hover{background:#f3f4f6}
-    .mw-contact-btn.wa{color:#25D366;border-color:#25D366}
-    .mw-contact-btn.wa:hover{background:#25D36610}
-    .mw-contact-btn svg{width:14px;height:14px}
+    .mw-actions{display:flex;gap:8px;padding:8px 12px;background:#fff;border-top:1px solid #e5e7eb;flex-wrap:wrap}
+    .mw-action-btn{flex:1;min-width:90px;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;color:#111827;text-decoration:none;font-size:12px;font-weight:500;cursor:pointer;transition:background .15s;font-family:inherit}
+    .mw-action-btn:hover{background:#f3f4f6}
+    .mw-action-btn.wa{color:#25D366;border-color:#25D366}
+    .mw-action-btn.wa:hover{background:#25D36610}
+    .mw-action-btn.lead{color:var(--mw-primary);border-color:var(--mw-primary)}
+    .mw-action-btn.lead:hover{background:#2563eb10}
+    .mw-action-btn svg{width:14px;height:14px}
     .mw-input-bar{padding:12px;border-top:1px solid #e5e7eb;background:#fff;display:flex;gap:8px}
     .mw-input{flex:1;border:1px solid #d1d5db;border-radius:12px;padding:10px 14px;font-size:14px;outline:none;font-family:inherit}
     .mw-input:focus{border-color:var(--mw-primary)}
     .mw-send{background:var(--mw-primary);color:#fff;border:none;border-radius:12px;width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center}
     .mw-send:disabled{opacity:.5;cursor:not-allowed}
     .mw-footer{text-align:center;font-size:10px;color:#9ca3af;padding:6px}
+    .mw-lead-form{padding:12px;background:#f9fafb;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:8px}
+    .mw-lead-form input{border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;font-family:inherit}
+    .mw-lead-form input:focus{border-color:var(--mw-primary)}
+    .mw-lead-row{display:flex;gap:8px}
+    .mw-lead-submit{background:var(--mw-primary);color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:500;cursor:pointer;flex:1;font-family:inherit}
+    .mw-lead-cancel{background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:8px;padding:8px;font-size:13px;cursor:pointer;font-family:inherit}
+    .mw-lead-error{color:#dc2626;font-size:12px}
   `;
 
   var style = document.createElement("style");
@@ -80,6 +88,51 @@
   var messages = [{ role: "assistant", content: theme.welcome }];
   var isOpen = false;
   var isLoading = false;
+  var conversationId = null;
+  var conversationStarting = false;
+  var leadFormOpen = false;
+  var leadCaptured = false;
+
+  // ---- Helpers ----
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function postWidget(payload) {
+    return fetch(SUPABASE_URL + "/functions/v1/widget-conversation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
+    }).then(function (r) { return r.json(); });
+  }
+
+  function ensureConversation() {
+    if (conversationId || conversationStarting || !businessId) return Promise.resolve(conversationId);
+    conversationStarting = true;
+    return postWidget({ action: "start", business_id: businessId })
+      .then(function (data) {
+        if (data && data.conversation_id) conversationId = data.conversation_id;
+        conversationStarting = false;
+        return conversationId;
+      })
+      .catch(function () { conversationStarting = false; return null; });
+  }
+
+  function persistMessage(role, content) {
+    if (!conversationId || !businessId || !content) return;
+    postWidget({
+      action: "message",
+      business_id: businessId,
+      conversation_id: conversationId,
+      role: role,
+      content: content,
+    }).catch(function () {});
+  }
 
   // ---- DOM ----
   var launcher = document.createElement("button");
@@ -101,9 +154,19 @@
       '<button class="mw-close" aria-label="Close">×</button>' +
     '</div>' +
     '<div class="mw-messages" id="mw-messages"></div>' +
-    '<div class="mw-contact-bar" id="mw-contact-bar" style="display:none"></div>' +
+    '<div class="mw-actions" id="mw-actions"></div>' +
+    '<div class="mw-lead-form" id="mw-lead-form" style="display:none">' +
+      '<input id="mw-lead-name" type="text" placeholder="Your name" maxlength="100" />' +
+      '<input id="mw-lead-email" type="email" placeholder="Email" maxlength="255" />' +
+      '<input id="mw-lead-phone" type="tel" placeholder="Phone (optional)" maxlength="30" />' +
+      '<div class="mw-lead-error" id="mw-lead-error" style="display:none"></div>' +
+      '<div class="mw-lead-row">' +
+        '<button type="button" class="mw-lead-cancel" id="mw-lead-cancel">Cancel</button>' +
+        '<button type="button" class="mw-lead-submit" id="mw-lead-submit">Submit</button>' +
+      '</div>' +
+    '</div>' +
     '<form class="mw-input-bar" id="mw-form">' +
-      '<input class="mw-input" id="mw-input" placeholder="Type a message..." autocomplete="off" />' +
+      '<input class="mw-input" id="mw-input" placeholder="Type a message..." autocomplete="off" maxlength="2000" />' +
       '<button class="mw-send" type="submit" aria-label="Send">' +
         '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
       '</button>' +
@@ -116,58 +179,107 @@
   var formEl = panel.querySelector("#mw-form");
   var closeBtn = panel.querySelector(".mw-close");
   var bizNameEl = panel.querySelector("#mw-biz-name");
-  var contactBar = panel.querySelector("#mw-contact-bar");
+  var actionsEl = panel.querySelector("#mw-actions");
+  var leadFormEl = panel.querySelector("#mw-lead-form");
+  var leadErrorEl = panel.querySelector("#mw-lead-error");
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
-
-  function renderContactBar() {
+  // ---- Action bar (lead CTA + WhatsApp/Call) ----
+  function renderActions() {
     var html = "";
+    if (!leadCaptured) {
+      html +=
+        '<button type="button" class="mw-action-btn lead" id="mw-lead-cta">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>' +
+        'Talk to us</button>';
+    }
     if (theme.whatsapp) {
       var waNum = String(theme.whatsapp).replace(/[^\d]/g, "");
       html +=
-        '<a class="mw-contact-btn wa" target="_blank" rel="noopener" href="https://wa.me/' + waNum + '">' +
+        '<a class="mw-action-btn wa" target="_blank" rel="noopener" href="https://wa.me/' + encodeURIComponent(waNum) + '">' +
         '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.263.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>' +
         'WhatsApp</a>';
     }
     if (theme.call) {
       html +=
-        '<a class="mw-contact-btn" href="tel:' + escapeHtml(theme.call) + '">' +
+        '<a class="mw-action-btn" href="tel:' + encodeURIComponent(theme.call) + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
         'Call</a>';
     }
-    if (html) {
-      contactBar.innerHTML = html;
-      contactBar.style.display = "flex";
-    } else {
-      contactBar.style.display = "none";
-    }
+    actionsEl.innerHTML = html;
+    actionsEl.style.display = html ? "flex" : "none";
+    var leadCta = actionsEl.querySelector("#mw-lead-cta");
+    if (leadCta) leadCta.addEventListener("click", openLeadForm);
   }
 
+  function openLeadForm() {
+    leadFormOpen = true;
+    leadFormEl.style.display = "flex";
+    actionsEl.style.display = "none";
+    formEl.style.display = "none";
+    leadErrorEl.style.display = "none";
+    panel.querySelector("#mw-lead-name").focus();
+  }
+
+  function closeLeadForm() {
+    leadFormOpen = false;
+    leadFormEl.style.display = "none";
+    formEl.style.display = "flex";
+    renderActions();
+  }
+
+  panel.querySelector("#mw-lead-cancel").addEventListener("click", closeLeadForm);
+  panel.querySelector("#mw-lead-submit").addEventListener("click", function () {
+    var name = panel.querySelector("#mw-lead-name").value.trim();
+    var email = panel.querySelector("#mw-lead-email").value.trim();
+    var phone = panel.querySelector("#mw-lead-phone").value.trim();
+
+    if (!name && !email && !phone) {
+      leadErrorEl.textContent = "Please fill at least one field.";
+      leadErrorEl.style.display = "block";
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      leadErrorEl.textContent = "Please enter a valid email.";
+      leadErrorEl.style.display = "block";
+      return;
+    }
+    leadErrorEl.style.display = "none";
+
+    Promise.resolve(ensureConversation()).then(function () {
+      return postWidget({
+        action: "lead",
+        business_id: businessId,
+        conversation_id: conversationId,
+        name: name, email: email, phone: phone,
+      });
+    }).then(function (resp) {
+      if (resp && resp.error) {
+        leadErrorEl.textContent = resp.error;
+        leadErrorEl.style.display = "block";
+        return;
+      }
+      leadCaptured = true;
+      messages.push({ role: "assistant", content: "Thanks! We've got your details and will be in touch shortly. 🙌" });
+      persistMessage("assistant", messages[messages.length - 1].content);
+      closeLeadForm();
+      render();
+    }).catch(function () {
+      leadErrorEl.textContent = "Something went wrong. Please try again.";
+      leadErrorEl.style.display = "block";
+    });
+  });
+
   function render() {
-    var html = messages
-      .map(function (m) {
-        var avatar =
-          m.role === "user"
-            ? '<div class="mw-msg-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>'
-            : '<div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>';
-        return (
-          '<div class="mw-msg ' + m.role + '">' +
-          avatar +
-          '<div class="mw-msg-bubble">' + escapeHtml(m.content) + '</div>' +
-          '</div>'
-        );
-      })
-      .join("");
+    var html = messages.map(function (m) {
+      var avatar = m.role === "user"
+        ? '<div class="mw-msg-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>'
+        : '<div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>';
+      return '<div class="mw-msg ' + m.role + '">' + avatar +
+        '<div class="mw-msg-bubble">' + escapeHtml(m.content) + '</div></div>';
+    }).join("");
     if (isLoading) {
-      html +=
-        '<div class="mw-msg assistant">' +
-        '<div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>' +
-        '<div class="mw-msg-bubble"><div class="mw-typing"><span></span><span></span><span></span></div></div>' +
-        '</div>';
+      html += '<div class="mw-msg assistant"><div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>' +
+        '<div class="mw-msg-bubble"><div class="mw-typing"><span></span><span></span><span></span></div></div></div>';
     }
     msgEl.innerHTML = html;
     msgEl.scrollTop = msgEl.scrollHeight;
@@ -177,7 +289,12 @@
     isOpen = open;
     panel.style.display = open ? "flex" : "none";
     launcher.style.display = open ? "none" : "flex";
-    if (open) { render(); inputEl.focus(); }
+    if (open) {
+      render();
+      renderActions();
+      inputEl.focus();
+      ensureConversation();
+    }
   }
 
   launcher.addEventListener("click", function () { toggle(true); });
@@ -191,7 +308,11 @@
     inputEl.value = "";
     isLoading = true;
     render();
-    sendToAI();
+
+    Promise.resolve(ensureConversation()).then(function () {
+      persistMessage("user", text);
+      sendToAI();
+    });
   });
 
   function sendToAI() {
@@ -201,7 +322,11 @@
         "Content-Type": "application/json",
         Authorization: "Bearer " + SUPABASE_ANON_KEY,
       },
-      body: JSON.stringify({ messages: messages, business_id: businessId }),
+      body: JSON.stringify({
+        messages: messages,
+        user_id: businessId,
+        conversation_id: conversationId,
+      }),
     })
       .then(function (resp) {
         if (!resp.ok || !resp.body) throw new Error("Network error");
@@ -213,7 +338,11 @@
 
         function pump() {
           return reader.read().then(function (chunk) {
-            if (chunk.done) { isLoading = false; render(); return; }
+            if (chunk.done) {
+              isLoading = false; render();
+              if (assistantContent) persistMessage("assistant", assistantContent);
+              return;
+            }
             buffer += decoder.decode(chunk.value, { stream: true });
             var lines = buffer.split("\n");
             buffer = lines.pop() || "";
@@ -221,7 +350,11 @@
               var line = lines[i];
               if (!line.startsWith("data: ")) continue;
               var data = line.slice(6).trim();
-              if (data === "[DONE]") { isLoading = false; render(); return; }
+              if (data === "[DONE]") {
+                isLoading = false; render();
+                if (assistantContent) persistMessage("assistant", assistantContent);
+                return;
+              }
               try {
                 var json = JSON.parse(data);
                 var delta = json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content;
@@ -240,7 +373,8 @@
       })
       .catch(function () {
         isLoading = false;
-        messages.push({ role: "assistant", content: "Sorry, I'm having trouble connecting. Please try again." });
+        var err = "Sorry, I'm having trouble connecting. Please try again.";
+        messages.push({ role: "assistant", content: err });
         render();
       });
   }
@@ -264,12 +398,11 @@
         theme.call = data.call_number || "";
         applyTheme();
         bizNameEl.textContent = theme.businessName;
-        // Replace initial welcome message if user hasn't typed yet
         if (messages.length === 1 && messages[0].role === "assistant") {
           messages[0].content = theme.welcome;
           if (isOpen) render();
         }
-        renderContactBar();
+        if (isOpen) renderActions();
       })
       .catch(function () { /* keep defaults */ });
   }
