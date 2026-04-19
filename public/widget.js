@@ -98,6 +98,8 @@
   var knownMsgIds = Object.create(null);
   var realtimeChannel = null;
   var unreadAgent = 0;
+  var agentTyping = false;
+  var agentTypingTimer = null;
 
   // ---- Helpers ----
   function escapeHtml(s) {
@@ -152,13 +154,15 @@
       var wsUrl = SUPABASE_URL.replace(/^http/, "ws") + "/realtime/v1/websocket?apikey=" + encodeURIComponent(SUPABASE_ANON_KEY) + "&vsn=1.0.0";
       var ws = new WebSocket(wsUrl);
       realtimeChannel = ws;
-      var topic = "realtime:public:messages:conversation_id=eq." + convId;
+      var msgTopic = "realtime:public:messages:conversation_id=eq." + convId;
+      var typingTopic = "realtime:widget-typing:" + convId;
       var ref = 0;
       var heartbeat;
 
       ws.onopen = function () {
+        // Join messages postgres_changes channel
         ws.send(JSON.stringify({
-          topic: topic,
+          topic: msgTopic,
           event: "phx_join",
           payload: {
             config: {
@@ -167,6 +171,13 @@
               ],
             },
           },
+          ref: String(++ref),
+        }));
+        // Join broadcast typing channel
+        ws.send(JSON.stringify({
+          topic: typingTopic,
+          event: "phx_join",
+          payload: { config: { broadcast: { self: false } } },
           ref: String(++ref),
         }));
         heartbeat = setInterval(function () {
@@ -179,13 +190,20 @@
       ws.onmessage = function (ev) {
         try {
           var data = JSON.parse(ev.data);
+          // Agent typing broadcast
+          if (data.event === "broadcast" && data.topic === typingTopic) {
+            var p = data.payload && data.payload.payload;
+            if (p && typeof p.typing === "boolean") setAgentTyping(!!p.typing);
+            return;
+          }
           if (data.event !== "postgres_changes") return;
           var rec = data.payload && data.payload.data && data.payload.data.record;
           if (!rec || !rec.id) return;
           if (knownMsgIds[rec.id]) return; // we wrote it
           knownMsgIds[rec.id] = true;
           if (rec.role !== "assistant") return; // only show agent/AI replies
-          // Avoid duplicating an in-flight streaming bubble
+          // Agent has now sent — typing indicator should clear
+          setAgentTyping(false);
           messages.push({ role: "assistant", content: rec.content });
           if (isOpen) render(); else { unreadAgent += 1; updateLauncherBadge(); }
         } catch (e) {}
@@ -194,6 +212,7 @@
       ws.onclose = function () {
         clearInterval(heartbeat);
         realtimeChannel = null;
+        setAgentTyping(false);
         // best-effort reconnect after 3s if we still have a conversation
         setTimeout(function () { if (conversationId) subscribeRealtime(conversationId); }, 3000);
       };
@@ -350,6 +369,15 @@
     });
   });
 
+  function setAgentTyping(on) {
+    if (agentTypingTimer) { clearTimeout(agentTypingTimer); agentTypingTimer = null; }
+    agentTyping = !!on;
+    if (on) {
+      agentTypingTimer = setTimeout(function () { agentTyping = false; if (isOpen) render(); }, 5000);
+    }
+    if (isOpen) render();
+  }
+
   function render() {
     var html = messages.map(function (m) {
       var avatar = m.role === "user"
@@ -358,9 +386,10 @@
       return '<div class="mw-msg ' + m.role + '">' + avatar +
         '<div class="mw-msg-bubble">' + escapeHtml(m.content) + '</div></div>';
     }).join("");
-    if (isLoading) {
+    if (isLoading || agentTyping) {
+      var label = agentTyping && !isLoading ? '<div style="font-size:10px;color:#6b7280;margin-bottom:2px">Agent is typing</div>' : '';
       html += '<div class="mw-msg assistant"><div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>' +
-        '<div class="mw-msg-bubble"><div class="mw-typing"><span></span><span></span><span></span></div></div></div>';
+        '<div class="mw-msg-bubble">' + label + '<div class="mw-typing"><span></span><span></span><span></span></div></div></div>';
     }
     msgEl.innerHTML = html;
     msgEl.scrollTop = msgEl.scrollHeight;
