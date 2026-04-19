@@ -152,13 +152,15 @@
       var wsUrl = SUPABASE_URL.replace(/^http/, "ws") + "/realtime/v1/websocket?apikey=" + encodeURIComponent(SUPABASE_ANON_KEY) + "&vsn=1.0.0";
       var ws = new WebSocket(wsUrl);
       realtimeChannel = ws;
-      var topic = "realtime:public:messages:conversation_id=eq." + convId;
+      var msgTopic = "realtime:public:messages:conversation_id=eq." + convId;
+      var typingTopic = "realtime:widget-typing:" + convId;
       var ref = 0;
       var heartbeat;
 
       ws.onopen = function () {
+        // Join messages postgres_changes channel
         ws.send(JSON.stringify({
-          topic: topic,
+          topic: msgTopic,
           event: "phx_join",
           payload: {
             config: {
@@ -167,6 +169,13 @@
               ],
             },
           },
+          ref: String(++ref),
+        }));
+        // Join broadcast typing channel
+        ws.send(JSON.stringify({
+          topic: typingTopic,
+          event: "phx_join",
+          payload: { config: { broadcast: { self: false } } },
           ref: String(++ref),
         }));
         heartbeat = setInterval(function () {
@@ -179,13 +188,20 @@
       ws.onmessage = function (ev) {
         try {
           var data = JSON.parse(ev.data);
+          // Agent typing broadcast
+          if (data.event === "broadcast" && data.topic === typingTopic) {
+            var p = data.payload && data.payload.payload;
+            if (p && typeof p.typing === "boolean") setAgentTyping(!!p.typing);
+            return;
+          }
           if (data.event !== "postgres_changes") return;
           var rec = data.payload && data.payload.data && data.payload.data.record;
           if (!rec || !rec.id) return;
           if (knownMsgIds[rec.id]) return; // we wrote it
           knownMsgIds[rec.id] = true;
           if (rec.role !== "assistant") return; // only show agent/AI replies
-          // Avoid duplicating an in-flight streaming bubble
+          // Agent has now sent — typing indicator should clear
+          setAgentTyping(false);
           messages.push({ role: "assistant", content: rec.content });
           if (isOpen) render(); else { unreadAgent += 1; updateLauncherBadge(); }
         } catch (e) {}
@@ -194,6 +210,7 @@
       ws.onclose = function () {
         clearInterval(heartbeat);
         realtimeChannel = null;
+        setAgentTyping(false);
         // best-effort reconnect after 3s if we still have a conversation
         setTimeout(function () { if (conversationId) subscribeRealtime(conversationId); }, 3000);
       };
