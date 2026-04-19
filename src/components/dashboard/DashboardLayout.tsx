@@ -5,6 +5,7 @@ import {
   LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket, Zap,
 } from "lucide-react";
 import { useState } from "react";
+import { useUnreadConversations } from "@/hooks/useUnreadConversations";
 
 const navItems = [
   { path: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -23,6 +24,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { signOut, user } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { unreadCount } = useUnreadConversations();
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -56,7 +58,12 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                 }`}
               >
                 <item.icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.path === "/dashboard/conversations" && unreadCount > 0 && (
+                  <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
