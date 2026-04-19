@@ -73,6 +73,8 @@
     .mw-lead-submit{background:var(--mw-primary);color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:500;cursor:pointer;flex:1;font-family:inherit}
     .mw-lead-cancel{background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:8px;padding:8px;font-size:13px;cursor:pointer;font-family:inherit}
     .mw-lead-error{color:#dc2626;font-size:12px}
+    .mw-launcher{position:relative}
+    .mw-launcher-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}
   `;
 
   var style = document.createElement("style");
