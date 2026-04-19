@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const Conversations = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
