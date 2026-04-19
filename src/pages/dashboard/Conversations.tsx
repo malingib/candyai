@@ -14,6 +14,28 @@ const Conversations = () => {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSendReply = async () => {
+    const text = reply.trim();
+    if (!text || !selectedId || !user || sending) return;
+    setSending(true);
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: selectedId,
+      role: "assistant",
+      content: text,
+    });
+    setSending(false);
+    if (error) {
+      toast({ title: "Failed to send", description: error.message, variant: "destructive" });
+      return;
+    }
+    setReply("");
+    // Touch conversation
+    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedId);
+  };
+
 
   // Initial load + realtime for conversations
   useEffect(() => {
