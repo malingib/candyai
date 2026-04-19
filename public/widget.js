@@ -369,6 +369,15 @@
     });
   });
 
+  function setAgentTyping(on) {
+    if (agentTypingTimer) { clearTimeout(agentTypingTimer); agentTypingTimer = null; }
+    agentTyping = !!on;
+    if (on) {
+      agentTypingTimer = setTimeout(function () { agentTyping = false; if (isOpen) render(); }, 5000);
+    }
+    if (isOpen) render();
+  }
+
   function render() {
     var html = messages.map(function (m) {
       var avatar = m.role === "user"
@@ -377,9 +386,10 @@
       return '<div class="mw-msg ' + m.role + '">' + avatar +
         '<div class="mw-msg-bubble">' + escapeHtml(m.content) + '</div></div>';
     }).join("");
-    if (isLoading) {
+    if (isLoading || agentTyping) {
+      var label = agentTyping && !isLoading ? '<div style="font-size:10px;color:#6b7280;margin-bottom:2px">Agent is typing</div>' : '';
       html += '<div class="mw-msg assistant"><div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>' +
-        '<div class="mw-msg-bubble"><div class="mw-typing"><span></span><span></span><span></span></div></div></div>';
+        '<div class="mw-msg-bubble">' + label + '<div class="mw-typing"><span></span><span></span><span></span></div></div></div>';
     }
     msgEl.innerHTML = html;
     msgEl.scrollTop = msgEl.scrollHeight;
