@@ -195,6 +195,26 @@ const Conversations = () => {
     };
   }, [selectedId]);
 
+  // Broadcast typing channel for the selected conversation
+  useEffect(() => {
+    if (!selectedId) {
+      typingChannelRef.current = null;
+      return;
+    }
+    const ch = supabase.channel(`widget-typing:${selectedId}`, {
+      config: { broadcast: { self: false } },
+    });
+    ch.subscribe();
+    typingChannelRef.current = ch;
+    return () => {
+      try { ch.send({ type: "broadcast", event: "typing", payload: { typing: false } }); } catch {}
+      supabase.removeChannel(ch);
+      typingChannelRef.current = null;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      lastTypingSentRef.current = 0;
+    };
+  }, [selectedId]);
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <div className="md:col-span-1 space-y-2">
@@ -224,13 +244,23 @@ const Conversations = () => {
         {selectedId ? (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
+              <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <MessageSquare className="h-4 w-4" />
                 Conversation Transcript
-                <Badge variant="outline" className="ml-auto text-[10px] gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" style={{ backgroundColor: "#10b981" }} />
+                <Badge variant="outline" className="text-[10px] gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#10b981" }} />
                   Live
                 </Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto gap-1.5"
+                  onClick={handleConvertToTicket}
+                  disabled={converting}
+                >
+                  <TicketIcon className="h-3.5 w-3.5" />
+                  {converting ? "Creating..." : "Convert to ticket"}
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 max-h-[420px] overflow-y-auto">
@@ -246,7 +276,7 @@ const Conversations = () => {
             <div className="border-t p-3 space-y-2">
               <Textarea
                 value={reply}
-                onChange={(e) => setReply(e.target.value)}
+                onChange={(e) => handleReplyChange(e.target.value)}
                 placeholder="Type your reply to the visitor..."
                 rows={2}
                 disabled={sending}
@@ -258,7 +288,7 @@ const Conversations = () => {
                 }}
               />
               <div className="flex items-center justify-between">
-                <p className="text-[11px] text-muted-foreground">Tip: Cmd/Ctrl+Enter to send. Reply appears live in the visitor's widget.</p>
+                <p className="text-[11px] text-muted-foreground">Tip: Cmd/Ctrl+Enter to send. Visitor sees a typing indicator while you write.</p>
                 <Button size="sm" onClick={handleSendReply} disabled={sending || !reply.trim()} className="gap-1.5">
                   <Send className="h-3.5 w-3.5" />
                   {sending ? "Sending..." : "Send reply"}
