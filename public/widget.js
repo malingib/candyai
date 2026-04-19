@@ -92,6 +92,10 @@
   var conversationStarting = false;
   var leadFormOpen = false;
   var leadCaptured = false;
+  // IDs of messages we wrote ourselves — skip when they come back over realtime
+  var knownMsgIds = Object.create(null);
+  var realtimeChannel = null;
+  var unreadAgent = 0;
 
   // ---- Helpers ----
   function escapeHtml(s) {
