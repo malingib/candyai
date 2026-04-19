@@ -120,7 +120,10 @@
     conversationStarting = true;
     return postWidget({ action: "start", business_id: businessId })
       .then(function (data) {
-        if (data && data.conversation_id) conversationId = data.conversation_id;
+        if (data && data.conversation_id) {
+          conversationId = data.conversation_id;
+          subscribeRealtime(conversationId);
+        }
         conversationStarting = false;
         return conversationId;
       })
@@ -366,6 +369,8 @@
     panel.style.display = open ? "flex" : "none";
     launcher.style.display = open ? "none" : "flex";
     if (open) {
+      unreadAgent = 0;
+      updateLauncherBadge();
       render();
       renderActions();
       inputEl.focus();
