@@ -76,13 +76,13 @@ serve(async (req) => {
       if (!text) return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-      const { error } = await supabase.from("messages").insert({
+      const { data, error } = await supabase.from("messages").insert({
         conversation_id, role, content: text,
-      });
+      }).select("id").single();
       if (error) throw error;
       // Touch conversation updated_at
       await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversation_id);
-      return new Response(JSON.stringify({ ok: true }), {
+      return new Response(JSON.stringify({ ok: true, message_id: data?.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

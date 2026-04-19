@@ -73,6 +73,8 @@
     .mw-lead-submit{background:var(--mw-primary);color:#fff;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:500;cursor:pointer;flex:1;font-family:inherit}
     .mw-lead-cancel{background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:8px;padding:8px;font-size:13px;cursor:pointer;font-family:inherit}
     .mw-lead-error{color:#dc2626;font-size:12px}
+    .mw-launcher{position:relative}
+    .mw-launcher-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}
   `;
 
   var style = document.createElement("style");
@@ -92,6 +94,10 @@
   var conversationStarting = false;
   var leadFormOpen = false;
   var leadCaptured = false;
+  // IDs of messages we wrote ourselves — skip when they come back over realtime
+  var knownMsgIds = Object.create(null);
+  var realtimeChannel = null;
+  var unreadAgent = 0;
 
   // ---- Helpers ----
   function escapeHtml(s) {
@@ -116,7 +122,10 @@
     conversationStarting = true;
     return postWidget({ action: "start", business_id: businessId })
       .then(function (data) {
-        if (data && data.conversation_id) conversationId = data.conversation_id;
+        if (data && data.conversation_id) {
+          conversationId = data.conversation_id;
+          subscribeRealtime(conversationId);
+        }
         conversationStarting = false;
         return conversationId;
       })
@@ -131,7 +140,79 @@
       conversation_id: conversationId,
       role: role,
       content: content,
+    }).then(function (resp) {
+      if (resp && resp.message_id) knownMsgIds[resp.message_id] = true;
     }).catch(function () {});
+  }
+
+  // ---- Supabase Realtime over WebSocket (vanilla, no SDK) ----
+  function subscribeRealtime(convId) {
+    if (!convId || realtimeChannel) return;
+    try {
+      var wsUrl = SUPABASE_URL.replace(/^http/, "ws") + "/realtime/v1/websocket?apikey=" + encodeURIComponent(SUPABASE_ANON_KEY) + "&vsn=1.0.0";
+      var ws = new WebSocket(wsUrl);
+      realtimeChannel = ws;
+      var topic = "realtime:public:messages:conversation_id=eq." + convId;
+      var ref = 0;
+      var heartbeat;
+
+      ws.onopen = function () {
+        ws.send(JSON.stringify({
+          topic: topic,
+          event: "phx_join",
+          payload: {
+            config: {
+              postgres_changes: [
+                { event: "INSERT", schema: "public", table: "messages", filter: "conversation_id=eq." + convId },
+              ],
+            },
+          },
+          ref: String(++ref),
+        }));
+        heartbeat = setInterval(function () {
+          try {
+            ws.send(JSON.stringify({ topic: "phoenix", event: "heartbeat", payload: {}, ref: String(++ref) }));
+          } catch (e) {}
+        }, 25000);
+      };
+
+      ws.onmessage = function (ev) {
+        try {
+          var data = JSON.parse(ev.data);
+          if (data.event !== "postgres_changes") return;
+          var rec = data.payload && data.payload.data && data.payload.data.record;
+          if (!rec || !rec.id) return;
+          if (knownMsgIds[rec.id]) return; // we wrote it
+          knownMsgIds[rec.id] = true;
+          if (rec.role !== "assistant") return; // only show agent/AI replies
+          // Avoid duplicating an in-flight streaming bubble
+          messages.push({ role: "assistant", content: rec.content });
+          if (isOpen) render(); else { unreadAgent += 1; updateLauncherBadge(); }
+        } catch (e) {}
+      };
+
+      ws.onclose = function () {
+        clearInterval(heartbeat);
+        realtimeChannel = null;
+        // best-effort reconnect after 3s if we still have a conversation
+        setTimeout(function () { if (conversationId) subscribeRealtime(conversationId); }, 3000);
+      };
+      ws.onerror = function () { try { ws.close(); } catch (e) {} };
+    } catch (e) { /* ignore */ }
+  }
+
+  function updateLauncherBadge() {
+    var existing = launcher.querySelector(".mw-launcher-badge");
+    if (unreadAgent <= 0) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (!existing) {
+      existing = document.createElement("span");
+      existing.className = "mw-launcher-badge";
+      launcher.appendChild(existing);
+    }
+    existing.textContent = unreadAgent > 9 ? "9+" : String(unreadAgent);
   }
 
   // ---- DOM ----
@@ -290,6 +371,8 @@
     panel.style.display = open ? "flex" : "none";
     launcher.style.display = open ? "none" : "flex";
     if (open) {
+      unreadAgent = 0;
+      updateLauncherBadge();
       render();
       renderActions();
       inputEl.focus();

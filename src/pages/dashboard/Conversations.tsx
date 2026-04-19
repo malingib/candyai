@@ -3,14 +3,39 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { MessageSquare, ChevronRight, Send } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "@/hooks/use-toast";
 
 const Conversations = () => {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSendReply = async () => {
+    const text = reply.trim();
+    if (!text || !selectedId || !user || sending) return;
+    setSending(true);
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: selectedId,
+      role: "assistant",
+      content: text,
+    });
+    setSending(false);
+    if (error) {
+      toast({ title: "Failed to send", description: error.message, variant: "destructive" });
+      return;
+    }
+    setReply("");
+    // Touch conversation
+    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", selectedId);
+  };
+
 
   // Initial load + realtime for conversations
   useEffect(() => {
@@ -138,7 +163,7 @@ const Conversations = () => {
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 max-h-[500px] overflow-y-auto">
+            <CardContent className="space-y-3 max-h-[420px] overflow-y-auto">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
@@ -148,6 +173,28 @@ const Conversations = () => {
               ))}
               {messages.length === 0 && <p className="text-sm text-muted-foreground">No messages in this conversation.</p>}
             </CardContent>
+            <div className="border-t p-3 space-y-2">
+              <Textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                placeholder="Type your reply to the visitor..."
+                rows={2}
+                disabled={sending}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleSendReply();
+                  }
+                }}
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground">Tip: Cmd/Ctrl+Enter to send. Reply appears live in the visitor's widget.</p>
+                <Button size="sm" onClick={handleSendReply} disabled={sending || !reply.trim()} className="gap-1.5">
+                  <Send className="h-3.5 w-3.5" />
+                  {sending ? "Sending..." : "Send reply"}
+                </Button>
+              </div>
+            </div>
           </Card>
         ) : (
           <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">

@@ -23,12 +23,15 @@ import AiChat from "./pages/AiChat";
 import GitHubBot from "./pages/dashboard/GitHubBot";
 import Tickets from "./pages/dashboard/Tickets";
 import CannedResponses from "./pages/dashboard/CannedResponses";
+import { UnreadConversationsProvider } from "./hooks/useUnreadConversations";
 
 const queryClient = new QueryClient();
 
 const DashboardRoute = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute>
-    <DashboardLayout>{children}</DashboardLayout>
+    <UnreadConversationsProvider>
+      <DashboardLayout>{children}</DashboardLayout>
+    </UnreadConversationsProvider>
   </ProtectedRoute>
 );
 
