@@ -98,6 +98,8 @@
   var knownMsgIds = Object.create(null);
   var realtimeChannel = null;
   var unreadAgent = 0;
+  var agentTyping = false;
+  var agentTypingTimer = null;
 
   // ---- Helpers ----
   function escapeHtml(s) {
