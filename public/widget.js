@@ -212,12 +212,31 @@
       ws.onclose = function () {
         clearInterval(heartbeat);
         realtimeChannel = null;
+        realtimeRef = 0;
+        realtimeTypingTopic = null;
         setAgentTyping(false);
         // best-effort reconnect after 3s if we still have a conversation
         setTimeout(function () { if (conversationId) subscribeRealtime(conversationId); }, 3000);
       };
       ws.onerror = function () { try { ws.close(); } catch (e) {} };
+
+      // Expose ref/topic so visitor-typing broadcaster can reuse the socket
+      realtimeChannel.__getRef = function () { return String(++ref); };
+      realtimeTypingTopic = typingTopic;
     } catch (e) { /* ignore */ }
+  }
+
+  function sendVisitorTyping(on) {
+    var ws = realtimeChannel;
+    if (!ws || ws.readyState !== 1 || !realtimeTypingTopic) return;
+    try {
+      ws.send(JSON.stringify({
+        topic: realtimeTypingTopic,
+        event: "broadcast",
+        payload: { type: "broadcast", event: "visitor_typing", payload: { typing: !!on } },
+        ref: ws.__getRef ? ws.__getRef() : "0",
+      }));
+    } catch (e) {}
   }
 
   function updateLauncherBadge() {
