@@ -434,6 +434,23 @@
   launcher.addEventListener("click", function () { toggle(true); });
   closeBtn.addEventListener("click", function () { toggle(false); });
 
+  // Visitor typing → broadcast to dashboard
+  inputEl.addEventListener("input", function () {
+    var hasText = inputEl.value.length > 0;
+    Promise.resolve(ensureConversation()).then(function () {
+      var now = Date.now();
+      if (hasText && now - visitorTypingLastSent > 1500) {
+        visitorTypingLastSent = now;
+        sendVisitorTyping(true);
+      }
+      if (visitorTypingDebounce) clearTimeout(visitorTypingDebounce);
+      visitorTypingDebounce = setTimeout(function () {
+        visitorTypingLastSent = 0;
+        sendVisitorTyping(false);
+      }, 2500);
+    });
+  });
+
   formEl.addEventListener("submit", function (e) {
     e.preventDefault();
     var text = inputEl.value.trim();
