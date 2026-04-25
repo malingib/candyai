@@ -206,14 +206,26 @@ const Conversations = () => {
     const ch = supabase.channel(`widget-typing:${selectedId}`, {
       config: { broadcast: { self: false } },
     });
+    ch.on("broadcast", { event: "visitor_typing" }, (payload) => {
+      const typing = !!(payload?.payload as any)?.typing;
+      setVisitorTyping(typing);
+      if (visitorTypingTimerRef.current) clearTimeout(visitorTypingTimerRef.current);
+      if (typing) {
+        // auto-clear if no follow-up event arrives
+        visitorTypingTimerRef.current = setTimeout(() => setVisitorTyping(false), 4000);
+      }
+    });
     ch.subscribe();
     typingChannelRef.current = ch;
+    setVisitorTyping(false);
     return () => {
       try { ch.send({ type: "broadcast", event: "typing", payload: { typing: false } }); } catch {}
       supabase.removeChannel(ch);
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (visitorTypingTimerRef.current) clearTimeout(visitorTypingTimerRef.current);
       lastTypingSentRef.current = 0;
+      setVisitorTyping(false);
     };
   }, [selectedId]);
 
