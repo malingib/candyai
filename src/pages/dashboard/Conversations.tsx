@@ -286,6 +286,18 @@ const Conversations = () => {
                 </div>
               ))}
               {messages.length === 0 && <p className="text-sm text-muted-foreground">No messages in this conversation.</p>}
+              {visitorTyping && (
+                <div className="flex justify-end">
+                  <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </span>
+                    Visitor is typing…
+                  </div>
+                </div>
+              )}
             </CardContent>
             <div className="border-t p-3 space-y-2">
               <Textarea
