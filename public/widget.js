@@ -458,6 +458,9 @@
     messages.push({ role: "user", content: text });
     inputEl.value = "";
     isLoading = true;
+    if (visitorTypingDebounce) { clearTimeout(visitorTypingDebounce); visitorTypingDebounce = null; }
+    visitorTypingLastSent = 0;
+    sendVisitorTyping(false);
     render();
 
     Promise.resolve(ensureConversation()).then(function () {
