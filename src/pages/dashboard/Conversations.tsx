@@ -20,6 +20,8 @@ const Conversations = () => {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [visitorTyping, setVisitorTyping] = useState(false);
+  const visitorTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Broadcast channel for "agent is typing"
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
