@@ -97,9 +97,12 @@
   // IDs of messages we wrote ourselves — skip when they come back over realtime
   var knownMsgIds = Object.create(null);
   var realtimeChannel = null;
+  var realtimeTypingTopic = null;
   var unreadAgent = 0;
   var agentTyping = false;
   var agentTypingTimer = null;
+  var visitorTypingDebounce = null;
+  var visitorTypingLastSent = 0;
 
   // ---- Helpers ----
   function escapeHtml(s) {
