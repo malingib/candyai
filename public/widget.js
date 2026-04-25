@@ -97,9 +97,12 @@
   // IDs of messages we wrote ourselves — skip when they come back over realtime
   var knownMsgIds = Object.create(null);
   var realtimeChannel = null;
+  var realtimeTypingTopic = null;
   var unreadAgent = 0;
   var agentTyping = false;
   var agentTypingTimer = null;
+  var visitorTypingDebounce = null;
+  var visitorTypingLastSent = 0;
 
   // ---- Helpers ----
   function escapeHtml(s) {
@@ -212,12 +215,31 @@
       ws.onclose = function () {
         clearInterval(heartbeat);
         realtimeChannel = null;
+        realtimeRef = 0;
+        realtimeTypingTopic = null;
         setAgentTyping(false);
         // best-effort reconnect after 3s if we still have a conversation
         setTimeout(function () { if (conversationId) subscribeRealtime(conversationId); }, 3000);
       };
       ws.onerror = function () { try { ws.close(); } catch (e) {} };
+
+      // Expose ref/topic so visitor-typing broadcaster can reuse the socket
+      realtimeChannel.__getRef = function () { return String(++ref); };
+      realtimeTypingTopic = typingTopic;
     } catch (e) { /* ignore */ }
+  }
+
+  function sendVisitorTyping(on) {
+    var ws = realtimeChannel;
+    if (!ws || ws.readyState !== 1 || !realtimeTypingTopic) return;
+    try {
+      ws.send(JSON.stringify({
+        topic: realtimeTypingTopic,
+        event: "broadcast",
+        payload: { type: "broadcast", event: "visitor_typing", payload: { typing: !!on } },
+        ref: ws.__getRef ? ws.__getRef() : "0",
+      }));
+    } catch (e) {}
   }
 
   function updateLauncherBadge() {
@@ -412,6 +434,23 @@
   launcher.addEventListener("click", function () { toggle(true); });
   closeBtn.addEventListener("click", function () { toggle(false); });
 
+  // Visitor typing → broadcast to dashboard
+  inputEl.addEventListener("input", function () {
+    var hasText = inputEl.value.length > 0;
+    Promise.resolve(ensureConversation()).then(function () {
+      var now = Date.now();
+      if (hasText && now - visitorTypingLastSent > 1500) {
+        visitorTypingLastSent = now;
+        sendVisitorTyping(true);
+      }
+      if (visitorTypingDebounce) clearTimeout(visitorTypingDebounce);
+      visitorTypingDebounce = setTimeout(function () {
+        visitorTypingLastSent = 0;
+        sendVisitorTyping(false);
+      }, 2500);
+    });
+  });
+
   formEl.addEventListener("submit", function (e) {
     e.preventDefault();
     var text = inputEl.value.trim();
@@ -419,6 +458,9 @@
     messages.push({ role: "user", content: text });
     inputEl.value = "";
     isLoading = true;
+    if (visitorTypingDebounce) { clearTimeout(visitorTypingDebounce); visitorTypingDebounce = null; }
+    visitorTypingLastSent = 0;
+    sendVisitorTyping(false);
     render();
 
     Promise.resolve(ensureConversation()).then(function () {

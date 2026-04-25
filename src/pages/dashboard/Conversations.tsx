@@ -20,6 +20,8 @@ const Conversations = () => {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [visitorTyping, setVisitorTyping] = useState(false);
+  const visitorTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Broadcast channel for "agent is typing"
   const typingChannelRef = useRef<RealtimeChannel | null>(null);
@@ -204,14 +206,26 @@ const Conversations = () => {
     const ch = supabase.channel(`widget-typing:${selectedId}`, {
       config: { broadcast: { self: false } },
     });
+    ch.on("broadcast", { event: "visitor_typing" }, (payload) => {
+      const typing = !!(payload?.payload as any)?.typing;
+      setVisitorTyping(typing);
+      if (visitorTypingTimerRef.current) clearTimeout(visitorTypingTimerRef.current);
+      if (typing) {
+        // auto-clear if no follow-up event arrives
+        visitorTypingTimerRef.current = setTimeout(() => setVisitorTyping(false), 4000);
+      }
+    });
     ch.subscribe();
     typingChannelRef.current = ch;
+    setVisitorTyping(false);
     return () => {
       try { ch.send({ type: "broadcast", event: "typing", payload: { typing: false } }); } catch {}
       supabase.removeChannel(ch);
       typingChannelRef.current = null;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (visitorTypingTimerRef.current) clearTimeout(visitorTypingTimerRef.current);
       lastTypingSentRef.current = 0;
+      setVisitorTyping(false);
     };
   }, [selectedId]);
 
@@ -272,6 +286,18 @@ const Conversations = () => {
                 </div>
               ))}
               {messages.length === 0 && <p className="text-sm text-muted-foreground">No messages in this conversation.</p>}
+              {visitorTyping && (
+                <div className="flex justify-end">
+                  <div className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </span>
+                    Visitor is typing…
+                  </div>
+                </div>
+              )}
             </CardContent>
             <div className="border-t p-3 space-y-2">
               <Textarea
