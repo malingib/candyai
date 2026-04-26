@@ -162,14 +162,11 @@ const Index = () => {
               </div>
               <pre className="p-5 text-sm font-mono text-hero-foreground leading-relaxed overflow-x-auto">
                 <code>{`<!-- Add to your website -->
-<script>
-  (function() {
-    var s = document.createElement('script');
-    s.src = 'https://mobiwave.ai/widget.js';
-    s.dataset.businessId = 'YOUR_ID';
-    document.body.appendChild(s);
-  })();
-</script>
+<script
+  src="https://mobiwave.ai/widget.js"
+  data-business-id="YOUR_ID"
+  async
+></script>
 
 <!-- That's it. Your AI agent is live. -->`}</code>
               </pre>

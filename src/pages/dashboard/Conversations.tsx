@@ -63,6 +63,16 @@ const Conversations = () => {
       toast({ title: "Failed to send", description: error.message, variant: "destructive" });
       return;
     }
+
+    // Broadcast the message to the widget so it shows up in real-time without RLS SELECT
+    if (typingChannelRef.current) {
+      typingChannelRef.current.send({
+        type: "broadcast",
+        event: "agent_message",
+        payload: { content: text, role: "assistant" }
+      });
+    }
+
     setReply("");
     sendTyping(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);

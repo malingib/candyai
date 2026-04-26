@@ -11,14 +11,11 @@ const EmbedCode = () => {
   const [copied, setCopied] = useState(false);
 
   const embedSnippet = `<!-- Mobiwave AI Chat Widget -->
-<script>
-  (function() {
-    var s = document.createElement('script');
-    s.src = '${window.location.origin}/widget.js';
-    s.dataset.businessId = '${user?.id ?? "YOUR_BUSINESS_ID"}';
-    document.body.appendChild(s);
-  })();
-</script>`;
+<script
+  src="${window.location.origin}/widget.js"
+  data-business-id="${user?.id ?? "YOUR_BUSINESS_ID"}"
+  async
+></script>`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(embedSnippet);

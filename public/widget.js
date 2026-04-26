@@ -3,14 +3,24 @@
   window.__MobiwaveWidgetLoaded = true;
 
   // ---- Config ----
-  var currentScript =
-    document.currentScript ||
-    (function () {
-      var scripts = document.getElementsByTagName("script");
-      return scripts[scripts.length - 1];
-    })();
+  // We look for our script tag to get the businessId
+  var scripts = document.getElementsByTagName("script");
+  var businessId = "";
+  var currentScript = null;
 
-  var businessId = currentScript ? currentScript.dataset.businessId : "";
+  for (var i = 0; i < scripts.length; i++) {
+    if (scripts[i].src.indexOf("widget.js") !== -1 && scripts[i].dataset.businessId) {
+      currentScript = scripts[i];
+      businessId = scripts[i].dataset.businessId;
+      break;
+    }
+  }
+
+  // Fallback if the script was injected without a src we recognize but we have the ID on it
+  if (!businessId && document.currentScript && document.currentScript.dataset.businessId) {
+    currentScript = document.currentScript;
+    businessId = currentScript.dataset.businessId;
+  }
   var SUPABASE_URL = "https://lgbjxbqkryzgkvggodzs.supabase.co";
   var SUPABASE_ANON_KEY =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnYmp4YnFrcnl6Z2t2Z2dvZHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0OTA2NzQsImV4cCI6MjA4ODA2NjY3NH0.SCNN1VpEWjx0GjEAbHNiOfxobPpubWMRej-YjNnVBRE";
@@ -193,19 +203,30 @@
       ws.onmessage = function (ev) {
         try {
           var data = JSON.parse(ev.data);
-          // Agent typing broadcast
+          // Agent broadcast (typing or message)
           if (data.event === "broadcast" && data.topic === typingTopic) {
             var p = data.payload && data.payload.payload;
-            if (p && typeof p.typing === "boolean") setAgentTyping(!!p.typing);
+            if (p) {
+              if (typeof p.typing === "boolean") {
+                setAgentTyping(!!p.typing);
+              } else if (p.role === "assistant" && p.content) {
+                // Human agent sent a message from the dashboard
+                setAgentTyping(false);
+                messages.push({ role: "assistant", content: p.content });
+                if (isOpen) render(); else { unreadAgent += 1; updateLauncherBadge(); }
+              }
+            }
             return;
           }
+          // Fallback to postgres_changes for standard AI replies (if AI function inserts directly)
+          // Note: In this app, AI replies are streamed via the chat Edge Function,
+          // but we keep this for robustness if the dashboard or a trigger inserts it.
           if (data.event !== "postgres_changes") return;
           var rec = data.payload && data.payload.data && data.payload.data.record;
           if (!rec || !rec.id) return;
           if (knownMsgIds[rec.id]) return; // we wrote it
           knownMsgIds[rec.id] = true;
           if (rec.role !== "assistant") return; // only show agent/AI replies
-          // Agent has now sent — typing indicator should clear
           setAgentTyping(false);
           messages.push({ role: "assistant", content: rec.content });
           if (isOpen) render(); else { unreadAgent += 1; updateLauncherBadge(); }
@@ -261,7 +282,6 @@
   launcher.className = "mw-launcher";
   launcher.setAttribute("aria-label", "Open chat");
   launcher.innerHTML = '<img src="' + LOGO + '" alt="Chat" />';
-  document.body.appendChild(launcher);
 
   var panel = document.createElement("div");
   panel.className = "mw-panel";
@@ -294,7 +314,20 @@
       '</button>' +
     '</form>' +
     '<div class="mw-footer">Powered by Mobiwave AI</div>';
-  document.body.appendChild(panel);
+
+  function init() {
+    if (document.body) {
+      document.body.appendChild(launcher);
+      document.body.appendChild(panel);
+    } else {
+      setTimeout(init, 50);
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 
   var msgEl = panel.querySelector("#mw-messages");
   var inputEl = panel.querySelector("#mw-input");
