@@ -1,0 +1,1 @@
+import{ca as t}from"./vendor-misc-C98ndm1E.js";import{j as o}from"./vendor-react-DYjujMVx.js";var u=t.createContext(void 0),m=({client:r,children:e})=>(t.useEffect(()=>(r.mount(),()=>{r.unmount()}),[r]),o.jsx(u.Provider,{value:r,children:e}));export{m as Q};

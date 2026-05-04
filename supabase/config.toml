@@ -1,0 +1,22 @@
+project_id = "lgbjxbqkryzgkvggodzs"
+
+[functions.chat]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.get-contact-info]
+verify_jwt = false
+
+[functions.github-webhook]
+verify_jwt = false
+
+[functions.send-ticket-email]
+verify_jwt = false
+
+[functions.auto-create-ticket]
+verify_jwt = false
+
+[functions.widget-conversation]
+verify_jwt = false
