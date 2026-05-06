@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
+import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,12 +19,18 @@ serve(async (req) => {
   const limited = rateLimit(`chat:${ip}`, 20, 60_000, corsHeaders);
   if (limited) return limited;
 
+  // Verify JWT for authenticated users
+  if (!req.url.includes('/chat/demo')) {
+    const tokenError = verifyTokenInRequest(req);
+    if (tokenError) return tokenError;
+  }
+
   try {
     const { messages, demo, user_id, conversation_id } = await req.json();
 
     // Fire-and-forget: detect issue in latest user message and auto-create ticket
     if (!demo && conversation_id && messages?.length) {
-      const lastUserMsg = [...messages].reverse().find((m: {role?: string; content?: string}) => m.role === "user");
+      const lastUserMsg = [...messages].reverse().find((m: { role?: string; content?: string }) => m.role === "user");
       if (lastUserMsg?.content) {
         fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/auto-create-ticket`, {
           method: "POST",
@@ -55,7 +62,7 @@ serve(async (req) => {
 
         if (kbEntries && kbEntries.length > 0) {
           knowledgeContext = "\n\nHere is the business's knowledge base. Use this to answer visitor questions accurately:\n\n" +
-            kbEntries.map((e: {title?: string; content?: string}) => `### ${e.title}\n${e.content}`).join("\n\n");
+            kbEntries.map((e: { title?: string; content?: string }) => `### ${e.title}\n${e.content}`).join("\n\n");
         }
       } catch (e) {
         console.error("Failed to fetch knowledge base:", e);
@@ -63,12 +70,12 @@ serve(async (req) => {
     }
 
     const systemPrompt = demo
-      ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites. 
+      ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites.
          Answer questions about the product's features: lead capture, email integration, 24/7 AI support, analytics, easy embed.
          Be helpful, concise, and enthusiastic. Use simple language. Keep responses under 100 words.
          If asked about pricing, mention: Free (50 chats/mo), Starter (KES 1,500/mo), Growth (KES 3,500/mo), Enterprise (KES 8,000+/mo).
          Encourage visitors to sign up for free.`
-      : `You are a helpful AI assistant for a business website. Answer questions accurately and concisely based on the context provided. 
+      : `You are a helpful AI assistant for a business website. Answer questions accurately and concisely based on the context provided.
          If a visitor asks for quotes, pricing, contact, or shows purchase intent, politely collect their name and email.
          Keep responses professional and under 150 words.
          If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.${knowledgeContext}`;

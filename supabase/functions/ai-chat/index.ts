@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +11,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Verify JWT token
+  const tokenError = verifyTokenInRequest(req);
+  if (tokenError) return tokenError;
 
   try {
     const { messages } = await req.json();
@@ -29,7 +34,7 @@ serve(async (req) => {
           messages: [
             {
               role: "system",
-              content: `You are Mobiwave AI, a powerful and helpful AI assistant. You can help with coding, writing, analysis, math, brainstorming, and more. 
+              content: `You are Mobiwave AI, a powerful and helpful AI assistant. You can help with coding, writing, analysis, math, brainstorming, and more.
 Format your responses using markdown for readability. Use code blocks with language tags for code. Be concise but thorough.`,
             },
             ...messages,

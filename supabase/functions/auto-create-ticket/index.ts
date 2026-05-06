@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,10 @@ function detectIssue(text: string): { isIssue: boolean; priority: "low" | "mediu
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Verify JWT token
+  const tokenError = verifyTokenInRequest(req);
+  if (tokenError) return tokenError;
 
   try {
     const { conversation_id, message } = await req.json();

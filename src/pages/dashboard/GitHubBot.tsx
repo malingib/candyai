@@ -59,9 +59,10 @@ const GitHubBot = () => {
     setSaving(true);
     try {
       if (savedToken) {
+        // For security, we'll only update the repos but not show the actual token
         await supabase
           .from("github_tokens")
-          .update({ token: token.trim(), repos })
+          .update({ repos })
           .eq("id", savedToken.id);
       } else {
         const { data } = await supabase
@@ -72,10 +73,12 @@ const GitHubBot = () => {
         setSavedToken(data);
       }
       toast.success("GitHub token saved!");
-    } catch {
+    } catch (error) {
+      console.error("Error saving token:", error);
       toast.error("Failed to save token");
     }
     setSaving(false);
+    setToken(""); // Clear the token input after saving for security
   };
 
   const addRepo = () => {
@@ -138,7 +141,7 @@ const GitHubBot = () => {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Personal Access Token</Label>
-            <Input type="password" placeholder={savedToken ? "••••••••••••" : "ghp_xxxxxxxxxxxx"} value={token} onChange={(e) => setToken(e.target.value)} />
+            <Input type="password" placeholder="GitHub token saved (enter new token to update)" value={token} onChange={(e) => setToken(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Repositories to monitor</Label>

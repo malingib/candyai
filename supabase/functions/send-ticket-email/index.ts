@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,13 +38,17 @@ const bodies: Record<EventType, (t: Record<string, unknown>, extra?: string) => 
 
 function escape(s: string) {
   return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">");
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Verify JWT token
+  const tokenError = verifyTokenInRequest(req);
+  if (tokenError) return tokenError;
 
   try {
     const { ticket_id, event, extra } = await req.json();
@@ -98,8 +103,8 @@ serve(async (req) => {
       },
     });
 
-    const subject = subjects[event as EventType](ticket.subject);
-    const html = bodies[event as EventType](ticket, extra);
+    const subject = subjects[event];
+    const html = bodies[event](ticket, extra);
 
     for (const to of recipients) {
       try {
@@ -118,12 +123,12 @@ serve(async (req) => {
     await client.close();
 
     return new Response(JSON.stringify({ ok: true, recipients: [...recipients] }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   } catch (e) {
-    console.error("send-ticket-email error:", e);
+    console.error("Error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : String(e) }),
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
