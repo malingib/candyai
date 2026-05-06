@@ -25,21 +25,26 @@
   var SUPABASE_ANON_KEY =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnYmp4YnFrcnl6Z2t2Z2dvZHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0OTA2NzQsImV4cCI6MjA4ODA2NjY3NH0.SCNN1VpEWjx0GjEAbHNiOfxobPpubWMRej-YjNnVBRE";
   var ORIGIN = (currentScript && currentScript.src ? new URL(currentScript.src).origin : "https://candyai.lovable.app");
-  var LOGO = ORIGIN + "/logo.png";
+  var DEFAULT_LOGO = ORIGIN + "/logo.png";
+  var LOGO = DEFAULT_LOGO;
 
   var theme = {
     primary: "#2563eb",
     businessName: "Mobiwave AI",
     welcome: "Hi! 👋 How can I help you today?",
+    logoUrl: "",
     whatsapp: "",
     call: "",
   };
 
   // ---- Styles ----
   var css = `
-    .mw-launcher{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:56px !important;height:56px !important;border-radius:9999px !important;background:var(--mw-primary);color:#fff;border:none;cursor:pointer;box-shadow:0 10px 25px -5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:2147483646 !important;transition:transform .2s;margin:0 !important;padding:0 !important;float:none !important;transform:none !important}
-    .mw-launcher:hover{transform:scale(1.05) !important}
-    .mw-launcher img{width:28px;height:28px;object-fit:contain}
+    .mw-launcher{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:68px !important;height:68px !important;border-radius:9999px !important;background:linear-gradient(140deg,var(--mw-primary),#1d4ed8);color:#fff;border:none;cursor:pointer;box-shadow:0 14px 34px -12px rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;z-index:2147483646 !important;transition:transform .2s, box-shadow .2s;margin:0 !important;padding:0 !important;float:none !important;transform:none !important;animation:mw-float 2.8s ease-in-out infinite}
+    .mw-launcher::before{content:"";position:absolute;inset:-4px;border-radius:9999px;background:conic-gradient(from 180deg at 50% 50%, rgba(37,99,235,.45), rgba(37,99,235,.1), rgba(37,99,235,.45));z-index:-1;animation:mw-spin 3s linear infinite}
+    .mw-launcher:hover{transform:translateY(-2px) scale(1.03) !important;box-shadow:0 18px 40px -12px rgba(0,0,0,.5)}
+    .mw-launcher:active{transform:scale(.98) !important}
+    .mw-launcher img{width:34px;height:34px;object-fit:contain}
+    .mw-launcher-logo-wrap{width:48px;height:48px;border-radius:9999px;background:rgba(255,255,255,.16);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center}
     .mw-panel{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:380px;max-width:calc(100vw - 32px);height:580px;max-height:calc(100vh - 48px);background:#fff;border-radius:16px;box-shadow:0 20px 50px -10px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;z-index:2147483647 !important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border:1px solid #e5e7eb;margin:0 !important;float:none !important;transform:none !important}
     .mw-header{background:var(--mw-primary);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
     .mw-header-left{display:flex;align-items:center;gap:12px}
@@ -84,6 +89,8 @@
     .mw-lead-cancel{background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:8px;padding:8px;font-size:13px;cursor:pointer;font-family:inherit}
     .mw-lead-error{color:#dc2626;font-size:12px}
     .mw-launcher-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}
+    @keyframes mw-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+    @keyframes mw-spin{to{transform:rotate(360deg)}}
   `;
 
   var style = document.createElement("style");
@@ -118,6 +125,17 @@
     return String(s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
+  }
+
+  function resolveLogo(url) {
+    if (!url || typeof url !== "string") return DEFAULT_LOGO;
+    var v = url.trim();
+    if (!v) return DEFAULT_LOGO;
+    return v;
+  }
+
+  function launcherMarkup() {
+    return '<span class="mw-launcher-logo-wrap"><img src="' + escapeHtml(LOGO) + '" alt="Chat" onerror="this.onerror=null;this.src=\'' + escapeHtml(DEFAULT_LOGO) + '\'" /></span>';
   }
 
   function postWidget(payload) {
@@ -280,7 +298,7 @@
   var launcher = document.createElement("button");
   launcher.className = "mw-launcher";
   launcher.setAttribute("aria-label", "Open chat");
-  launcher.innerHTML = '<img src="' + LOGO + '" alt="Chat" />';
+  launcher.innerHTML = launcherMarkup();
 
   var panel = document.createElement("div");
   panel.className = "mw-panel";
@@ -580,6 +598,9 @@
         if (data.primary_color) theme.primary = data.primary_color;
         if (data.business_name) theme.businessName = data.business_name;
         if (data.welcome_message) theme.welcome = data.welcome_message;
+        if (data.logo_url) theme.logoUrl = data.logo_url;
+        LOGO = resolveLogo(theme.logoUrl);
+        launcher.innerHTML = launcherMarkup();
         theme.whatsapp = data.whatsapp_number || "";
         theme.call = data.call_number || "";
         applyTheme();

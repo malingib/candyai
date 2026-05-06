@@ -52,13 +52,13 @@ const HeroSection = () => {
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6"
           >
             <Link to="/auth">
-              <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl px-8 h-13 text-base font-semibold gap-2 shadow-lg shadow-primary/20">
-                Start building — it's free <ArrowRight className="h-4 w-4" />
+              <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl px-10 h-14 text-lg font-semibold gap-3 shadow-lg shadow-primary/20 min-w-[280px]">
+                Start building — it's free <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
             <a href="#demo">
-              <Button size="lg" variant="outline" className="rounded-xl px-6 h-13 text-base font-medium gap-2 border-border">
-                <Play className="h-4 w-4 fill-current" /> Watch demo
+              <Button size="lg" variant="outline" className="rounded-xl px-8 h-14 text-lg font-medium gap-3 border-border min-w-[210px]">
+                <Play className="h-5 w-5 fill-current" /> Watch demo
               </Button>
             </a>
           </motion.div>

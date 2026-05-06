@@ -298,6 +298,7 @@ export type Database = {
           chats_used: number
           created_at: string
           id: string
+          logo_url: string
           plan: string
           primary_color: string
           updated_at: string
@@ -312,6 +313,7 @@ export type Database = {
           chats_used?: number
           created_at?: string
           id?: string
+          logo_url?: string
           plan?: string
           primary_color?: string
           updated_at?: string
@@ -326,6 +328,7 @@ export type Database = {
           chats_used?: number
           created_at?: string
           id?: string
+          logo_url?: string
           plan?: string
           primary_color?: string
           updated_at?: string
