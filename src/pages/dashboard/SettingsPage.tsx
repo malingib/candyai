@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save } from "lucide-react";
+import { Save, Upload, Loader2 } from "lucide-react";
 import WidgetPreview from "@/components/dashboard/WidgetPreview";
 
 const SettingsPage = () => {
@@ -21,6 +21,8 @@ const SettingsPage = () => {
   const [welcomeMessage, setWelcomeMessage] = useState("Hi! 👋 How can I help you today?");
   const [smtp, setSmtp] = useState({ host: "", port: 587, username: "", password: "", encryption: "tls", from_email: "" });
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -63,6 +65,32 @@ const SettingsPage = () => {
     setSaving(false);
   };
 
+  const handleLogoUpload = async (file?: File) => {
+    if (!user || !file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please upload an image file.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Logo must be 5MB or smaller.", variant: "destructive" });
+      return;
+    }
+
+    setUploadingLogo(true);
+    const ext = file.name.split(".").pop() || "png";
+    const path = `${user.id}/widget-logo-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("chat-uploads").upload(path, file, { upsert: true });
+    if (error) {
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+      setUploadingLogo(false);
+      return;
+    }
+    const { data } = supabase.storage.from("chat-uploads").getPublicUrl(path);
+    setLogoUrl(data.publicUrl);
+    toast({ title: "Logo uploaded", description: "Save profile to apply it to your widget." });
+    setUploadingLogo(false);
+  };
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="grid gap-6 lg:grid-cols-[1fr_auto]">
@@ -92,8 +120,36 @@ const SettingsPage = () => {
             <Input value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)} placeholder="Hi! 👋 How can I help you today?" />
           </div>
           <div className="space-y-2">
-            <Label>Widget Logo URL</Label>
-            <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://yourcdn.com/logo.png" />
+            <Label>Widget Logo</Label>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="gap-2"
+              >
+                {uploadingLogo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                {uploadingLogo ? "Uploading..." : "Upload Logo"}
+              </Button>
+              {logoUrl && (
+                <Button type="button" variant="ghost" onClick={() => setLogoUrl("")}>
+                  Remove
+                </Button>
+              )}
+            </div>
+            {logoUrl && (
+              <div className="h-12 w-12 rounded-md border bg-muted/30 p-1">
+                <img src={logoUrl} alt="Widget logo preview" className="h-full w-full object-contain" />
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Widget Primary Color</Label>
