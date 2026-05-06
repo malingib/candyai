@@ -34,8 +34,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 transform bg-sidebar transition-transform md:relative md:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col transform bg-sidebar transition-transform md:relative md:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-5">
           <img src="/logo.png" alt="Mobiwave" className="h-8 w-8" />
           <span className="text-base font-bold text-sidebar-foreground">Mobiwave<span className="text-primary">.</span></span>
           <button className="ml-auto md:hidden text-sidebar-foreground" onClick={() => setSidebarOpen(false)}>
@@ -43,7 +43,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           </button>
         </div>
 
-        <nav className="flex flex-col gap-1 p-3 mt-2">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 mt-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -69,7 +69,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-3">
+        <div className="shrink-0 border-t border-sidebar-border p-3">
           <div className="flex items-center gap-3 px-3 py-2 mb-2">
             <div className="h-8 w-8 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-bold text-sidebar-foreground">
               {user?.email?.[0]?.toUpperCase() ?? "U"}
