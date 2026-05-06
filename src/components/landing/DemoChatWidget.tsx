@@ -126,9 +126,12 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:scale-105 hover:shadow-xl"
+          aria-label="Open demo chat"
+          className="group fixed bottom-6 right-6 z-50 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-gradient-to-br from-primary via-primary to-blue-700 text-primary-foreground shadow-[0_18px_40px_-14px_hsl(var(--primary)/0.8)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_48px_-14px_hsl(var(--primary)/0.9)] active:scale-95"
         >
-          <MessageSquare className="h-6 w-6" />
+          <span className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-primary/30 animate-ping [animation-duration:2.4s]" />
+          <span className="pointer-events-none absolute inset-[6px] rounded-full bg-white/15 backdrop-blur-sm" />
+          <MessageSquare className="relative z-10 h-7 w-7 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5" />
         </button>
       )}
 
