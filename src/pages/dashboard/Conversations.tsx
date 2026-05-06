@@ -195,7 +195,7 @@ const Conversations = () => {
         },
         (payload) => {
           setMessages((prev) =>
-            prev.some((m) => m.id === payload.new.id) ? prev : [...prev, payload.new]
+            prev.some((m) => m.id === payload.new.id) ? prev : [...prev, payload.new as any]
           );
         }
       )
