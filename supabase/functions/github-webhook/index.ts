@@ -2,6 +2,15 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 
+// Function to verify HMAC signature
+function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
+  const crypto = require('crypto');
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(payload);
+  const expected = "sha256=" + hmac.digest('hex');
+  return expected === signature;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -78,7 +87,7 @@ serve(async (req) => {
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -111,10 +120,10 @@ Format as markdown. Be specific with line references. If the code looks good, sa
     if (!aiResp.ok) {
       const errText = await aiResp.text();
       console.error("AI review failed:", aiResp.status, errText);
-      return new Response(JSON.stringify({ error: "AI review failed" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "AI review failed" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const aiData = await aiResp.json();
