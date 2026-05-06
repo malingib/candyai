@@ -24,6 +24,8 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const authRedirectBase =
+    import.meta.env.VITE_AUTH_REDIRECT_URL?.replace(/\/$/, "") || window.location.origin;
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +34,7 @@ const Auth = () => {
     try {
       if (isForgot) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${authRedirectBase}/reset-password`,
         });
         if (error) throw error;
         toast({ title: "Check your email", description: "We sent you a password reset link." });
@@ -46,7 +48,7 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: authRedirectBase,
             data: { business_name: businessName },
           },
         });
