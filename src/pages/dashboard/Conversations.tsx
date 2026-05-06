@@ -147,7 +147,7 @@ const Conversations = () => {
           setConversations((prev) => {
             if (payload.eventType === "INSERT") {
               if (prev.some((c) => c.id === payload.new.id)) return prev;
-              return [payload.new, ...prev];
+              return [payload.new as any, ...prev];
             }
             if (payload.eventType === "UPDATE") {
               return prev.map((c) => (c.id === payload.new.id ? { ...c, ...payload.new } : c));
