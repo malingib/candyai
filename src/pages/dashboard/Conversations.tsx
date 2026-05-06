@@ -147,7 +147,7 @@ const Conversations = () => {
           setConversations((prev) => {
             if (payload.eventType === "INSERT") {
               if (prev.some((c) => c.id === payload.new.id)) return prev;
-              return [payload.new, ...prev];
+              return [payload.new as any, ...prev];
             }
             if (payload.eventType === "UPDATE") {
               return prev.map((c) => (c.id === payload.new.id ? { ...c, ...payload.new } : c));
@@ -195,7 +195,7 @@ const Conversations = () => {
         },
         (payload) => {
           setMessages((prev) =>
-            prev.some((m) => m.id === payload.new.id) ? prev : [...prev, payload.new]
+            prev.some((m) => m.id === payload.new.id) ? prev : [...prev, payload.new as any]
           );
         }
       )
@@ -241,7 +241,7 @@ const Conversations = () => {
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <div className="md:col-span-1 space-y-2">
+      <div className={`md:col-span-1 space-y-2 ${selectedId ? "hidden md:block" : ""}`}>
         <h2 className="text-sm font-medium text-muted-foreground mb-3">All Conversations</h2>
         {conversations.length === 0 && (
           <p className="text-sm text-muted-foreground">No conversations yet. They'll appear here when visitors chat with your AI agent.</p>
@@ -252,11 +252,11 @@ const Conversations = () => {
             onClick={() => setSelectedId(conv.id)}
             className={`w-full text-left rounded-lg border p-3 transition-colors ${selectedId === conv.id ? "border-accent bg-accent/5" : "hover:bg-muted/50"}`}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium truncate">{conv.visitor_name || "Anonymous Visitor"}</span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant="secondary" className="text-xs">{conv.status}</Badge>
               <span className="text-xs text-muted-foreground">{format(new Date(conv.created_at), "MMM d, HH:mm")}</span>
             </div>
@@ -264,13 +264,18 @@ const Conversations = () => {
         ))}
       </div>
 
-      <div className="md:col-span-2">
+      <div className={`md:col-span-2 ${!selectedId ? "hidden md:block" : ""}`}>
         {selectedId ? (
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2 md:hidden mb-2">
+                <Button size="sm" variant="ghost" className="-ml-2 h-8 px-2" onClick={() => setSelectedId(null)}>
+                  ← Back
+                </Button>
+              </div>
               <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <MessageSquare className="h-4 w-4" />
-                Conversation Transcript
+                <span className="truncate">Transcript</span>
                 <Badge variant="outline" className="text-[10px] gap-1">
                   <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "#10b981" }} />
                   Live
@@ -278,19 +283,20 @@ const Conversations = () => {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="ml-auto gap-1.5"
+                  className="ml-auto gap-1.5 text-xs"
                   onClick={handleConvertToTicket}
                   disabled={converting}
                 >
                   <TicketIcon className="h-3.5 w-3.5" />
-                  {converting ? "Creating..." : "Convert to ticket"}
+                  <span className="hidden sm:inline">{converting ? "Creating..." : "Convert to ticket"}</span>
+                  <span className="sm:hidden">{converting ? "…" : "Ticket"}</span>
                 </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 max-h-[420px] overflow-y-auto">
+            <CardContent className="space-y-3 max-h-[60vh] md:max-h-[420px] overflow-y-auto">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  <div className={`max-w-[85%] sm:max-w-[80%] rounded-lg px-3 py-2 text-sm break-words ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                     {msg.content}
                   </div>
                 </div>
@@ -313,7 +319,7 @@ const Conversations = () => {
               <Textarea
                 value={reply}
                 onChange={(e) => handleReplyChange(e.target.value)}
-                placeholder="Type your reply to the visitor..."
+                placeholder="Type your reply..."
                 rows={2}
                 disabled={sending}
                 onKeyDown={(e) => {
@@ -323,9 +329,9 @@ const Conversations = () => {
                   }
                 }}
               />
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] text-muted-foreground">Tip: Cmd/Ctrl+Enter to send. Visitor sees a typing indicator while you write.</p>
-                <Button size="sm" onClick={handleSendReply} disabled={sending || !reply.trim()} className="gap-1.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[11px] text-muted-foreground hidden sm:block">Tip: Cmd/Ctrl+Enter to send.</p>
+                <Button size="sm" onClick={handleSendReply} disabled={sending || !reply.trim()} className="gap-1.5 ml-auto">
                   <Send className="h-3.5 w-3.5" />
                   {sending ? "Sending..." : "Send reply"}
                 </Button>

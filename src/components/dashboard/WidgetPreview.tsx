@@ -23,8 +23,8 @@ const WidgetPreview = ({
 
   return (
     <div
-      className="rounded-2xl shadow-xl border bg-card overflow-hidden flex flex-col"
-      style={{ width: 320, height: 460 }}
+      className="rounded-2xl shadow-xl border bg-card overflow-hidden flex flex-col w-full max-w-[320px] mx-auto"
+      style={{ height: 460 }}
     >
       <div
         className="px-4 py-3 flex items-center gap-3 text-white"
