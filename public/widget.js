@@ -37,10 +37,10 @@
 
   // ---- Styles ----
   var css = `
-    .mw-launcher{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:9999px;background:var(--mw-primary);color:#fff;border:none;cursor:pointer;box-shadow:0 10px 25px -5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:2147483646;transition:transform .2s}
-    .mw-launcher:hover{transform:scale(1.05)}
+    .mw-launcher{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:56px !important;height:56px !important;border-radius:9999px !important;background:var(--mw-primary);color:#fff;border:none;cursor:pointer;box-shadow:0 10px 25px -5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:2147483646 !important;transition:transform .2s;margin:0 !important;padding:0 !important;float:none !important;transform:none !important}
+    .mw-launcher:hover{transform:scale(1.05) !important}
     .mw-launcher img{width:28px;height:28px;object-fit:contain}
-    .mw-panel{position:fixed;bottom:24px;right:24px;width:380px;max-width:calc(100vw - 32px);height:580px;max-height:calc(100vh - 48px);background:#fff;border-radius:16px;box-shadow:0 20px 50px -10px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;z-index:2147483647;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border:1px solid #e5e7eb}
+    .mw-panel{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:380px;max-width:calc(100vw - 32px);height:580px;max-height:calc(100vh - 48px);background:#fff;border-radius:16px;box-shadow:0 20px 50px -10px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;z-index:2147483647 !important;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border:1px solid #e5e7eb;margin:0 !important;float:none !important;transform:none !important}
     .mw-header{background:var(--mw-primary);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}
     .mw-header-left{display:flex;align-items:center;gap:12px}
     .mw-avatar{width:36px;height:36px;border-radius:9999px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;overflow:hidden}
