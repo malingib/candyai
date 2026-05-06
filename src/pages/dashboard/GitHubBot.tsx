@@ -39,7 +39,7 @@ const GitHubBot = () => {
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
-          setSavedToken(data);
+          setSavedToken(data as any);
           setRepos((data.repos as string[]) ?? []);
         }
       });
@@ -70,7 +70,7 @@ const GitHubBot = () => {
           .insert({ user_id: user.id, token: token.trim(), repos })
           .select()
           .single();
-        setSavedToken(data);
+        setSavedToken(data as any);
       }
       toast.success("GitHub token saved!");
     } catch (error) {
