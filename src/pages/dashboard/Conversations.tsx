@@ -6,10 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, ChevronRight, Send, Ticket as TicketIcon } from "lucide-react";
+import { MessageSquare, ChevronRight, Send, Ticket as TicketIcon, Users, ChevronLeft } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+
+const PAGE_SIZE = 10;
 
 const Conversations = () => {
   const { user } = useAuth();
