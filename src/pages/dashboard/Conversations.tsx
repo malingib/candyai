@@ -131,11 +131,20 @@ const Conversations = () => {
 
     supabase
       .from("conversations")
-      .select("*")
+      .select("*, messages(role)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
-        if (active) setConversations(data ?? []);
+        if (!active) return;
+        const enriched = (data ?? []).map((c: any) => {
+          const msgs = c.messages || [];
+          return {
+            ...c,
+            message_count: msgs.length,
+            user_message_count: msgs.filter((m: any) => m.role === "user").length,
+          };
+        });
+        setConversations(enriched);
       });
 
     const channel = supabase
