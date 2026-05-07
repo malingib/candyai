@@ -491,8 +491,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_ai_chat_owner: { Args: { p_chat_id: string }; Returns: string }
-      get_conversation_owner: { Args: { conv_id: string }; Returns: string }
+      [_ in never]: never
     }
     Enums: {
       ticket_priority: "low" | "medium" | "high" | "urgent"
