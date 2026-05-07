@@ -6,10 +6,10 @@ type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
 
 export function getClientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
   return req.headers.get("cf-connecting-ip")
     || req.headers.get("x-real-ip")
+    || req.headers.get("fly-client-ip")
+    || req.headers.get("x-forwarded-for")?.split(",")[0].trim()
     || "unknown";
 }
 

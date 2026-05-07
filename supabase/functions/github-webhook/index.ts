@@ -1,20 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
-
-// Function to verify HMAC signature
-function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
-  const crypto = require('crypto');
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(payload);
-  const expected = "sha256=" + hmac.digest('hex');
-  return expected === signature;
-}
+import { chatWithFallback } from "../_shared/llm-fallback.ts";
+import { cacheGet, cachePut, guardrailOutput, hmacHex, logAudit, moderateInput, timingSafeEqual } from "../_shared/enterprise-security.ts";
+import { sha256Hex } from "../_shared/cache-key.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-github-event, x-hub-signature-256",
 };
 
 serve(async (req) => {
@@ -22,13 +15,33 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Verify JWT token for authenticated endpoints
-  const tokenError = verifyTokenInRequest(req);
-  if (tokenError) return tokenError;
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
+    const raw = await req.text();
+    const secret = Deno.env.get("GITHUB_WEBHOOK_SECRET") || "";
+    const signature = req.headers.get("x-hub-signature-256") || "";
+    if (!secret || !signature) {
+      return new Response(JSON.stringify({ error: "Webhook secret/signature missing" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const expected = `sha256=${await hmacHex(secret, raw)}`;
+    if (!timingSafeEqual(expected, signature)) {
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const event = req.headers.get("x-github-event");
-    const payload = await req.json();
+    const payload = JSON.parse(raw);
 
     if (event !== "pull_request" || !["opened", "synchronize"].includes(payload.action)) {
       return new Response(JSON.stringify({ message: "Ignored event" }), {
@@ -48,7 +61,7 @@ serve(async (req) => {
 
     const { data: tokenRows, error: tokenErr } = await supabaseAdmin
       .from("github_tokens")
-      .select("*")
+      .select("id, user_id, encrypted_token, repos")
       .contains("repos", [repoFullName]);
 
     if (tokenErr || !tokenRows || tokenRows.length === 0) {
@@ -60,9 +73,30 @@ serve(async (req) => {
     }
 
     const tokenRow = tokenRows[0];
-    // For security, we should use the encrypted token from the database
-    // The GitHub token should be retrieved through the database with proper decryption
-    const githubToken = tokenRow.token;
+    if (!tokenRow.encrypted_token) {
+      await logAudit({
+        userId: tokenRow.user_id,
+        type: "github_token_missing_encrypted_value",
+        severity: "high",
+        source: "github-webhook",
+        metadata: { repo: repoFullName },
+      });
+      return new Response(JSON.stringify({ error: "GitHub token is not encrypted/configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: githubToken, error: decryptErr } = await supabaseAdmin.rpc("decrypt_github_token_func", {
+      encrypted_token: tokenRow.encrypted_token,
+    });
+    if (decryptErr || !githubToken) {
+      console.error("Failed to decrypt GitHub token:", decryptErr);
+      return new Response(JSON.stringify({ error: "GitHub token unavailable" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Fetch the PR diff
     const diffResp = await fetch(pr.diff_url, {
@@ -86,21 +120,31 @@ serve(async (req) => {
       diff = diff.slice(0, 15000) + "\n\n... [diff truncated]";
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const mod = await moderateInput(diff);
+    if (!mod.ok) {
+      await logAudit({
+        userId: tokenRow.user_id,
+        type: "github_review_blocked",
+        severity: "high",
+        source: "github-webhook",
+        metadata: { repo: repoFullName, pr: pr.number, reason: mod.reason },
+      });
+      return new Response(JSON.stringify({ error: "Diff blocked by safety policy" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert code reviewer. Analyze the pull request diff and provide a concise, actionable review. Focus on:
+    const cacheKey = await sha256Hex(`${repoFullName}|${pr.number}|${diff}`);
+    const cachedReview = await cacheGet(tokenRow.user_id, cacheKey);
+    let reviewBody = cachedReview;
+    let provider = "cache";
+    if (!reviewBody) {
+      const { response: aiResp, provider: usedProvider } = await chatWithFallback({
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert code reviewer. Analyze the pull request diff and provide a concise, actionable review. Focus on:
 1. **Bugs & Logic Errors** - potential runtime issues
 2. **Security** - vulnerabilities, injection, auth issues
 3. **Performance** - inefficiencies, N+1 queries
@@ -108,26 +152,22 @@ serve(async (req) => {
 5. **Best Practices** - patterns, error handling
 
 Format as markdown. Be specific with line references. If the code looks good, say so briefly. Keep under 800 words.`,
-          },
-          {
-            role: "user",
-            content: `PR: ${pr.title}\nDescription: ${pr.body || "No description"}\n\nDiff:\n\`\`\`diff\n${diff}\n\`\`\``,
-          },
-        ],
-      }),
-    });
+        },
+        {
+          role: "user",
+          content: `PR: ${pr.title}\nDescription: ${pr.body || "No description"}\n\nDiff:\n\`\`\`diff\n${diff}\n\`\`\``,
+        },
+      ],
+      stream: false,
+      });
+      provider = usedProvider;
+      console.log("github-webhook provider:", provider);
 
-    if (!aiResp.ok) {
-      const errText = await aiResp.text();
-      console.error("AI review failed:", aiResp.status, errText);
-      return new Response(
-        JSON.stringify({ error: "AI review failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const aiData = await aiResp.json();
+      reviewBody = aiData.choices?.[0]?.message?.content || "Unable to generate review.";
+      reviewBody = guardrailOutput(reviewBody);
+      await cachePut(tokenRow.user_id, cacheKey, provider, reviewBody, Math.ceil(reviewBody.length / 4), 600);
     }
-
-    const aiData = await aiResp.json();
-    const reviewBody = aiData.choices?.[0]?.message?.content || "Unable to generate review.";
 
     // Post the review as a PR comment
     const commentResp = await fetch(
@@ -163,6 +203,13 @@ Format as markdown. Be specific with line references. If the code looks good, sa
       pr_number: pr.number,
       pr_title: pr.title || "",
       review_body: reviewBody,
+    });
+    await logAudit({
+      userId: tokenRow.user_id,
+      type: "github_review_posted",
+      severity: "info",
+      source: "github-webhook",
+      metadata: { repo: repoFullName, pr: pr.number, provider },
     });
 
     return new Response(

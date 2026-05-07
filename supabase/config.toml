@@ -1,10 +1,10 @@
 project_id = "lgbjxbqkryzgkvggodzs"
 
 [functions.chat]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ai-chat]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-contact-info]
 verify_jwt = false
@@ -13,10 +13,19 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-ticket-email]
-verify_jwt = false
+verify_jwt = true
 
 [functions.auto-create-ticket]
 verify_jwt = false
 
 [functions.widget-conversation]
+verify_jwt = false
+
+[functions.paystack-webhook]
+verify_jwt = false
+
+[functions.paystack-init-checkout]
+verify_jwt = true
+
+[functions.chat-public]
 verify_jwt = false

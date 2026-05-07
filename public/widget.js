@@ -107,6 +107,7 @@
   var isOpen = false;
   var isLoading = false;
   var conversationId = null;
+  var sessionToken = "";
   var conversationStarting = false;
   var leadFormOpen = false;
   var leadCaptured = false;
@@ -156,6 +157,7 @@
       .then(function (data) {
         if (data && data.conversation_id) {
           conversationId = data.conversation_id;
+          sessionToken = data.session_token || "";
           subscribeRealtime(conversationId);
         }
         conversationStarting = false;
@@ -170,6 +172,7 @@
       action: "message",
       business_id: businessId,
       conversation_id: conversationId,
+      session_token: sessionToken,
       role: role,
       content: content,
     }).then(function (resp) {
@@ -422,6 +425,7 @@
         action: "lead",
         business_id: businessId,
         conversation_id: conversationId,
+        session_token: sessionToken,
         name: name, email: email, phone: phone,
       });
     }).then(function (resp) {
@@ -520,7 +524,7 @@
   });
 
   function sendToAI() {
-    fetch(SUPABASE_URL + "/functions/v1/chat", {
+    fetch(SUPABASE_URL + "/functions/v1/chat-public", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -530,6 +534,7 @@
         messages: messages,
         user_id: businessId,
         conversation_id: conversationId,
+        session_token: sessionToken,
       }),
     })
       .then(function (resp) {

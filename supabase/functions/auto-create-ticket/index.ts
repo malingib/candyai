@@ -31,7 +31,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // Verify JWT token
-  const tokenError = verifyTokenInRequest(req);
+  const tokenError = await verifyTokenInRequest(req);
   if (tokenError) return tokenError;
 
   try {

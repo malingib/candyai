@@ -1,19 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
+import { extractOrigin, isAllowedOrigin, isUuid, sanitizeUserMessage, clamp } from "../_shared/request-security.ts";
+import { distributedRateLimit, encryptPII, logAudit, maskEmail, maskPhone, signWidgetToken, verifyWidgetToken } from "../_shared/enterprise-security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-function isUuid(v: unknown): v is string {
-  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-}
-function clamp(s: unknown, max: number): string {
-  return String(s ?? "").slice(0, max);
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -22,6 +17,13 @@ serve(async (req) => {
   const ip = getClientIp(req);
   const limited = rateLimit(`widget-conversation:${ip}`, 60, 60_000, corsHeaders);
   if (limited) return limited;
+  const dlimited = await distributedRateLimit({
+    key: `widget-conversation:${ip}`,
+    limit: 120,
+    windowMs: 60_000,
+    corsHeaders,
+  });
+  if (dlimited) return dlimited;
 
   try {
     const body = await req.json();
@@ -40,10 +42,31 @@ serve(async (req) => {
 
     // Verify business exists
     const { data: profile } = await supabase
-      .from("profiles").select("user_id").eq("user_id", business_id).maybeSingle();
+      .from("profiles")
+      .select("user_id, allowed_origins")
+      .eq("user_id", business_id)
+      .maybeSingle();
     if (!profile) {
       return new Response(JSON.stringify({ error: "business not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const origin = extractOrigin(req);
+    const allowedOrigins = Array.isArray((profile as { allowed_origins?: string[] }).allowed_origins)
+      ? ((profile as { allowed_origins?: string[] }).allowed_origins as string[])
+      : [];
+    if (allowedOrigins.length > 0 && !isAllowedOrigin(origin, allowedOrigins)) {
+      await logAudit({
+        userId: business_id,
+        type: "origin_denied",
+        severity: "warn",
+        source: "widget-conversation",
+        ip,
+        origin,
+        metadata: { business_id },
+      });
+      return new Response(JSON.stringify({ error: "origin not allowed" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -59,7 +82,12 @@ serve(async (req) => {
         .insert({ user_id: business_id, status: "active", visitor_metadata: meta })
         .select("id").single();
       if (error) throw error;
-      return new Response(JSON.stringify({ conversation_id: data.id }), {
+      const session_token = await signWidgetToken({
+        business_id,
+        conversation_id: data.id,
+        exp: Date.now() + (1000 * 60 * 60 * 12),
+      });
+      return new Response(JSON.stringify({ conversation_id: data.id, session_token }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -67,15 +95,51 @@ serve(async (req) => {
     // ---- Persist a message ----
     if (action === "message") {
       const { conversation_id, role, content } = body;
+      const sessionToken = String(body.session_token || "");
       if (!isUuid(conversation_id) || !["user", "assistant"].includes(role)) {
         return new Response(JSON.stringify({ error: "invalid input" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const text = clamp(content, 4000);
+      const text = sanitizeUserMessage(content, 4000);
       if (!text) return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+      // Ensure the conversation belongs to this business.
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id, user_id")
+        .eq("id", conversation_id)
+        .eq("user_id", business_id)
+        .maybeSingle();
+      if (!conv) {
+        await logAudit({
+          userId: business_id,
+          type: "conversation_scope_denied",
+          severity: "warn",
+          source: "widget-conversation",
+          ip,
+          origin,
+          metadata: { conversation_id },
+        });
+        return new Response(JSON.stringify({ error: "invalid conversation scope" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!(await verifyWidgetToken(sessionToken, { business_id, conversation_id }))) {
+        await logAudit({
+          userId: business_id,
+          type: "widget_token_invalid",
+          severity: "warn",
+          source: "widget-conversation",
+          ip,
+          origin,
+          metadata: { conversation_id },
+        });
+        return new Response(JSON.stringify({ error: "invalid session token" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const { data, error } = await supabase.from("messages").insert({
         conversation_id, role, content: text,
       }).select("id").single();
@@ -90,9 +154,13 @@ serve(async (req) => {
     // ---- Capture a lead ----
     if (action === "lead") {
       const { conversation_id, name, email, phone } = body;
+      const sessionToken = String(body.session_token || "");
       const cleanName = clamp(name, 100).trim();
       const cleanEmail = clamp(email, 255).trim();
       const cleanPhone = clamp(phone, 30).trim();
+      const cleanConversationId = isUuid(conversation_id) ? conversation_id : null;
+      const emailEnc = cleanEmail ? await encryptPII(cleanEmail) : null;
+      const phoneEnc = cleanPhone ? await encryptPII(cleanPhone) : null;
 
       if (!cleanName && !cleanEmail && !cleanPhone) {
         return new Response(JSON.stringify({ error: "at least one field required" }), {
@@ -104,23 +172,63 @@ serve(async (req) => {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      if (!cleanConversationId) {
+        return new Response(JSON.stringify({ error: "conversation_id required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id, user_id")
+        .eq("id", cleanConversationId)
+        .eq("user_id", business_id)
+        .maybeSingle();
+      if (!conv) {
+        await logAudit({
+          userId: business_id,
+          type: "conversation_scope_denied",
+          severity: "warn",
+          source: "widget-conversation",
+          ip,
+          origin,
+          metadata: { conversation_id: cleanConversationId, action: "lead" },
+        });
+        return new Response(JSON.stringify({ error: "invalid conversation scope" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!(await verifyWidgetToken(sessionToken, { business_id, conversation_id: cleanConversationId }))) {
+        await logAudit({
+          userId: business_id,
+          type: "widget_token_invalid",
+          severity: "warn",
+          source: "widget-conversation",
+          ip,
+          origin,
+          metadata: { conversation_id: cleanConversationId, action: "lead" },
+        });
+        return new Response(JSON.stringify({ error: "invalid session token" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const { error } = await supabase.from("leads").insert({
         user_id: business_id,
-        conversation_id: isUuid(conversation_id) ? conversation_id : null,
+        conversation_id: cleanConversationId,
         name: cleanName || null,
-        email: cleanEmail || null,
-        phone: cleanPhone || null,
+        email: cleanEmail ? maskEmail(cleanEmail) : null,
+        phone: cleanPhone ? maskPhone(cleanPhone) : null,
+        email_enc: emailEnc,
+        phone_enc: phoneEnc,
         notes: "Captured from embedded widget",
       });
       if (error) throw error;
 
       // Also save visitor info on conversation
-      if (isUuid(conversation_id)) {
-        await supabase.from("conversations")
-          .update({ visitor_name: cleanName || null, visitor_email: cleanEmail || null })
-          .eq("id", conversation_id);
-      }
+      await supabase.from("conversations")
+        .update({ visitor_name: cleanName || null, visitor_email: cleanEmail ? maskEmail(cleanEmail) : null })
+        .eq("id", cleanConversationId);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

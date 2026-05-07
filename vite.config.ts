@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("react-dom") || id.includes("react/jsx-runtime")) {
               return "vendor-react";
             }
-            if (id.includes("react-router")) {
+            if (id.includes("react-router") || id.includes("@remix-run/router")) {
               return "vendor-router";
             }
             if (id.includes("@radix-ui") || id.includes("vaul")) {
@@ -37,6 +37,12 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("@tanstack/react-query")) {
               return "vendor-query";
             }
+            if (id.includes("@supabase")) {
+              return "vendor-supabase";
+            }
+            if (id.includes("react-hook-form") || id.includes("@hookform") || id.includes("zod")) {
+              return "vendor-forms";
+            }
             if (id.includes("lucide-react")) {
               return "vendor-lucide";
             }
@@ -46,7 +52,7 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("react-markdown")) {
               return "vendor-md-core";
             }
-            if (id.includes("react-syntax-highlighter")) {
+            if (id.includes("react-syntax-highlighter") || id.includes("refractor") || id.includes("prismjs")) {
               return "vendor-md-highlight";
             }
             if (id.includes("framer-motion")) {

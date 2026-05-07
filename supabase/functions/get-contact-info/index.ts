@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
+import { distributedRateLimit, logAudit } from "../_shared/enterprise-security.ts";
+import { getClientIp } from "../_shared/rate-limit.ts";
+import { extractOrigin, isAllowedOrigin, isUuid } from "../_shared/request-security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,13 +24,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Verify JWT token
-  const tokenError = verifyTokenInRequest(req);
-  if (tokenError) return tokenError;
+  const ip = getClientIp(req);
+  const limited = await distributedRateLimit({
+    key: `get-contact-info:${ip}`,
+    limit: 300,
+    windowMs: 60_000,
+    corsHeaders,
+  });
+  if (limited) return limited;
 
   try {
     const { user_id } = await req.json();
-    if (!user_id) {
+    if (!isUuid(user_id)) {
       return new Response(JSON.stringify(empty), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -41,9 +48,21 @@ serve(async (req) => {
 
     const { data } = await supabase
       .from("profiles")
-      .select("whatsapp_number, call_number, business_name, logo_url, primary_color, welcome_message")
+      .select("whatsapp_number, call_number, business_name, logo_url, primary_color, welcome_message, allowed_origins")
       .eq("user_id", user_id)
       .single();
+
+    const allowedOrigins = Array.isArray(data?.allowed_origins) ? data.allowed_origins : [];
+    if (allowedOrigins.length > 0) {
+      const origin = extractOrigin(req);
+      if (!isAllowedOrigin(origin, allowedOrigins)) {
+        await logAudit({ userId: user_id, type: "origin_denied", severity: "warn", source: "get-contact-info", ip, origin });
+        return new Response(JSON.stringify(empty), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     return new Response(
       JSON.stringify({
