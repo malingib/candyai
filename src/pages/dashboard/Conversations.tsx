@@ -253,29 +253,68 @@ const Conversations = () => {
     };
   }, [selectedId]);
 
+  const engaged = conversations.filter((c) => (c.user_message_count ?? 0) > 0);
+  const visitors = conversations.filter((c) => (c.user_message_count ?? 0) === 0);
+  const list = filter === "engaged" ? engaged : conversations;
+  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <div className={`md:col-span-1 space-y-2 ${selectedId ? "hidden md:block" : ""}`}>
-        <h2 className="text-sm font-medium text-muted-foreground mb-3">All Conversations</h2>
-        {conversations.length === 0 && (
-          <p className="text-sm text-muted-foreground">No conversations yet. They'll appear here when visitors chat with your AI agent.</p>
+        <div className="flex items-center justify-between mb-2 gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Inbox</h2>
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Users className="h-3 w-3" /> {visitors.length} visitor{visitors.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <Tabs value={filter} onValueChange={(v) => { setFilter(v as "engaged" | "all"); setPage(1); }}>
+          <TabsList className="grid w-full grid-cols-2 h-8">
+            <TabsTrigger value="engaged" className="text-xs">Conversations ({engaged.length})</TabsTrigger>
+            <TabsTrigger value="all" className="text-xs">All ({conversations.length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {list.length === 0 && (
+          <p className="text-sm text-muted-foreground pt-3">
+            {filter === "engaged"
+              ? "No active conversations yet. Visitors who reply will appear here."
+              : "No visitors yet. They'll appear here when they open the chat widget."}
+          </p>
         )}
-        {conversations.map((conv) => (
-          <button
-            key={conv.id}
-            onClick={() => setSelectedId(conv.id)}
-            className={`w-full text-left rounded-lg border p-3 transition-colors ${selectedId === conv.id ? "border-accent bg-accent/5" : "hover:bg-muted/50"}`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium truncate">{conv.visitor_name || "Anonymous Visitor"}</span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            </div>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant="secondary" className="text-xs">{conv.status}</Badge>
-              <span className="text-xs text-muted-foreground">{format(new Date(conv.created_at), "MMM d, HH:mm")}</span>
-            </div>
-          </button>
-        ))}
+        {pageItems.map((conv) => {
+          const engagedConv = (conv.user_message_count ?? 0) > 0;
+          return (
+            <button
+              key={conv.id}
+              onClick={() => setSelectedId(conv.id)}
+              className={`w-full text-left rounded-lg border p-3 transition-colors ${selectedId === conv.id ? "border-accent bg-accent/5" : "hover:bg-muted/50"}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium truncate">{conv.visitor_name || "Anonymous Visitor"}</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <Badge variant={engagedConv ? "default" : "outline"} className="text-[10px]">
+                  {engagedConv ? `${conv.user_message_count} msg${conv.user_message_count === 1 ? "" : "s"}` : "Visitor"}
+                </Badge>
+                <Badge variant="secondary" className="text-[10px]">{conv.status}</Badge>
+                <span className="text-xs text-muted-foreground">{format(new Date(conv.created_at), "MMM d, HH:mm")}</span>
+              </div>
+            </button>
+          );
+        })}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <Button variant="ghost" size="sm" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} className="h-7 px-2 text-xs">
+              <ChevronLeft className="h-3 w-3" /> Prev
+            </Button>
+            <span className="text-xs text-muted-foreground">Page {currentPage} / {totalPages}</span>
+            <Button variant="ghost" size="sm" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)} className="h-7 px-2 text-xs">
+              Next <ChevronRight className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className={`md:col-span-2 ${!selectedId ? "hidden md:block" : ""}`}>
