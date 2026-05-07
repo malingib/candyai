@@ -17,7 +17,9 @@ const PAGE_SIZE = 10;
 const Conversations = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [conversations, setConversations] = useState<{id: string; visitor_name: string | null; visitor_email?: string | null; status: string; created_at: string}[]>([]);
+  const [conversations, setConversations] = useState<{id: string; visitor_name: string | null; visitor_email?: string | null; status: string; created_at: string; message_count?: number; user_message_count?: number}[]>([]);
+  const [filter, setFilter] = useState<"engaged" | "all">("engaged");
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<{id: string; role: string; content: string; created_at: string}[]>([]);
   const [reply, setReply] = useState("");
