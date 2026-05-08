@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket, Zap, ShieldAlert,
 } from "lucide-react";
-import { useEffect } from "react";
 import { useState, useEffect } from "react";
 import { useUnreadConversations } from "@/hooks/useUnreadConversations";
 import { supabase } from "@/integrations/supabase/client";
