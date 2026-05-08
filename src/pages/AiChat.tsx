@@ -92,15 +92,11 @@ const AiChat = () => {
 
     let assistantContent = "";
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      if (!accessToken) throw new Error("Missing auth session");
-
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ messages: newMessages.map((m) => ({ role: m.role, content: m.content })) }),
       });

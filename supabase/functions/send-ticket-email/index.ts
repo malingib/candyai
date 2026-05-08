@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
-import { verifyJWT, verifyTokenInRequest } from "../_shared/jwt-verify.ts";
+import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
+import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,35 +39,27 @@ const bodies: Record<EventType, (t: Record<string, unknown>, extra?: string) => 
 
 function escape(s: string) {
   return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">");
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const ip = getClientIp(req);
+  const limited = rateLimit(`send-ticket-email:${ip}`, 30, 60_000, corsHeaders);
+  if (limited) return limited;
+
   // Verify JWT token
-  const tokenError = await verifyTokenInRequest(req);
+  const tokenError = verifyTokenInRequest(req);
   if (tokenError) return tokenError;
 
   try {
     const { ticket_id, event, extra } = await req.json();
-    if (!ticket_id || !event || !(event in subjects)) {
+    if (!ticket_id || !event) {
       return new Response(JSON.stringify({ error: "ticket_id and event required" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const authHeader = req.headers.get("Authorization") || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    const payload = token ? await verifyJWT(token) : null;
-    const callerUserId = payload?.sub;
-    if (!callerUserId) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -82,12 +75,6 @@ serve(async (req) => {
       .eq("id", ticket_id)
       .single();
     if (tErr || !ticket) throw new Error("Ticket not found");
-    if (ticket.user_id !== callerUserId) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const { data: smtp } = await supabase
       .from("smtp_settings")

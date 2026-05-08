@@ -1,4 +1,4 @@
-import { forwardRef, useState, useEffect, type CSSProperties, type ComponentType } from "react";
+import { forwardRef, useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { Loader2, MessageSquare, Plus, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,37 +30,15 @@ interface CodeBlockProps {
 }
 
 const CodeBlock = ({ code, language }: CodeBlockProps) => {
-  const [SyntaxHighlighter, setSyntaxHighlighter] = useState<ComponentType<{
-    children: string;
-    customStyle?: CSSProperties;
-    language?: string;
-    PreTag?: string;
-    style?: Record<string, CSSProperties>;
-  }> | null>(null);
-  const [style, setStyle] = useState<Record<string, CSSProperties> | null>(null);
+  const [SyntaxHighlighter, setSyntaxHighlighter] = useState<typeof import("react-syntax-highlighter").Prism | null>(null);
+  const [style, setStyle] = useState<Record<string, React.CSSProperties> | null>(null);
 
   useEffect(() => {
     Promise.all([
-      import("react-syntax-highlighter/dist/esm/prism-light"),
+      import("react-syntax-highlighter"),
       import("react-syntax-highlighter/dist/esm/styles/prism").then((m) => m.oneDark),
-      import("react-syntax-highlighter/dist/esm/languages/prism/javascript"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/typescript"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/bash"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/json"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/python"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/css"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/markup"),
-    ]).then(([mod, s, javascript, typescript, bash, json, python, css, markup]) => {
-      const PrismLight = mod.default;
-      PrismLight.registerLanguage("javascript", javascript.default);
-      PrismLight.registerLanguage("typescript", typescript.default);
-      PrismLight.registerLanguage("bash", bash.default);
-      PrismLight.registerLanguage("json", json.default);
-      PrismLight.registerLanguage("python", python.default);
-      PrismLight.registerLanguage("css", css.default);
-      PrismLight.registerLanguage("markup", markup.default);
-      PrismLight.registerLanguage("html", markup.default);
-      setSyntaxHighlighter(() => PrismLight);
+    ]).then(([mod, s]) => {
+      setSyntaxHighlighter(mod.Prism);
       setStyle(s);
     });
   }, []);

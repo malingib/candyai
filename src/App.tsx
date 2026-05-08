@@ -13,11 +13,11 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
+import AiChat from "./pages/AiChat";
 import { UnreadConversationsProvider } from "./hooks/useUnreadConversations";
 
 const queryClient = new QueryClient();
 
-const AiChat = lazy(() => import("./pages/AiChat"));
 const Overview = lazy(() => import("./pages/dashboard/Overview"));
 const Conversations = lazy(() => import("./pages/dashboard/Conversations"));
 const KnowledgeBase = lazy(() => import("./pages/dashboard/KnowledgeBase"));
@@ -81,7 +81,7 @@ const App = () => {
               <Route path="/dashboard/github-bot" element={<DashboardRoute><DashboardPageLoader><GitHubBot /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/dashboard/tickets" element={<DashboardRoute><DashboardPageLoader><Tickets /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/dashboard/canned-responses" element={<DashboardRoute><DashboardPageLoader><CannedResponses /></DashboardPageLoader></DashboardRoute>} />
-              <Route path="/chat" element={<DashboardPageLoader><AiChat /></DashboardPageLoader>} />
+              <Route path="/chat" element={<AiChat />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

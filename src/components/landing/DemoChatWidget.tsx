@@ -57,7 +57,7 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
     let assistantContent = "";
     try {
       const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-public`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
         {
           method: "POST",
           headers: {

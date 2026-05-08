@@ -292,157 +292,49 @@ export type Database = {
       }
       profiles: {
         Row: {
-          access_expires_at: string | null
           business_name: string
           call_number: string
           chats_limit: number
           chats_used: number
           created_at: string
-          entitlement_updated_at: string
           id: string
           logo_url: string
           plan: string
           primary_color: string
-          stripe_customer_id: string | null
-          subscription_current_period_end: string | null
-          subscription_status: string
-          subscription_trial_end: string | null
-          subscription_trial_start: string | null
           updated_at: string
           user_id: string
           welcome_message: string
           whatsapp_number: string
         }
         Insert: {
-          access_expires_at?: string | null
           business_name?: string
           call_number?: string
           chats_limit?: number
           chats_used?: number
           created_at?: string
-          entitlement_updated_at?: string
           id?: string
           logo_url?: string
           plan?: string
           primary_color?: string
-          stripe_customer_id?: string | null
-          subscription_current_period_end?: string | null
-          subscription_status?: string
-          subscription_trial_end?: string | null
-          subscription_trial_start?: string | null
           updated_at?: string
           user_id: string
           welcome_message?: string
           whatsapp_number?: string
         }
         Update: {
-          access_expires_at?: string | null
           business_name?: string
           call_number?: string
           chats_limit?: number
           chats_used?: number
           created_at?: string
-          entitlement_updated_at?: string
           id?: string
           logo_url?: string
           plan?: string
           primary_color?: string
-          stripe_customer_id?: string | null
-          subscription_current_period_end?: string | null
-          subscription_status?: string
-          subscription_trial_end?: string | null
-          subscription_trial_start?: string | null
           updated_at?: string
           user_id?: string
           welcome_message?: string
           whatsapp_number?: string
-        }
-        Relationships: []
-      }
-      stripe_webhook_events: {
-        Row: {
-          created_at: string
-          event_type: string
-          id: string
-          livemode: boolean
-          payload: Json
-          processed_at: string | null
-          processing_error: string | null
-          stripe_event_id: string
-        }
-        Insert: {
-          created_at?: string
-          event_type: string
-          id?: string
-          livemode?: boolean
-          payload?: Json
-          processed_at?: string | null
-          processing_error?: string | null
-          stripe_event_id: string
-        }
-        Update: {
-          created_at?: string
-          event_type?: string
-          id?: string
-          livemode?: boolean
-          payload?: Json
-          processed_at?: string | null
-          processing_error?: string | null
-          stripe_event_id?: string
-        }
-        Relationships: []
-      }
-      subscriptions: {
-        Row: {
-          cancel_at_period_end: boolean
-          canceled_at: string | null
-          created_at: string
-          current_period_end: string | null
-          current_period_start: string | null
-          id: string
-          metadata: Json
-          status: string
-          stripe_customer_id: string
-          stripe_price_id: string | null
-          stripe_subscription_id: string
-          trial_end: string | null
-          trial_start: string | null
-          updated_at: string
-          user_id: string | null
-        }
-        Insert: {
-          cancel_at_period_end?: boolean
-          canceled_at?: string | null
-          created_at?: string
-          current_period_end?: string | null
-          current_period_start?: string | null
-          id?: string
-          metadata?: Json
-          status: string
-          stripe_customer_id: string
-          stripe_price_id?: string | null
-          stripe_subscription_id: string
-          trial_end?: string | null
-          trial_start?: string | null
-          updated_at?: string
-          user_id?: string | null
-        }
-        Update: {
-          cancel_at_period_end?: boolean
-          canceled_at?: string | null
-          created_at?: string
-          current_period_end?: string | null
-          current_period_start?: string | null
-          id?: string
-          metadata?: Json
-          status?: string
-          stripe_customer_id?: string
-          stripe_price_id?: string | null
-          stripe_subscription_id?: string
-          trial_end?: string | null
-          trial_start?: string | null
-          updated_at?: string
-          user_id?: string | null
         }
         Relationships: []
       }

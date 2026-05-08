@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
-import { toast } from "sonner";
 
 const plans = [
   { id: "free", name: "Starter", price: "Free Trial", chats: 20, features: ["20 chats/month", "Basic AI responses", "Mobiwave branding"] },
@@ -17,7 +16,6 @@ const plans = [
 const Billing = () => {
   const { user } = useAuth();
   const [currentPlan, setCurrentPlan] = useState("free");
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -52,33 +50,17 @@ const Billing = () => {
                 <Button
                   variant={isCurrent ? "outline" : "default"}
                   className={`w-full ${isCurrent ? "" : "bg-accent text-accent-foreground hover:bg-accent/90"}`}
-                  disabled={isCurrent || loadingPlan === plan.id}
+                  disabled={isCurrent}
                   size="sm"
-                  onClick={async () => {
-                    if (isCurrent) return;
-                    try {
-                      setLoadingPlan(plan.id);
-                      const { data, error } = await supabase.functions.invoke("paystack-init-checkout", {
-                        body: { plan: plan.id },
-                      });
-                      if (error) throw error;
-                      if (!data?.authorization_url) throw new Error("No checkout URL returned");
-                      window.location.href = data.authorization_url;
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Failed to start checkout");
-                    } finally {
-                      setLoadingPlan(null);
-                    }
-                  }}
                 >
-                  {isCurrent ? "Current Plan" : loadingPlan === plan.id ? "Redirecting..." : "Upgrade"}
+                  {isCurrent ? "Current Plan" : "Upgrade"}
                 </Button>
               </CardContent>
             </Card>
           );
         })}
       </div>
-      <p className="text-xs text-muted-foreground">Payments powered by Paystack for Kenya. Select a plan to continue checkout.</p>
+      <p className="text-xs text-muted-foreground">Payment integration coming soon. Contact us at hello@mobiwave.ai to upgrade.</p>
     </div>
   );
 };
