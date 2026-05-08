@@ -31,6 +31,10 @@ function detectIssue(text: string): { isIssue: boolean; priority: "low" | "mediu
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const ip = getClientIp(req);
+  const limited = rateLimit(`auto-create-ticket:${ip}`, 30, 60_000, corsHeaders);
+  if (limited) return limited;
+
   // Verify JWT token
   const tokenError = verifyTokenInRequest(req);
   if (tokenError) return tokenError;

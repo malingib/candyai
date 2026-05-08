@@ -47,6 +47,10 @@ function escape(s: string) {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const ip = getClientIp(req);
+  const limited = rateLimit(`send-ticket-email:${ip}`, 30, 60_000, corsHeaders);
+  if (limited) return limited;
+
   // Verify JWT token
   const tokenError = verifyTokenInRequest(req);
   if (tokenError) return tokenError;
