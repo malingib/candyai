@@ -13,7 +13,7 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   ].filter(Boolean).join(", ");
   throw new Error(
     `Missing Supabase environment variable(s): ${missing}. ` +
-    "Add them to your .env file and restart the dev server."
+    "If you are using Lovable Cloud DB, define these in your .env/env file (not Lovable Secrets), then restart the dev server."
   );
 }
 
