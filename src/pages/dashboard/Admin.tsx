@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldAlert, AlertTriangle, Activity, Lock } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Activity, Lock, Users } from "lucide-react";
 
 type LogRow = {
   id: string;
@@ -19,6 +20,13 @@ type LogRow = {
   message: string | null;
 };
 
+type UserRoleRow = {
+  id: string;
+  user_id: string;
+  role: "admin" | "user";
+  created_at: string;
+};
+
 const eventColor: Record<string, string> = {
   rate_limited: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   error: "bg-destructive/15 text-destructive",
@@ -28,32 +36,53 @@ const eventColor: Record<string, string> = {
 
 export default function Admin() {
   const { user } = useAuth();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const { isAdmin, loading: roleLoading } = useIsAdmin(user?.id);
   const [filter, setFilter] = useState<"all" | "rate_limited" | "error" | "unauthorized">("all");
   const [logs, setLogs] = useState<LogRow[]>([]);
+  const [roleRows, setRoleRows] = useState<UserRoleRow[]>([]);
   const [stats, setStats] = useState({ rate_limited: 0, error: 0, unauthorized: 0, total: 0 });
-
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle()
-      .then(({ data }) => setIsAdmin(!!data));
-  }, [user]);
 
   useEffect(() => {
     if (!isAdmin) return;
     let active = true;
-    const load = async () => {
+
+    const loadRoles = async () => {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id, user_id, role, created_at")
+        .order("created_at", { ascending: false })
+        .limit(500);
+
+      if (!active) return;
+      setRoleRows((data ?? []) as UserRoleRow[]);
+    };
+
+    loadRoles();
+
+    const rolesChannel = supabase
+      .channel("user_roles_admin")
+      .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, loadRoles)
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(rolesChannel);
+    };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let active = true;
+
+    const loadLogs = async () => {
       let q = supabase
         .from("request_logs")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(200);
+
       if (filter !== "all") q = q.eq("event_type", filter);
+
       const { data } = await q;
       if (!active) return;
       setLogs((data ?? []) as LogRow[]);
@@ -63,27 +92,49 @@ export default function Admin() {
         .from("request_logs")
         .select("event_type")
         .gte("created_at", since);
-      const s = { rate_limited: 0, error: 0, unauthorized: 0, total: agg?.length ?? 0 };
+
+      const nextStats = { rate_limited: 0, error: 0, unauthorized: 0, total: agg?.length ?? 0 };
       (agg ?? []).forEach((r: { event_type: string }) => {
-        if (r.event_type in s) (s as Record<string, number>)[r.event_type]++;
+        if (r.event_type in nextStats) {
+          (nextStats as Record<string, number>)[r.event_type] += 1;
+        }
       });
-      setStats(s);
+      setStats(nextStats);
     };
-    load();
-    const ch = supabase
+
+    loadLogs();
+
+    const logsChannel = supabase
       .channel("request_logs_admin")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "request_logs" }, load)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "request_logs" }, loadLogs)
       .subscribe();
-    const t = setInterval(load, 15_000);
-    return () => { active = false; clearInterval(t); supabase.removeChannel(ch); };
+
+    const interval = setInterval(loadLogs, 15_000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+      supabase.removeChannel(logsChannel);
+    };
   }, [isAdmin, filter]);
 
-  if (isAdmin === null) return <div className="p-6 text-sm text-muted-foreground">Checking access…</div>;
+  const roleStats = useMemo(() => {
+    const admins = roleRows.filter((r) => r.role === "admin").length;
+    const uniqueUsers = new Set(roleRows.map((r) => r.user_id)).size;
+
+    return { admins, uniqueUsers };
+  }, [roleRows]);
+
+  if (roleLoading) return <div className="p-6 text-sm text-muted-foreground">Checking access…</div>;
+
   if (!isAdmin) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Lock className="h-4 w-4" /> Admins only</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            Admins only
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">You don't have admin access. Ask an admin to grant you the role.</p>
@@ -95,15 +146,49 @@ export default function Admin() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard icon={Users} label="Tracked users" value={roleStats.uniqueUsers} />
+        <StatCard icon={ShieldAlert} label="Admin grants" value={roleStats.admins} tone="purple" />
         <StatCard icon={Activity} label="Events (24h)" value={stats.total} />
         <StatCard icon={AlertTriangle} label="Rate-limited" value={stats.rate_limited} tone="warn" />
-        <StatCard icon={ShieldAlert} label="Errors" value={stats.error} tone="error" />
-        <StatCard icon={Lock} label="Unauthorized" value={stats.unauthorized} tone="purple" />
       </div>
 
       <Card>
+        <CardHeader>
+          <CardTitle>Role assignments</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {roleRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No role assignments found.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="text-left p-2">User ID</th>
+                    <th className="text-left p-2">Role</th>
+                    <th className="text-left p-2">Granted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roleRows.map((r) => (
+                    <tr key={r.id} className="border-b last:border-0">
+                      <td className="p-2 font-mono text-xs">{r.user_id}</td>
+                      <td className="p-2">
+                        <Badge variant={r.role === "admin" ? "default" : "secondary"}>{r.role}</Badge>
+                      </td>
+                      <td className="p-2 text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent events</CardTitle>
+          <CardTitle>Recent request events</CardTitle>
           <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
@@ -160,10 +245,14 @@ export default function Admin() {
 
 function StatCard({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: number; tone?: "warn" | "error" | "purple" }) {
   const toneCls =
-    tone === "warn" ? "text-amber-600 dark:text-amber-400" :
-    tone === "error" ? "text-destructive" :
-    tone === "purple" ? "text-purple-600 dark:text-purple-400" :
-    "text-foreground";
+    tone === "warn"
+      ? "text-amber-600 dark:text-amber-400"
+      : tone === "error"
+      ? "text-destructive"
+      : tone === "purple"
+      ? "text-purple-600 dark:text-purple-400"
+      : "text-foreground";
+
   return (
     <Card>
       <CardContent className="p-4 flex items-center gap-3">

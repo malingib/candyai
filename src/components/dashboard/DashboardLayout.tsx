@@ -1,12 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket, Zap, ShieldAlert,
+  LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, Ticket, Zap, ShieldAlert,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useUnreadConversations } from "@/hooks/useUnreadConversations";
-import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { path: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -25,14 +25,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { signOut, user } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAdmin } = useIsAdmin(user?.id);
   const { unreadCount } = useUnreadConversations();
-
-  useEffect(() => {
-    if (!user) return;
-    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
-      .then(({ data }) => setIsAdmin(!!data));
-  }, [user]);
 
   const items = isAdmin
     ? [...navItems, { path: "/dashboard/admin", label: "Admin", icon: ShieldAlert }]
@@ -109,7 +103,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           </button>
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold text-foreground">
-              {navItems.find((i) => i.path === location.pathname)?.label ?? "Dashboard"}
+              {items.find((i) => i.path === location.pathname)?.label ?? "Dashboard"}
             </h1>
           </div>
         </header>

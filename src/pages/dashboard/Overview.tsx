@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { MessageSquare, Users, BarChart3, Zap, TrendingUp, ArrowUpRight } from "lucide-react";
+import { MessageSquare, Users, BarChart3, Zap, TrendingUp } from "lucide-react";
+import { Navigate } from "react-router-dom";
 
 type Profile = { chats_used: number; chats_limit: number; plan: string };
 const Overview = () => {
   const { user } = useAuth();
+  const { isAdmin, loading: roleLoading } = useIsAdmin(user?.id);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [conversationCount, setConversationCount] = useState(0);
   const [leadCount, setLeadCount] = useState(0);
@@ -24,6 +27,14 @@ const Overview = () => {
     };
     fetchData();
   }, [user]);
+
+  if (roleLoading) {
+    return <div className="text-sm text-muted-foreground">Checking dashboard access…</div>;
+  }
+
+  if (isAdmin) {
+    return <Navigate to="/dashboard/admin" replace />;
+  }
 
   const usagePercent = profile ? Math.min((profile.chats_used / profile.chats_limit) * 100, 100) : 0;
 
