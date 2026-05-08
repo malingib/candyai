@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
+import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
 
 // Function to verify HMAC signature
 function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
@@ -21,6 +22,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // IP rate limit: 30 req/min
+  const ip = getClientIp(req);
+  const limited = rateLimit(`github-webhook:${ip}`, 30, 60_000, corsHeaders);
+  if (limited) return limited;
 
   // Verify JWT token for authenticated endpoints
   const tokenError = verifyTokenInRequest(req);
