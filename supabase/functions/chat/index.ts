@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 
 const corsHeaders = {
@@ -14,15 +14,19 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Rate limit: 20 chat requests per minute per IP
-  const ip = getClientIp(req);
-  const limited = rateLimit(`chat:${ip}`, 20, 60_000, corsHeaders);
-  if (limited) return limited;
+  const rl = multiRateLimit(req, "chat", {
+    ip: { limit: 20, windowMs: 60_000 },
+    user: { limit: 40, windowMs: 60_000 },
+    session: { limit: 30, windowMs: 60_000 },
+  });
+  if (!rl.allowed) return rateLimitedResponse("chat", rl.scope!, rl.ctx, corsHeaders);
 
-  // Verify JWT for authenticated users
   if (!req.url.includes('/chat/demo')) {
     const tokenError = verifyTokenInRequest(req);
-    if (tokenError) return tokenError;
+    if (tokenError) {
+      logRequest({ function_name: "chat", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
+      return tokenError;
+    }
   }
 
   try {

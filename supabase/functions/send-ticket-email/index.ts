@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
-import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,13 +47,16 @@ function escape(s: string) {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const ip = getClientIp(req);
-  const limited = rateLimit(`send-ticket-email:${ip}`, 30, 60_000, corsHeaders);
-  if (limited) return limited;
-
-  // Verify JWT token
+  const rl = multiRateLimit(req, "send-ticket-email", {
+    ip: { limit: 30, windowMs: 60_000 },
+    user: { limit: 60, windowMs: 60_000 },
+  });
+  if (!rl.allowed) return rateLimitedResponse("send-ticket-email", rl.scope!, rl.ctx, corsHeaders);
   const tokenError = verifyTokenInRequest(req);
-  if (tokenError) return tokenError;
+  if (tokenError) {
+    logRequest({ function_name: "send-ticket-email", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
+    return tokenError;
+  }
 
   try {
     const { ticket_id, event, extra } = await req.json();

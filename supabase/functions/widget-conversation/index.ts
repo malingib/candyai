@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,10 +18,11 @@ function clamp(s: unknown, max: number): string {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // Rate limit: 60 requests per minute per IP
-  const ip = getClientIp(req);
-  const limited = rateLimit(`widget-conversation:${ip}`, 60, 60_000, corsHeaders);
-  if (limited) return limited;
+  const rl = multiRateLimit(req, "widget-conversation", {
+    ip: { limit: 60, windowMs: 60_000 },
+    session: { limit: 90, windowMs: 60_000 },
+  });
+  if (!rl.allowed) return rateLimitedResponse("widget-conversation", rl.scope!, rl.ctx, corsHeaders);
 
   try {
     const body = await req.json();
