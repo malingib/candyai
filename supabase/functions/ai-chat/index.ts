@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
-import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,14 +13,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // IP rate limit: 30 req/min
-  const ip = getClientIp(req);
-  const limited = rateLimit(`ai-chat:${ip}`, 30, 60_000, corsHeaders);
-  if (limited) return limited;
+  const rl = multiRateLimit(req, "ai-chat", {
+    ip: { limit: 30, windowMs: 60_000 },
+    user: { limit: 60, windowMs: 60_000 },
+    session: { limit: 40, windowMs: 60_000 },
+  });
+  if (!rl.allowed) return rateLimitedResponse("ai-chat", rl.scope!, rl.ctx, corsHeaders);
 
-  // Verify JWT token
   const tokenError = verifyTokenInRequest(req);
-  if (tokenError) return tokenError;
+  if (tokenError) {
+    logRequest({ function_name: "ai-chat", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
+    return tokenError;
+  }
 
   try {
     const { messages } = await req.json();

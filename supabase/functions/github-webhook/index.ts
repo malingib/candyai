@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
-import { getClientIp, rateLimit } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 
 // Function to verify HMAC signature
 function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
@@ -23,14 +23,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // IP rate limit: 30 req/min
-  const ip = getClientIp(req);
-  const limited = rateLimit(`github-webhook:${ip}`, 30, 60_000, corsHeaders);
-  if (limited) return limited;
-
-  // Verify JWT token for authenticated endpoints
+  const rl = multiRateLimit(req, "github-webhook", { ip: { limit: 30, windowMs: 60_000 } });
+  if (!rl.allowed) return rateLimitedResponse("github-webhook", rl.scope!, rl.ctx, corsHeaders);
   const tokenError = verifyTokenInRequest(req);
-  if (tokenError) return tokenError;
+  if (tokenError) {
+    logRequest({ function_name: "github-webhook", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
+    return tokenError;
+  }
 
   try {
     const event = req.headers.get("x-github-event");
