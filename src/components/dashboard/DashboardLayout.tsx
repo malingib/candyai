@@ -2,8 +2,9 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket, Zap,
+  LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket, Zap, ShieldAlert,
 } from "lucide-react";
+import { useEffect } from "react";
 import { useState } from "react";
 import { useUnreadConversations } from "@/hooks/useUnreadConversations";
 

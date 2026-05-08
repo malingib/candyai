@@ -28,6 +28,7 @@ const Leads = lazy(() => import("./pages/dashboard/Leads"));
 const GitHubBot = lazy(() => import("./pages/dashboard/GitHubBot"));
 const Tickets = lazy(() => import("./pages/dashboard/Tickets"));
 const CannedResponses = lazy(() => import("./pages/dashboard/CannedResponses"));
+const Admin = lazy(() => import("./pages/dashboard/Admin"));
 
 const DashboardRoute = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute>
@@ -81,6 +82,7 @@ const App = () => {
               <Route path="/dashboard/github-bot" element={<DashboardRoute><DashboardPageLoader><GitHubBot /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/dashboard/tickets" element={<DashboardRoute><DashboardPageLoader><Tickets /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/dashboard/canned-responses" element={<DashboardRoute><DashboardPageLoader><CannedResponses /></DashboardPageLoader></DashboardRoute>} />
+              <Route path="/dashboard/admin" element={<DashboardRoute><DashboardPageLoader><Admin /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/chat" element={<AiChat />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
