@@ -5,8 +5,9 @@ import {
   LayoutDashboard, MessageSquare, BookOpen, Settings, Code, CreditCard, LogOut, Menu, X, Users, GitBranch, ChevronLeft, Ticket, Zap, ShieldAlert,
 } from "lucide-react";
 import { useEffect } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUnreadConversations } from "@/hooks/useUnreadConversations";
+import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { path: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -25,7 +26,18 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { signOut, user } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { unreadCount } = useUnreadConversations();
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle()
+      .then(({ data }) => setIsAdmin(!!data));
+  }, [user]);
+
+  const items = isAdmin
+    ? [...navItems, { path: "/dashboard/admin", label: "Admin", icon: ShieldAlert }]
+    : navItems;
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -45,7 +57,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 mt-2">
-          {navItems.map((item) => {
+          {items.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
