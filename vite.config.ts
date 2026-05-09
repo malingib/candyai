@@ -61,6 +61,15 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("recharts")) {
               return "vendor-charts";
             }
+            if (id.includes("@supabase")) {
+              return "vendor-supabase";
+            }
+            if (id.includes("react-hook-form") || id.includes("@hookform") || id.includes("zod")) {
+              return "vendor-forms";
+            }
+            if (id.includes("react-helmet")) {
+              return "vendor-helmet";
+            }
             return "vendor-misc";
           }
         },
