@@ -4,7 +4,7 @@ import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+
 import { ArrowRight, Check } from "lucide-react";
 
 const FeaturesSection = lazy(() => import("@/components/landing/FeaturesSection"));
@@ -51,17 +51,11 @@ const Index = () => {
               { value: "<3s", label: "Avg response time" },
               { value: "500+", label: "Businesses trust us" },
               { value: "99.9%", label: "Uptime SLA" },
-            ].map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
-              >
+            ].map((stat) => (
+              <div key={stat.label}>
                 <div className="text-3xl md:text-4xl font-black text-foreground">{stat.value}</div>
                 <div className="text-sm text-muted-foreground mt-1 font-medium">{stat.label}</div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -86,21 +80,14 @@ const Index = () => {
               { step: "01", title: "Create your account", description: "Sign up in 30 seconds. No credit card needed. Get 20 free chats." },
               { step: "02", title: "Train your AI agent", description: "Upload your FAQs, docs, and product info. Your AI learns instantly." },
               { step: "03", title: "Embed & go live", description: "Copy one line of code. Paste on your site. Start converting." },
-            ].map((item, i) => (
-              <motion.div
-                key={item.step}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.12 }}
-                className="text-center relative"
-              >
+            ].map((item) => (
+              <div key={item.step} className="text-center relative">
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-black text-lg">
                   {item.step}
                 </div>
                 <h3 className="mb-2 text-lg font-bold text-hero-foreground">{item.title}</h3>
                 <p className="text-sm text-hero-muted leading-relaxed">{item.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
 
@@ -118,11 +105,7 @@ const Index = () => {
       <section id="demo" className="py-24 md:py-32 bg-background">
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
+            <div>
               <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
                 For developers
               </p>
@@ -146,14 +129,9 @@ const Index = () => {
                   Get API access <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="rounded-2xl border border-border bg-hero overflow-hidden"
-            >
+            <div className="rounded-2xl border border-border bg-hero overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
                 <div className="flex gap-1.5">
                   <span className="h-3 w-3 rounded-full bg-red-500/60" />
@@ -172,7 +150,7 @@ const Index = () => {
 
 <!-- That's it. Your AI agent is live. -->`}</code>
               </pre>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
