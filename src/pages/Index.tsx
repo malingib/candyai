@@ -80,21 +80,14 @@ const Index = () => {
               { step: "01", title: "Create your account", description: "Sign up in 30 seconds. No credit card needed. Get 20 free chats." },
               { step: "02", title: "Train your AI agent", description: "Upload your FAQs, docs, and product info. Your AI learns instantly." },
               { step: "03", title: "Embed & go live", description: "Copy one line of code. Paste on your site. Start converting." },
-            ].map((item, i) => (
-              <motion.div
-                key={item.step}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.12 }}
-                className="text-center relative"
-              >
+            ].map((item) => (
+              <div key={item.step} className="text-center relative">
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-black text-lg">
                   {item.step}
                 </div>
                 <h3 className="mb-2 text-lg font-bold text-hero-foreground">{item.title}</h3>
                 <p className="text-sm text-hero-muted leading-relaxed">{item.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
 
