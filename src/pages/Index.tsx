@@ -150,7 +150,7 @@ const Index = () => {
 
 <!-- That's it. Your AI agent is live. -->`}</code>
               </pre>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
