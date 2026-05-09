@@ -67,7 +67,7 @@ const Index = () => {
         </div>
       </section>
 
-      <FeaturesSection />
+      <Suspense fallback={<div className="h-32" />}><FeaturesSection /></Suspense>
 
       {/* How it works */}
       <section id="how-it-works" className="py-24 md:py-32 bg-hero">
