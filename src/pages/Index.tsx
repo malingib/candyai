@@ -4,7 +4,7 @@ import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+
 import { ArrowRight, Check } from "lucide-react";
 
 const FeaturesSection = lazy(() => import("@/components/landing/FeaturesSection"));
