@@ -105,11 +105,7 @@ const Index = () => {
       <section id="demo" className="py-24 md:py-32 bg-background">
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
+            <div>
               <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
                 For developers
               </p>
