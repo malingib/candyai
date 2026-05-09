@@ -69,6 +69,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <Suspense fallback={<LoadingSpinner />}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
@@ -87,6 +88,7 @@ const App = () => {
               <Route path="/chat" element={<AiChat />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
