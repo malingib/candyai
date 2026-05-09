@@ -51,17 +51,11 @@ const Index = () => {
               { value: "<3s", label: "Avg response time" },
               { value: "500+", label: "Businesses trust us" },
               { value: "99.9%", label: "Uptime SLA" },
-            ].map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
-              >
+            ].map((stat) => (
+              <div key={stat.label}>
                 <div className="text-3xl md:text-4xl font-black text-foreground">{stat.value}</div>
                 <div className="text-sm text-muted-foreground mt-1 font-medium">{stat.label}</div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
