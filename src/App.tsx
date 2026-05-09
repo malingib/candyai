@@ -8,13 +8,14 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import SplashScreen from "./components/SplashScreen";
 import LoadingSpinner from "./components/LoadingSpinner";
 import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
-import AiChat from "./pages/AiChat";
 import { UnreadConversationsProvider } from "./hooks/useUnreadConversations";
+
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Auth = lazy(() => import("./pages/Auth"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const AiChat = lazy(() => import("./pages/AiChat"));
 
 const queryClient = new QueryClient();
 
