@@ -177,11 +177,13 @@ const Index = () => {
         </div>
       </section>
 
-      <TestimonialsSection />
-      <ProductsSection />
-      <PricingSection />
-      <Footer />
-      <DemoChatWidget />
+      <Suspense fallback={<div className="h-32" />}>
+        <TestimonialsSection />
+        <ProductsSection />
+        <PricingSection />
+        <Footer />
+        <DemoChatWidget />
+      </Suspense>
     </div>
   );
 };
