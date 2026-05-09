@@ -2,60 +2,61 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export interface JwtPayload {
   sub: string;
-  exp: number;
-  iat: number;
+  exp?: number;
+  iat?: number;
+  email?: string;
+  role?: string;
   [key: string]: any;
 }
 
-// Function to verify JWT token
-export function verifyJWT(token: string): JwtPayload | null {
-  try {
-    // In a real implementation, you would verify the JWT signature here
-    // For now, we'll return a basic implementation that parses the token
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
+const supabaseAuth = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_ANON_KEY")!,
+);
 
-    const payload = JSON.parse(atob(parts[1]));
-    return payload;
+/**
+ * Verifies a JWT by delegating signature validation to Supabase Auth.
+ * Returns the verified claims, or null if invalid/expired.
+ */
+export async function verifyJWT(token: string): Promise<JwtPayload | null> {
+  try {
+    const { data, error } = await supabaseAuth.auth.getClaims(token);
+    if (error || !data?.claims) return null;
+    return data.claims as JwtPayload;
   } catch (e) {
-    console.error('JWT verification error:', e);
+    console.error("JWT verification error:", e);
     return null;
   }
 }
 
-// Function to verify JWT token from request
-export function verifyTokenInRequest(req: Request): Response | null {
+/**
+ * Validates the Authorization header on a request. Returns a 401 Response if
+ * invalid, or null if the token is valid (signature + expiry verified by Supabase).
+ */
+export async function verifyTokenInRequest(req: Request): Promise<Response | null> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(
       JSON.stringify({ error: "Missing Authorization header" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
+      { status: 401, headers: { "Content-Type": "application/json" } },
     );
   }
 
   if (!authHeader.startsWith("Bearer ")) {
     return new Response(
       JSON.stringify({ error: "Invalid Authorization header format" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
+      { status: 401, headers: { "Content-Type": "application/json" } },
     );
   }
 
   const token = authHeader.substring(7);
-  const payload = verifyJWT(token);
+  const payload = await verifyJWT(token);
   if (!payload) {
     return new Response(
-      JSON.stringify({ error: "Invalid token" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({ error: "Invalid or expired token" }),
+      { status: 401, headers: { "Content-Type": "application/json" } },
     );
   }
 
-  // Check if token is expired
-  if (payload.exp && payload.exp < Date.now() / 1000) {
-    return new Response(
-      JSON.stringify({ error: "Token expired" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
-    );
-  }
-
-  return null; // Valid token
+  return null;
 }

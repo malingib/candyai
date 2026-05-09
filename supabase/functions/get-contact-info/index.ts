@@ -28,7 +28,7 @@ serve(async (req) => {
     session: { limit: 60, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("get-contact-info", rl.scope!, rl.ctx, corsHeaders);
-  const tokenError = verifyTokenInRequest(req);
+  const tokenError = await verifyTokenInRequest(req);
   if (tokenError) {
     logRequest({ function_name: "get-contact-info", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
     return tokenError;
