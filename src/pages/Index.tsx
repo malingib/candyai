@@ -129,14 +129,9 @@ const Index = () => {
                   Get API access <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="rounded-2xl border border-border bg-hero overflow-hidden"
-            >
+            <div className="rounded-2xl border border-border bg-hero overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
                 <div className="flex gap-1.5">
                   <span className="h-3 w-3 rounded-full bg-red-500/60" />
