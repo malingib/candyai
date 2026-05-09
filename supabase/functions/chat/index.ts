@@ -22,7 +22,7 @@ serve(async (req) => {
   if (!rl.allowed) return rateLimitedResponse("chat", rl.scope!, rl.ctx, corsHeaders);
 
   if (!req.url.includes('/chat/demo')) {
-    const tokenError = verifyTokenInRequest(req);
+    const tokenError = await verifyTokenInRequest(req);
     if (tokenError) {
       logRequest({ function_name: "chat", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
       return tokenError;
