@@ -15,6 +15,21 @@ function clamp(s: unknown, max: number): string {
   return String(s ?? "").slice(0, max);
 }
 
+async function conversationBelongsToBusiness(
+  supabase: ReturnType<typeof createClient>,
+  conversationId: string,
+  businessId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("id", conversationId)
+    .eq("user_id", businessId)
+    .maybeSingle();
+  if (error) return false;
+  return !!data;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -59,7 +74,12 @@ serve(async (req) => {
         .from("conversations")
         .insert({ user_id: business_id, status: "active", visitor_metadata: meta })
         .select("id").single();
-      if (error) throw error;
+      if (error) {
+        const errMsg = String((error as { message?: string })?.message || "");
+        if (!errMsg.includes("duplicate key value violates unique constraint")) {
+          throw error;
+        }
+      }
       return new Response(JSON.stringify({ conversation_id: data.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -71,6 +91,12 @@ serve(async (req) => {
       if (!isUuid(conversation_id) || !["user", "assistant"].includes(role)) {
         return new Response(JSON.stringify({ error: "invalid input" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const ownsConversation = await conversationBelongsToBusiness(supabase, conversation_id, business_id);
+      if (!ownsConversation) {
+        return new Response(JSON.stringify({ error: "invalid conversation" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const text = clamp(content, 4000);
@@ -106,14 +132,83 @@ serve(async (req) => {
         });
       }
 
-      const { error } = await supabase.from("leads").insert({
+      if (isUuid(conversation_id)) {
+        const ownsConversation = await conversationBelongsToBusiness(supabase, conversation_id, business_id);
+        if (!ownsConversation) {
+          return new Response(JSON.stringify({ error: "invalid conversation" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      const leadPayload = {
         user_id: business_id,
         conversation_id: isUuid(conversation_id) ? conversation_id : null,
         name: cleanName || null,
         email: cleanEmail || null,
         phone: cleanPhone || null,
         notes: "Captured from embedded widget",
-      });
+      };
+
+      let error: unknown = null;
+      let shouldInsert = true;
+      if (isUuid(conversation_id)) {
+        const { data: existingForConversation } = await supabase
+          .from("leads")
+          .select("id")
+          .eq("user_id", business_id)
+          .eq("conversation_id", conversation_id)
+          .limit(1)
+          .maybeSingle();
+        shouldInsert = !existingForConversation;
+      } else {
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        let hasRecentDuplicate = false;
+
+        if (cleanEmail) {
+          const { data: byEmail } = await supabase
+            .from("leads")
+            .select("id")
+            .eq("user_id", business_id)
+            .eq("email", cleanEmail)
+            .gte("created_at", cutoff)
+            .limit(1)
+            .maybeSingle();
+          hasRecentDuplicate = !!byEmail;
+        }
+
+        if (!hasRecentDuplicate && cleanPhone) {
+          const { data: byPhone } = await supabase
+            .from("leads")
+            .select("id")
+            .eq("user_id", business_id)
+            .eq("phone", cleanPhone)
+            .gte("created_at", cutoff)
+            .limit(1)
+            .maybeSingle();
+          hasRecentDuplicate = !!byPhone;
+        }
+
+        shouldInsert = !hasRecentDuplicate;
+      }
+
+      if (shouldInsert) {
+        const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_lead_quota", { p_user_id: business_id });
+        const quota = quotaData?.[0] as { allowed?: boolean; reason?: string; remaining?: number; resets_at?: string } | undefined;
+        if (quotaErr || !quota?.allowed) {
+          return new Response(JSON.stringify({
+            error: "Lead capture limit reached. Upgrade plan to capture more leads.",
+            reason: quota?.reason ?? "limit_reached",
+            remaining: quota?.remaining ?? 0,
+            resets_at: quota?.resets_at ?? null,
+          }), {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        ({ error } = await supabase.from("leads").insert(leadPayload));
+      }
       if (error) throw error;
 
       // Also save visitor info on conversation

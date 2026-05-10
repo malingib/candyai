@@ -8,6 +8,24 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+type ChatRole = "user" | "assistant";
+type ChatMessage = { role: ChatRole; content: string };
+
+function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): ChatMessage[] | null {
+  if (!Array.isArray(input) || input.length === 0 || input.length > maxMessages) return null;
+  const out: ChatMessage[] = [];
+  for (const m of input) {
+    if (!m || typeof m !== "object") return null;
+    const role = (m as Record<string, unknown>).role;
+    const content = (m as Record<string, unknown>).content;
+    if ((role !== "user" && role !== "assistant") || typeof content !== "string") return null;
+    const cleaned = content.trim().slice(0, maxChars);
+    if (!cleaned) continue;
+    out.push({ role, content: cleaned });
+  }
+  return out.length ? out : null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -28,6 +46,13 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
+    const safeMessages = sanitizeMessages(messages);
+    if (!safeMessages) {
+      return new Response(
+        JSON.stringify({ error: "Invalid messages payload" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -47,7 +72,7 @@ serve(async (req) => {
               content: `You are Mobiwave AI, a powerful and helpful AI assistant. You can help with coding, writing, analysis, math, brainstorming, and more.
 Format your responses using markdown for readability. Use code blocks with language tags for code. Be concise but thorough.`,
             },
-            ...messages,
+            ...safeMessages,
           ],
           stream: true,
         }),

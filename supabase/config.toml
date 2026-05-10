@@ -1,10 +1,12 @@
 project_id = "pjplcsuyhybwoinlwnnb"
 
 [auth]
-site_url = "https://ai.mobiwave.co.ke"
+site_url = "https://mobiwaveai.co.ke"
 additional_redirect_urls = [
-  "https://ai.mobiwave.co.ke",
-  "https://ai.mobiwave.co.ke/reset-password"
+  "https://mobiwaveai.co.ke",
+  "https://mobiwaveai.co.ke/reset-password",
+  "https://www.mobiwaveai.co.ke",
+  "https://www.mobiwaveai.co.ke/reset-password"
 ]
 
 [auth.mfa]
@@ -24,22 +26,40 @@ otp_length = 8
 otp_expiry = 3600
 
 [functions.chat]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ai-chat]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-contact-info]
-verify_jwt = false
+verify_jwt = true
 
 [functions.github-webhook]
 verify_jwt = false
 
 [functions.send-ticket-email]
-verify_jwt = false
+verify_jwt = true
 
 [functions.auto-create-ticket]
-verify_jwt = false
+verify_jwt = true
 
 [functions.widget-conversation]
+verify_jwt = true
+
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.paystack-webhook]
 verify_jwt = false
+
+[functions.verify-paystack-callback]
+verify_jwt = true
+
+[functions.paystack-fallback-activator]
+verify_jwt = false
+
+[functions.admin-control]
+verify_jwt = true
+
+[functions.client-telemetry]
+verify_jwt = true

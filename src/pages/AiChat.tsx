@@ -13,6 +13,21 @@ type Msg = { role: "user" | "assistant"; content: string; attachments?: string[]
 type Chat = { id: string; title: string; created_at: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_ATTACHMENTS = 10;
+const MIN_SEND_INTERVAL_MS = 1000;
+
+const sanitizeText = (value: string, max = MAX_MESSAGE_LENGTH) =>
+  value.replace(/\s+/g, " ").trim().slice(0, max);
+
+const isSafeAttachmentUrl = (value: string) => {
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" || u.protocol === "http:";
+  } catch {
+    return false;
+  }
+};
 
 const AiChat = () => {
   const { user, loading: authLoading } = useAuth();
@@ -22,6 +37,7 @@ const AiChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastSendAtRef = useRef(0);
 
   useEffect(() => {
     if (!user) return;
@@ -67,13 +83,18 @@ const AiChat = () => {
   };
 
   const sendMessage = useCallback(async (text: string, attachments: string[]) => {
-    if ((!text && attachments.length === 0) || isLoading || !activeChatId || !user) return;
+    const now = Date.now();
+    if (now - lastSendAtRef.current < MIN_SEND_INTERVAL_MS) return;
+    const cleanText = sanitizeText(text);
+    const cleanAttachments = attachments.filter(isSafeAttachmentUrl).slice(0, MAX_ATTACHMENTS);
+    if ((!cleanText && cleanAttachments.length === 0) || isLoading || !activeChatId || !user) return;
+    lastSendAtRef.current = now;
 
-    const content = attachments.length > 0
-      ? `${text}\n\n${attachments.map((u) => `![attachment](${u})`).join("\n")}`.trim()
-      : text;
+    const content = cleanAttachments.length > 0
+      ? `${cleanText}\n\n${cleanAttachments.map((u) => `![attachment](${u})`).join("\n")}`.trim()
+      : cleanText;
 
-    const userMsg: Msg = { role: "user", content, attachments };
+    const userMsg: Msg = { role: "user", content, attachments: cleanAttachments };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setIsLoading(true);
@@ -85,7 +106,7 @@ const AiChat = () => {
     });
 
     if (messages.length === 0) {
-      const title = text.slice(0, 50) + (text.length > 50 ? "…" : "") || "File upload";
+      const title = cleanText.slice(0, 50) + (cleanText.length > 50 ? "…" : "") || "File upload";
       await supabase.from("ai_chats").update({ title }).eq("id", activeChatId);
       setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, title } : c)));
     }

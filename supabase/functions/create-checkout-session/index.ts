@@ -1,0 +1,102 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
+import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const PLAN_CONFIG: Record<string, { amountKobo: number; currency: string; label: string }> = {
+  growth: { amountKobo: 500000, currency: "KES", label: "Mobiwave Growth (30 days)" },
+  premium: { amountKobo: 1000000, currency: "KES", label: "Mobiwave Premium (30 days)" },
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const rl = multiRateLimit(req, "create-checkout-session", {
+    ip: { limit: 10, windowMs: 60_000 },
+    user: { limit: 20, windowMs: 60_000 },
+    session: { limit: 20, windowMs: 60_000 },
+  });
+  if (!rl.allowed) return rateLimitedResponse("create-checkout-session", rl.scope!, rl.ctx, corsHeaders);
+
+  const tokenError = await verifyTokenInRequest(req);
+  if (tokenError) {
+    logRequest({ function_name: "create-checkout-session", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
+    return tokenError;
+  }
+
+  try {
+    const { plan } = await req.json();
+    if (!plan || typeof plan !== "string" || !PLAN_CONFIG[plan]) {
+      return new Response(JSON.stringify({ error: "Invalid plan" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const authHeader = req.headers.get("Authorization")!;
+    const token = authHeader.replace("Bearer ", "");
+    const auth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const { data: userData, error: userErr } = await auth.auth.getUser(token);
+    if (userErr || !userData?.user?.id || !userData.user.email) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const siteUrl = Deno.env.get("APP_SITE_URL") || "https://mobiwaveai.co.ke";
+    const paystackSecret = Deno.env.get("PAYSTACK_SECRET_KEY");
+    if (!paystackSecret) {
+      return new Response(JSON.stringify({ error: "Billing not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const cfg = PLAN_CONFIG[plan];
+    const paystackResp = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${paystackSecret}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: userData.user.email,
+        amount: cfg.amountKobo,
+        currency: cfg.currency,
+        callback_url: `${siteUrl}/dashboard/billing?checkout=success`,
+        metadata: {
+          user_id: userData.user.id,
+          plan,
+          label: cfg.label,
+        },
+      }),
+    });
+
+    const data = await paystackResp.json();
+    const authUrl = data?.data?.authorization_url;
+    if (!paystackResp.ok || !authUrl) {
+      console.error("paystack checkout error", data);
+      return new Response(JSON.stringify({ error: "Unable to create checkout session" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ url: authUrl }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    console.error("create-checkout-session error:", e);
+    return new Response(JSON.stringify({ error: "Unexpected error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

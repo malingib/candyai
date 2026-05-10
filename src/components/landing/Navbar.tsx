@@ -30,6 +30,7 @@ const Navbar = () => {
           <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How it works</a>
           <a href="#pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
           <Link to="/chat" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">AI Chat</Link>
+          <Link to="/legal/privacy" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
         </div>
 
         <div className="hidden md:flex items-center gap-3">
@@ -56,6 +57,7 @@ const Navbar = () => {
           <a href="#how-it-works" className="block text-sm font-medium text-muted-foreground" onClick={() => setMobileOpen(false)}>How it works</a>
           <a href="#pricing" className="block text-sm font-medium text-muted-foreground" onClick={() => setMobileOpen(false)}>Pricing</a>
           <Link to="/chat" className="block text-sm font-medium text-muted-foreground" onClick={() => setMobileOpen(false)}>AI Chat</Link>
+          <Link to="/legal/privacy" className="block text-sm font-medium text-muted-foreground" onClick={() => setMobileOpen(false)}>Privacy</Link>
           <div className="flex gap-2 pt-2">
             <Link to="/auth" className="flex-1" onClick={() => setMobileOpen(false)}>
               <Button variant="outline" size="sm" className="w-full">Log in</Button>

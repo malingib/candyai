@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, Send, X, User, Phone, MessageCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -22,7 +23,9 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
   const [contactInfo, setContactInfo] = useState({ whatsapp_number: "", call_number: "", business_name: "" });
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
   useEffect(() => {
     if (!userId) return;
@@ -46,6 +49,7 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
     if (messageCount >= MAX_FREE_MESSAGES) return;
+    if (turnstileSiteKey && !turnstileToken) return;
 
     const userMsg: Message = { role: "user", content: input.trim() };
     const allMessages = [...messages, userMsg];
@@ -68,6 +72,7 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
             messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
             demo,
             user_id: userId,
+            turnstile_token: turnstileToken,
           }),
         }
       );
@@ -251,6 +256,7 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
                 </Button>
               </form>
             )}
+            {turnstileSiteKey && <div className="mt-2"><TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} /></div>}
             <p className="mt-2 text-center text-xs text-muted-foreground">
               {MAX_FREE_MESSAGES - messageCount} messages remaining · Powered by Mobiwave AI
             </p>

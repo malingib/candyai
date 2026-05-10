@@ -11,6 +11,23 @@ interface ChatInputProps {
   userId: string;
 }
 
+const MAX_FILES = 10;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_MESSAGE_LENGTH = 4000;
+const ALLOWED_MIME_PREFIXES = ["image/", "text/"];
+const ALLOWED_MIME_EXACT = [
+  "application/pdf",
+  "application/json",
+  "application/xml",
+  "application/zip",
+];
+
+const isAllowedMime = (mime: string) =>
+  ALLOWED_MIME_PREFIXES.some((p) => mime.startsWith(p)) || ALLOWED_MIME_EXACT.includes(mime);
+
+const sanitizeFileSegment = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9._-]/g, "-").slice(0, 80);
+
 const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -19,10 +36,12 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = (newFiles: FileList | File[]) => {
-    const arr = Array.from(newFiles).slice(0, 10);
-    const valid = arr.filter((f) => f.size <= 20 * 1024 * 1024);
-    if (valid.length < arr.length) toast.error("Some files exceed 20MB limit");
-    setFiles((prev) => [...prev, ...valid].slice(0, 10));
+    const arr = Array.from(newFiles).slice(0, MAX_FILES);
+    const valid = arr.filter((f) => f.size <= MAX_FILE_SIZE && isAllowedMime(f.type));
+    if (valid.length < arr.length) {
+      toast.error("Some files were rejected (type/size). Max 20MB each.");
+    }
+    setFiles((prev) => [...prev, ...valid].slice(0, MAX_FILES));
   };
 
   const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
@@ -38,8 +57,10 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
     setUploading(true);
     const urls: string[] = [];
     for (const file of files) {
-      const ext = file.name.split(".").pop();
-      const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const ext = sanitizeFileSegment(file.name.split(".").pop() || "bin");
+      const safeBase = sanitizeFileSegment(file.name.replace(/\.[^.]+$/, "")) || "file";
+      const nonce = Math.random().toString(36).slice(2, 10);
+      const path = `${sanitizeFileSegment(userId)}/${Date.now()}-${nonce}-${safeBase}.${ext}`;
       const { error } = await supabase.storage.from("chat-uploads").upload(path, file);
       if (error) {
         console.error("Upload error:", error);
@@ -54,9 +75,10 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && files.length === 0) || isLoading || uploading) return;
+    const cleanInput = input.replace(/\s+/g, " ").trim().slice(0, MAX_MESSAGE_LENGTH);
+    if ((!cleanInput && files.length === 0) || isLoading || uploading) return;
     const attachments = await uploadFiles();
-    onSend(input.trim(), attachments);
+    onSend(cleanInput, attachments);
     setInput("");
     setFiles([]);
   };
@@ -116,6 +138,7 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
             placeholder={isDragOver ? "Drop files here…" : "Type your message…"}
             disabled={isLoading || uploading}
             className="flex-1"
+            maxLength={MAX_MESSAGE_LENGTH}
           />
           <Button
             onClick={handleSend}

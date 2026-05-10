@@ -7,7 +7,16 @@ import { Progress } from "@/components/ui/progress";
 import { MessageSquare, Users, BarChart3, Zap, TrendingUp } from "lucide-react";
 import { Navigate } from "react-router-dom";
 
-type Profile = { chats_used: number; chats_limit: number; plan: string };
+type Profile = {
+  chats_used: number;
+  chats_limit: number;
+  leads_used?: number;
+  leads_limit?: number;
+  plan: string;
+  chats_period_started_at?: string;
+  billing_expires_at?: string | null;
+  trial_expires_at?: string | null;
+};
 const Overview = () => {
   const { user } = useAuth();
   const { isAdmin, loading: roleLoading } = useIsAdmin(user?.id);
@@ -37,6 +46,17 @@ const Overview = () => {
   }
 
   const usagePercent = profile ? Math.min((profile.chats_used / profile.chats_limit) * 100, 100) : 0;
+  const remainingChats = profile ? Math.max((profile.chats_limit ?? 0) - (profile.chats_used ?? 0), 0) : 0;
+  const remainingLeads = profile ? Math.max((profile.leads_limit ?? 0) - (profile.leads_used ?? 0), 0) : 0;
+  const periodStart = profile?.chats_period_started_at ? new Date(profile.chats_period_started_at) : new Date();
+  const resetAt = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 1, 0, 0, 0, 0);
+  const resetLabel = resetAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const isBillingExpired =
+    !!profile?.billing_expires_at && new Date(profile.billing_expires_at).getTime() < Date.now();
+  const isFreeTrialExpired =
+    profile?.plan === "free" &&
+    !!profile?.trial_expires_at &&
+    new Date(profile.trial_expires_at).getTime() < Date.now();
 
   const stats = [
     {
@@ -117,6 +137,24 @@ const Overview = () => {
               </p>
               <span className="text-sm font-semibold text-foreground">{Math.round(usagePercent)}%</span>
             </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{remainingChats} chats remaining</span>
+              <span>Resets {resetLabel}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{remainingLeads} leads remaining</span>
+              <span>30-day cycle</span>
+            </div>
+            {isBillingExpired && (
+              <p className="text-xs text-destructive">
+                Paid plan expired. Free-tier limits are now in effect.
+              </p>
+            )}
+            {isFreeTrialExpired && (
+              <p className="text-xs text-destructive">
+                Free trial expired. Upgrade to continue chatting.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

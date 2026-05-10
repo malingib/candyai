@@ -2,12 +2,44 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
+import { verifyTurnstileToken } from "../_shared/turnstile.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+type ChatRole = "user" | "assistant";
+type ChatMessage = { role: ChatRole; content: string };
+type QuotaRow = {
+  allowed: boolean;
+  reason: string;
+  chats_used: number;
+  chats_limit: number;
+  remaining: number;
+  resets_at: string;
+  plan: string;
+};
+
+function isUuid(v: unknown): v is string {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
+function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): ChatMessage[] | null {
+  if (!Array.isArray(input) || input.length === 0 || input.length > maxMessages) return null;
+  const out: ChatMessage[] = [];
+  for (const m of input) {
+    if (!m || typeof m !== "object") return null;
+    const role = (m as Record<string, unknown>).role;
+    const content = (m as Record<string, unknown>).content;
+    if ((role !== "user" && role !== "assistant") || typeof content !== "string") return null;
+    const cleaned = content.trim().slice(0, maxChars);
+    if (!cleaned) continue;
+    out.push({ role, content: cleaned });
+  }
+  return out.length ? out : null;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -30,11 +62,76 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, demo, user_id, conversation_id } = await req.json();
+    const { messages, demo, user_id, conversation_id, turnstile_token } = await req.json();
+    const safeMessages = sanitizeMessages(messages);
+    if (!safeMessages) {
+      return new Response(
+        JSON.stringify({ error: "Invalid messages payload" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const safeDemo = !!demo;
+    const safeUserId = isUuid(user_id) ? user_id : null;
+    const safeConversationId = isUuid(conversation_id) ? conversation_id : null;
+
+    if (safeDemo) {
+      const captcha = await verifyTurnstileToken({
+        token: String(turnstile_token || ""),
+        remoteip: req.headers.get("cf-connecting-ip") ?? undefined,
+      });
+      if (!captcha.ok) {
+        return new Response(
+          JSON.stringify({ error: captcha.error || "Captcha validation failed" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Enforce billing/chat quotas for non-demo business chats.
+    if (!safeDemo && safeUserId) {
+      const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_chat_quota", { p_user_id: safeUserId });
+      const quota = (quotaData?.[0] ?? null) as QuotaRow | null;
+      if (quotaErr || !quota) {
+        console.error("quota check failed:", quotaErr);
+        return new Response(
+          JSON.stringify({ error: "Unable to validate usage limits. Try again shortly." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (!quota.allowed) {
+        const reason = quota.reason;
+        const errorMessage =
+          reason === "trial_expired_payment_required"
+            ? "Your 7-day free trial has ended. Upgrade to continue chatting."
+            : reason === "subscription_expired_payment_required"
+            ? "Your subscription expired. Renew to continue chatting."
+            : reason === "plan_expired"
+            ? "Your plan expired and free quota is exhausted. Upgrade to continue."
+            : "Monthly chat limit reached. Upgrade or wait for reset.";
+        return new Response(
+          JSON.stringify({
+            error: errorMessage,
+            limit: {
+              plan: quota.plan,
+              chats_used: quota.chats_used,
+              chats_limit: quota.chats_limit,
+              remaining: quota.remaining,
+              resets_at: quota.resets_at,
+              reason: quota.reason,
+            },
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Fire-and-forget: detect issue in latest user message and auto-create ticket
-    if (!demo && conversation_id && messages?.length) {
-      const lastUserMsg = [...messages].reverse().find((m: { role?: string; content?: string }) => m.role === "user");
+    if (!safeDemo && safeConversationId && safeMessages.length) {
+      const lastUserMsg = [...safeMessages].reverse().find((m) => m.role === "user");
       if (lastUserMsg?.content) {
         fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/auto-create-ticket`, {
           method: "POST",
@@ -42,7 +139,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           },
-          body: JSON.stringify({ conversation_id, message: lastUserMsg.content }),
+          body: JSON.stringify({ conversation_id: safeConversationId, message: lastUserMsg.content }),
         }).catch((e) => console.error("auto-create-ticket failed:", e));
       }
     }
@@ -52,16 +149,12 @@ serve(async (req) => {
     let knowledgeContext = "";
 
     // If a user_id is provided, fetch their knowledge base entries for context
-    if (user_id && !demo) {
+    if (safeUserId && !safeDemo) {
       try {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
-
         const { data: kbEntries } = await supabase
           .from("knowledge_base")
           .select("title, content")
-          .eq("user_id", user_id)
+          .eq("user_id", safeUserId)
           .limit(50);
 
         if (kbEntries && kbEntries.length > 0) {
@@ -73,7 +166,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = demo
+    const systemPrompt = safeDemo
       ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites.
          Answer questions about the product's features: lead capture, email integration, 24/7 AI support, analytics, easy embed.
          Be helpful, concise, and enthusiastic. Use simple language. Keep responses under 100 words.
@@ -96,7 +189,7 @@ serve(async (req) => {
           model: "google/gemini-3-flash-preview",
           messages: [
             { role: "system", content: systemPrompt },
-            ...messages,
+            ...safeMessages,
           ],
           stream: true,
         }),

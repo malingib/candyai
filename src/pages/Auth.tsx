@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Check } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import TurnstileWidget from "@/components/security/TurnstileWidget";
 
 const benefits = [
   "Deploy AI support in 5 minutes",
@@ -22,16 +23,26 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [acceptPolicy, setAcceptPolicy] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const authRedirectBase =
     import.meta.env.VITE_AUTH_REDIRECT_URL?.replace(/\/$/, "") || window.location.origin;
+  const turnstileSiteKey = import.meta.env.TURNSTILE_SITE_KEY || import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      if (turnstileSiteKey && !turnstileToken) {
+        throw new Error("Complete the security check to continue.");
+      }
+      if (!isLogin && !isForgot && !acceptPolicy) {
+        throw new Error("Please accept the privacy notice to continue.");
+      }
       if (isForgot) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${authRedirectBase}/reset-password`,
@@ -49,7 +60,7 @@ const Auth = () => {
           password,
           options: {
             emailRedirectTo: authRedirectBase,
-            data: { business_name: businessName },
+            data: { business_name: businessName, marketing_consent: marketingConsent },
           },
         });
         if (error) throw error;
@@ -169,10 +180,23 @@ const Auth = () => {
                 />
               </div>
             )}
+            {!isLogin && !isForgot && (
+              <div className="space-y-2">
+                <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={acceptPolicy} onChange={(e) => setAcceptPolicy(e.target.checked)} />
+                  <span>I agree to the <a className="underline" href="/legal/privacy">Privacy Notice</a> and data processing needed to provide this service.</span>
+                </label>
+                <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} />
+                  <span>Send me product updates and offers (optional).</span>
+                </label>
+              </div>
+            )}
 
             <Button type="submit" className="w-full h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold" disabled={loading}>
               {loading ? "Please wait..." : isForgot ? "Send Reset Link" : isLogin ? "Sign In" : "Create Account"}
             </Button>
+            <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
           </form>
 
           <div className="mt-6 text-center text-sm space-y-2">

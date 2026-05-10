@@ -18,6 +18,10 @@ const empty = {
   welcome_message: "Hi! 👋 How can I help you today?",
 };
 
+function isUuid(v: unknown): v is string {
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -36,7 +40,7 @@ serve(async (req) => {
 
   try {
     const { user_id } = await req.json();
-    if (!user_id) {
+    if (!isUuid(user_id)) {
       return new Response(JSON.stringify(empty), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -119,6 +119,12 @@
   var agentTypingTimer = null;
   var visitorTypingDebounce = null;
   var visitorTypingLastSent = 0;
+  var lastMessageSentAt = 0;
+  var MIN_SEND_INTERVAL_MS = 1000;
+  var MAX_MESSAGE_CHARS = 2000;
+  var MAX_NAME_CHARS = 100;
+  var MAX_EMAIL_CHARS = 255;
+  var MAX_PHONE_CHARS = 30;
 
   // ---- Helpers ----
   function escapeHtml(s) {
@@ -131,7 +137,30 @@
     if (!url || typeof url !== "string") return DEFAULT_LOGO;
     var v = url.trim();
     if (!v) return DEFAULT_LOGO;
-    return v;
+    try {
+      var parsed = new URL(v, window.location.origin);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return DEFAULT_LOGO;
+      return parsed.toString();
+    } catch (e) {
+      return DEFAULT_LOGO;
+    }
+  }
+
+  function sanitizeText(value, maxLen) {
+    return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLen);
+  }
+
+  function sanitizePhone(value) {
+    return sanitizeText(value, MAX_PHONE_CHARS).replace(/[^\d+\-\s()]/g, "");
+  }
+
+  function sanitizeEmail(value) {
+    return sanitizeText(value, MAX_EMAIL_CHARS).toLowerCase();
+  }
+
+  function sanitizeUuid(value) {
+    var v = sanitizeText(value, 64);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v) ? v : "";
   }
 
   function launcherMarkup() {
@@ -365,7 +394,7 @@
         'Talk to us</button>';
     }
     if (theme.whatsapp) {
-      var waNum = String(theme.whatsapp).replace(/[^\d]/g, "");
+      var waNum = sanitizePhone(theme.whatsapp).replace(/[^\d]/g, "");
       html +=
         '<a class="mw-action-btn wa" target="_blank" rel="noopener" href="https://wa.me/' + encodeURIComponent(waNum) + '">' +
         '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.71.306 1.263.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>' +
@@ -373,7 +402,7 @@
     }
     if (theme.call) {
       html +=
-        '<a class="mw-action-btn" href="tel:' + encodeURIComponent(theme.call) + '">' +
+        '<a class="mw-action-btn" href="tel:' + encodeURIComponent(sanitizePhone(theme.call)) + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
         'Call</a>';
     }
@@ -401,9 +430,9 @@
 
   panel.querySelector("#mw-lead-cancel").addEventListener("click", closeLeadForm);
   panel.querySelector("#mw-lead-submit").addEventListener("click", function () {
-    var name = panel.querySelector("#mw-lead-name").value.trim();
-    var email = panel.querySelector("#mw-lead-email").value.trim();
-    var phone = panel.querySelector("#mw-lead-phone").value.trim();
+    var name = sanitizeText(panel.querySelector("#mw-lead-name").value, MAX_NAME_CHARS);
+    var email = sanitizeEmail(panel.querySelector("#mw-lead-email").value);
+    var phone = sanitizePhone(panel.querySelector("#mw-lead-phone").value);
 
     if (!name && !email && !phone) {
       leadErrorEl.textContent = "Please fill at least one field.";
@@ -503,8 +532,11 @@
 
   formEl.addEventListener("submit", function (e) {
     e.preventDefault();
-    var text = inputEl.value.trim();
+    var text = sanitizeText(inputEl.value, MAX_MESSAGE_CHARS);
     if (!text || isLoading) return;
+    var now = Date.now();
+    if (now - lastMessageSentAt < MIN_SEND_INTERVAL_MS) return;
+    lastMessageSentAt = now;
     messages.push({ role: "user", content: text });
     inputEl.value = "";
     isLoading = true;
@@ -528,8 +560,8 @@
       },
       body: JSON.stringify({
         messages: messages,
-        user_id: businessId,
-        conversation_id: conversationId,
+        user_id: sanitizeUuid(businessId),
+        conversation_id: sanitizeUuid(conversationId),
       }),
     })
       .then(function (resp) {
@@ -591,7 +623,7 @@
         "Content-Type": "application/json",
         Authorization: "Bearer " + SUPABASE_ANON_KEY,
       },
-      body: JSON.stringify({ user_id: businessId }),
+      body: JSON.stringify({ user_id: sanitizeUuid(businessId) }),
     })
       .then(function (r) { return r.json(); })
       .then(function (data) {

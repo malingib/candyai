@@ -40,6 +40,7 @@ const Footer = () => {
               <a href="#pricing" className="hover:text-hero-foreground transition-colors">Pricing</a>
               <a href="#products" className="hover:text-hero-foreground transition-colors">Products</a>
               <Link to="/chat" className="hover:text-hero-foreground transition-colors">AI Chat</Link>
+              <Link to="/legal/privacy" className="hover:text-hero-foreground transition-colors">Privacy</Link>
             </div>
 
             <p className="text-xs text-hero-muted/40">

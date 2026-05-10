@@ -8,6 +8,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import SplashScreen from "./components/SplashScreen";
 import LoadingSpinner from "./components/LoadingSpinner";
 import SupabaseDebugPanel from "./components/SupabaseDebugPanel";
+import CookieConsentBanner from "./components/CookieConsentBanner";
 import Index from "./pages/Index";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
@@ -17,6 +18,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const AiChat = lazy(() => import("./pages/AiChat"));
+const PrivacyCompliance = lazy(() => import("./pages/PrivacyCompliance"));
 
 const queryClient = new QueryClient();
 
@@ -88,9 +90,11 @@ const App = () => {
               <Route path="/dashboard/canned-responses" element={<DashboardRoute><DashboardPageLoader><CannedResponses /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/dashboard/admin" element={<DashboardRoute><DashboardPageLoader><Admin /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/chat" element={<AiChat />} />
+              <Route path="/legal/privacy" element={<PrivacyCompliance />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
+            <CookieConsentBanner />
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
