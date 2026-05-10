@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getSupabaseClient, isSupabaseConfigured, logSupabaseDebug, trackSupabaseRequest } from "@/lib/supabase-safe";
 
 type UnreadCtx = {
   unreadCount: number;
@@ -29,49 +29,75 @@ export const UnreadConversationsProvider = ({ children }: { children: React.Reac
       setUnreadCount(0);
       return;
     }
+
+    if (!isSupabaseConfigured) {
+      logSupabaseDebug("conversations:unread", "disabled", "Supabase environment variables are missing");
+      ownedConvIds.current = new Set();
+      setUnreadCount(0);
+      return;
+    }
+
     let active = true;
-    supabase
-      .from("conversations")
-      .select("id")
-      .eq("user_id", user.id)
-      .then(({ data }) => {
+    let convChannel: any = null;
+    let msgChannel: any = null;
+
+    getSupabaseClient()
+      .then((supabase) => {
+        if (!active || !supabase) return;
+
+        return trackSupabaseRequest(
+          "conversations:owned-list",
+          supabase.from("conversations").select("id").eq("user_id", user.id),
+        ).then(({ data }) => {
+          if (!active) return;
+          ownedConvIds.current = new Set((data ?? []).map((c) => c.id));
+
+          convChannel = supabase
+            .channel(`unread-conversations:${user.id}`)
+            .on(
+              "postgres_changes",
+              { event: "INSERT", schema: "public", table: "conversations", filter: `user_id=eq.${user.id}` },
+              (payload) => {
+                ownedConvIds.current.add(payload.new.id);
+                if (location.pathname !== "/dashboard/conversations") {
+                  setUnreadCount((c) => c + 1);
+                }
+              },
+            )
+            .subscribe();
+
+          msgChannel = supabase
+            .channel(`unread-messages:${user.id}`)
+            .on(
+              "postgres_changes",
+              { event: "INSERT", schema: "public", table: "messages" },
+              (payload) => {
+                const m = payload.new as { role?: string; conversation_id?: string };
+                if (m.role !== "user") return;
+                if (!ownedConvIds.current.has(m.conversation_id || "")) return;
+                if (location.pathname === "/dashboard/conversations") return;
+                setUnreadCount((c) => c + 1);
+              },
+            )
+            .subscribe();
+        });
+      })
+      .catch((error) => {
         if (!active) return;
-        ownedConvIds.current = new Set((data ?? []).map((c) => c.id));
+        logSupabaseDebug(
+          "conversations:unread",
+          "error",
+          error instanceof Error ? error.message : "Failed to initialize unread subscription",
+        );
       });
-
-    const convChannel = supabase
-      .channel(`unread-conversations:${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "conversations", filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          ownedConvIds.current.add(payload.new.id);
-          if (location.pathname !== "/dashboard/conversations") {
-            setUnreadCount((c) => c + 1);
-          }
-        }
-      )
-      .subscribe();
-
-    const msgChannel = supabase
-      .channel(`unread-messages:${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          const m = payload.new as {role?: string; conversation_id?: string};
-          if (m.role !== "user") return;
-          if (!ownedConvIds.current.has(m.conversation_id || "")) return;
-          if (location.pathname === "/dashboard/conversations") return;
-          setUnreadCount((c) => c + 1);
-        }
-      )
-      .subscribe();
 
     return () => {
       active = false;
-      supabase.removeChannel(convChannel);
-      supabase.removeChannel(msgChannel);
+      getSupabaseClient().then((supabase) => {
+        if (!supabase) return;
+        if (convChannel) supabase.removeChannel(convChannel);
+        if (msgChannel) supabase.removeChannel(msgChannel);
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
