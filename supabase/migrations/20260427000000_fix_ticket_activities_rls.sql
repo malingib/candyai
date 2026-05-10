@@ -35,7 +35,7 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS update_ticket_activities_updated_at ON public.ticket_activities;
 CREATE TRIGGER update_ticket_activities_updated_at

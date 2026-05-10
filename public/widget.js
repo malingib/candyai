@@ -21,9 +21,9 @@
     currentScript = document.currentScript;
     businessId = currentScript.dataset.businessId;
   }
-  var SUPABASE_URL = "https://lgbjxbqkryzgkvggodzs.supabase.co";
+  var SUPABASE_URL = "https://pjplcsuyhybwoinlwnnb.supabase.co";
   var SUPABASE_ANON_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxnYmp4YnFrcnl6Z2t2Z2dvZHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0OTA2NzQsImV4cCI6MjA4ODA2NjY3NH0.SCNN1VpEWjx0GjEAbHNiOfxobPpubWMRej-YjNnVBRE";
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqcGxjc3V5aHlid29pbmx3bm5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzODUxNTMsImV4cCI6MjA5Mzk2MTE1M30.FqjADIBJDirltaF2xrubf-7IVxugRf_V2VhvMt8u4gM";
   var ORIGIN = (currentScript && currentScript.src ? new URL(currentScript.src).origin : "https://candyai.lovable.app");
   var DEFAULT_LOGO = ORIGIN + "/logo.png";
   var LOGO = DEFAULT_LOGO;

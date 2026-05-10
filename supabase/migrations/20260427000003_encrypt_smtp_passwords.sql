@@ -9,7 +9,7 @@ AS $$
 BEGIN
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     -- Encrypt the password using pgcrypto
-    NEW.encrypted_password = encode(pgp_sym_encrypt(NEW.password, current_setting('app.secret_key', true)), 'base64');
+    NEW.encrypted_password = encode(extensions.pgp_sym_encrypt(NEW.password, current_setting('app.secret_key', true)), 'base64');
     NEW.password = NULL;
   END IF;
   RETURN NEW;
@@ -24,5 +24,5 @@ CREATE TRIGGER encrypt_smtp_password_trigger
 
 -- Update existing records to encrypt passwords
 UPDATE public.smtp_settings 
-SET encrypted_password = encode(pgp_sym_encrypt(password, current_setting('app.secret_key', true)), 'base64')
+SET encrypted_password = encode(extensions.pgp_sym_encrypt(password, current_setting('app.secret_key', true)), 'base64')
 WHERE password IS NOT NULL;

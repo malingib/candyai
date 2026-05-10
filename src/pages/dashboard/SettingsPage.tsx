@@ -36,7 +36,7 @@ const SettingsPage = () => {
         if (data.welcome_message) setWelcomeMessage(data.welcome_message);
       }
     });
-    supabase.from("smtp_settings").select("*").eq("user_id", user.id).single().then(({ data }) => {
+    supabase.from("smtp_settings").select("*").eq("user_id", user.id).maybeSingle().then(({ data }) => {
       if (data) setSmtp({ host: data.host, port: data.port, username: data.username, password: data.password, encryption: data.encryption, from_email: data.from_email });
     });
   }, [user]);
@@ -53,7 +53,7 @@ const SettingsPage = () => {
   const handleSaveSmtp = async () => {
     if (!user) return;
     setSaving(true);
-    const { data: existing } = await supabase.from("smtp_settings").select("id").eq("user_id", user.id).single();
+    const { data: existing } = await supabase.from("smtp_settings").select("id").eq("user_id", user.id).maybeSingle();
     let error;
     if (existing) {
       ({ error } = await supabase.from("smtp_settings").update(smtp).eq("user_id", user.id));

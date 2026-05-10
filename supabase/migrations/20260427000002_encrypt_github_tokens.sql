@@ -12,7 +12,7 @@ AS $$
 BEGIN
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     -- Encrypt the token using pgcrypto
-    NEW.encrypted_token = encode(pgp_sym_encrypt(NEW.token, current_setting('app.secret_key', true)), 'base64');
+    NEW.encrypted_token = encode(extensions.pgp_sym_encrypt(NEW.token, current_setting('app.secret_key', true)), 'base64');
     -- Clear the plain text token
     NEW.token = NULL;
   END IF;
@@ -32,11 +32,11 @@ RETURNS TEXT
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  RETURN pgp_sym_decrypt(decode(encrypted_token, 'base64'), current_setting('app.secret_key', true));
+  RETURN extensions.pgp_sym_decrypt(decode(encrypted_token, 'base64'), current_setting('app.secret_key', true));
 END;
 $$;
 
 -- Update existing records to encrypt tokens
 UPDATE public.github_tokens 
-SET encrypted_token = encode(pgp_sym_encrypt(token, current_setting('app.secret_key', true)), 'base64')
+SET encrypted_token = encode(extensions.pgp_sym_encrypt(token, current_setting('app.secret_key', true)), 'base64')
 WHERE token IS NOT NULL AND encrypted_token IS NULL;
