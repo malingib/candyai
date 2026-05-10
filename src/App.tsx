@@ -7,7 +7,6 @@ import { HelmetProvider } from "react-helmet-async";
 import { useState, useEffect, lazy, Suspense } from "react";
 import SplashScreen from "./components/SplashScreen";
 import LoadingSpinner from "./components/LoadingSpinner";
-import SupabaseDebugPanel from "./components/SupabaseDebugPanel";
 import CookieConsentBanner from "./components/CookieConsentBanner";
 import Index from "./pages/Index";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -71,7 +70,6 @@ const App = () => {
           <SplashScreen show={showSplash} />
           <Toaster />
           <Sonner />
-          <SupabaseDebugPanel />
           <BrowserRouter>
             <Suspense fallback={<LoadingSpinner />}>
             <Routes>

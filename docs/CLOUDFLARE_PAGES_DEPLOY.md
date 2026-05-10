@@ -1,8 +1,6 @@
-# Cloudflare Pages Deploy Fix (Vite 5)
+# Cloudflare Pages Deploy
 
-Your build is successful. The failure is from using `wrangler deploy`, which targets Workers and expects a Vite 6+ auto-config path.
-
-Use Cloudflare **Pages** static deploy instead.
+This repository is configured for Cloudflare **Pages**, not Workers runtime deploy.
 
 ## Cloudflare project settings
 
@@ -21,6 +19,20 @@ npx wrangler pages deploy dist --project-name candyai
 ```
 
 ## Local/manual deploy command
+
+```bash
+npm run deploy:pages
+```
+
+## First-time setup (only once per account/project)
+
+Create the Pages project if it does not exist yet:
+
+```bash
+npx wrangler pages project create candyai --production-branch main
+```
+
+Then deploy:
 
 ```bash
 npm run deploy:pages
