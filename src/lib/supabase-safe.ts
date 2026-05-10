@@ -1,4 +1,5 @@
-import { supabase as rawSupabase } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 export type SupabaseDebugEntry = {
   id: string;
@@ -7,6 +8,8 @@ export type SupabaseDebugEntry = {
   status: "pending" | "success" | "error" | "disabled";
   detail?: string;
 };
+
+let supabaseClientPromise: Promise<SupabaseClient<Database> | null> | null = null;
 
 type DebugListener = (entries: SupabaseDebugEntry[]) => void;
 
@@ -72,6 +75,24 @@ export const logSupabaseDebug = (
   });
 };
 
+export const getSupabaseClient = async () => {
+  if (!isSupabaseConfigured) return null;
+  if (!supabaseClientPromise) {
+    supabaseClientPromise = import("@/integrations/supabase/client")
+      .then((module) => module.supabase)
+      .catch((error) => {
+        logSupabaseDebug("supabase:init", "error", formatError(error));
+        return null;
+      });
+  }
+
+  const client = await supabaseClientPromise;
+  if (!client) {
+    logSupabaseDebug("supabase:init", "disabled", "Supabase client unavailable");
+  }
+  return client;
+};
+
 export const trackSupabaseRequest = async <T>(
   source: string,
   request: Promise<T>,
@@ -123,5 +144,3 @@ if (!isSupabaseConfigured) {
     "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY",
   );
 }
-
-export const supabase = rawSupabase;
