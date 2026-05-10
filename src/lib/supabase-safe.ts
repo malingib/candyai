@@ -30,6 +30,12 @@ const pushEntry = (entry: SupabaseDebugEntry) => {
   emit();
 };
 
+export const beginSupabaseDebug = (source: string) => {
+  const id = createId();
+  pushEntry({ id, time: new Date().toLocaleTimeString(), source, status: "pending" });
+  return id;
+};
+
 const updateEntry = (id: string, patch: Partial<SupabaseDebugEntry>) => {
   const index = entries.findIndex((entry) => entry.id === id);
   if (index === -1) return;
@@ -70,8 +76,7 @@ export const trackSupabaseRequest = async <T>(
   source: string,
   request: Promise<T>,
 ): Promise<T> => {
-  const id = createId();
-  pushEntry({ id, time: new Date().toLocaleTimeString(), source, status: "pending" });
+  const id = beginSupabaseDebug(source);
 
   try {
     const result = await request;
@@ -101,6 +106,14 @@ export const subscribeSupabaseDebug = (listener: DebugListener) => {
   listeners.add(listener);
   listener([...entries]);
   return () => listeners.delete(listener);
+};
+
+export const finishSupabaseDebug = (
+  id: string,
+  status: SupabaseDebugEntry["status"],
+  detail?: string,
+) => {
+  updateEntry(id, { status, detail });
 };
 
 if (!isSupabaseConfigured) {
