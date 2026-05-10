@@ -25,7 +25,12 @@ const SupabaseDebugPanel = () => {
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<SupabaseDebugEntry[]>([]);
 
-  useEffect(() => subscribeSupabaseDebug(setEntries), []);
+  useEffect(() => {
+    const unsubscribe = subscribeSupabaseDebug(setEntries);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   return (
     <div className="fixed bottom-4 left-4 z-50 w-[min(26rem,calc(100vw-2rem))]">
