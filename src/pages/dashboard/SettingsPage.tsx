@@ -23,6 +23,7 @@ const SettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const logoBucket = "widget-assets";
 
   useEffect(() => {
     if (!user) return;
@@ -79,13 +80,13 @@ const SettingsPage = () => {
     setUploadingLogo(true);
     const ext = file.name.split(".").pop() || "png";
     const path = `${user.id}/widget-logo-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("chat-uploads").upload(path, file, { upsert: true });
+    const { error } = await supabase.storage.from(logoBucket).upload(path, file, { upsert: true });
     if (error) {
       toast({ title: "Upload failed", description: error.message, variant: "destructive" });
       setUploadingLogo(false);
       return;
     }
-    const { data } = supabase.storage.from("chat-uploads").getPublicUrl(path);
+    const { data } = supabase.storage.from(logoBucket).getPublicUrl(path);
     setLogoUrl(data.publicUrl);
     toast({ title: "Logo uploaded", description: "Save profile to apply it to your widget." });
     setUploadingLogo(false);
