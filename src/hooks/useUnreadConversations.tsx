@@ -38,8 +38,8 @@ export const UnreadConversationsProvider = ({ children }: { children: React.Reac
     }
 
     let active = true;
-    let convChannel: ReturnType<Awaited<ReturnType<typeof getSupabaseClient>>["channel"]> | null = null;
-    let msgChannel: ReturnType<Awaited<ReturnType<typeof getSupabaseClient>>["channel"]> | null = null;
+    let convChannel: any = null;
+    let msgChannel: any = null;
 
     getSupabaseClient()
       .then((supabase) => {
