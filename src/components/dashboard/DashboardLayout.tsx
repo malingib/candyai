@@ -8,7 +8,7 @@ import {
 import { useState } from "react";
 import { useUnreadConversations } from "@/hooks/useUnreadConversations";
 
-const navItems = [
+const userNavItems = [
   { path: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { path: "/dashboard/conversations", label: "Conversations", icon: MessageSquare },
   { path: "/dashboard/tickets", label: "Tickets", icon: Ticket },
@@ -21,6 +21,10 @@ const navItems = [
   { path: "/dashboard/billing", label: "Billing", icon: CreditCard },
 ];
 
+const adminNavItems = [
+  { path: "/dashboard/admin", label: "Admin", icon: ShieldAlert },
+];
+
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { signOut, user } = useAuth();
   const location = useLocation();
@@ -28,9 +32,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { isAdmin } = useIsAdmin(user?.id);
   const { unreadCount } = useUnreadConversations();
 
-  const items = isAdmin
-    ? [...navItems, { path: "/dashboard/admin", label: "Admin", icon: ShieldAlert }]
-    : navItems;
+  const items = isAdmin ? adminNavItems : userNavItems;
 
   return (
     <div className="flex min-h-screen bg-muted/30">

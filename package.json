@@ -8,7 +8,7 @@
     "build": "vite build && cp public/.htaccess dist/.htaccess",
     "build:dev": "vite build --mode development && cp public/.htaccess dist/.htaccess",
     "pages:create": "npx wrangler pages project create candyai --production-branch main",
-    "deploy:pages": "npm run build && npx wrangler pages deploy dist --project-name candyai",
+    "deploy:pages": "./scripts/deploy-pages.sh",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
