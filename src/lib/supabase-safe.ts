@@ -95,7 +95,7 @@ export const getSupabaseClient = async () => {
 
 export const trackSupabaseRequest = async <T>(
   source: string,
-  request: Promise<T>,
+  request: PromiseLike<T>,
 ): Promise<T> => {
   const id = beginSupabaseDebug(source);
 
