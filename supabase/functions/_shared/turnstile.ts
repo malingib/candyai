@@ -4,7 +4,11 @@ export async function verifyTurnstileToken(opts: {
   idempotencyKey?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
-  if (!secret) return { ok: true };
+  const bypass = String(Deno.env.get("ALLOW_TURNSTILE_BYPASS") || "").toLowerCase() === "true";
+  if (!secret) {
+    if (bypass) return { ok: true };
+    return { ok: false, error: "Turnstile is not configured on server" };
+  }
 
   const token = String(opts.token || "").trim();
   if (!token) return { ok: false, error: "Missing captcha token" };

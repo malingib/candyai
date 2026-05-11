@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,12 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 
-const plans = [
-  { id: "free", name: "Starter", price: "Free Trial (7 days)", chats: 20, features: ["20 chats/month", "30 leads/month", "Basic AI responses", "Mobiwave branding"] },
-  { id: "growth", name: "Growth", price: "KES 5,000/30 days", chats: 2000, features: ["2,000 chats/30 days", "1,000 leads/30 days", "Remove branding", "Advanced analytics"] },
-  { id: "premium", name: "Premium", price: "KES 10,000/30 days", chats: 10000, features: ["10,000 chats/30 days", "5,000 leads/30 days", "API access", "Dedicated support"] },
-  { id: "enterprise", name: "Enterprise", price: "Custom", chats: 99999, features: ["Unlimited chats", "Full API access", "Dedicated account manager", "SLA guarantee"] },
-];
+type BillingPlanRow = {
+  plan: "free" | "growth" | "premium" | "enterprise";
+  display_name: string;
+  amount_kes: number;
+  chats_limit: number;
+  leads_limit: number;
+  widget_sites_limit: number;
+  trial_days: number;
+  is_checkout_enabled: boolean;
+};
 
 const Billing = () => {
   const { user } = useAuth();
@@ -25,6 +29,7 @@ const Billing = () => {
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [mpesaPhone, setMpesaPhone] = useState("");
   const [promoMessage, setPromoMessage] = useState<string | null>(null);
+  const [plans, setPlans] = useState<BillingPlanRow[]>([]);
 
   const normalizeMpesaPhone = (value: string): string | null => {
     const digits = value.replace(/[^\d+]/g, "");
@@ -53,6 +58,33 @@ const Billing = () => {
       }
     });
   }, [user]);
+
+  useEffect(() => {
+    supabase
+      .from("billing_plans")
+      .select("plan, display_name, amount_kes, chats_limit, leads_limit, widget_sites_limit, trial_days, is_checkout_enabled")
+      .eq("is_public", true)
+      .then(({ data }) => {
+        if (!data) return;
+        const order = ["free", "growth", "premium", "enterprise"];
+        setPlans(
+          (data as BillingPlanRow[]).sort((a, b) => order.indexOf(a.plan) - order.indexOf(b.plan)),
+        );
+      });
+  }, []);
+
+  const planFeatureMap = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    for (const p of plans) {
+      out[p.plan] = [
+        `${p.chats_limit.toLocaleString()} chats/30 days`,
+        `${p.leads_limit.toLocaleString()} leads/30 days`,
+        `${p.widget_sites_limit} website embed${p.widget_sites_limit > 1 ? "s" : ""}`,
+        p.plan === "free" ? "Basic AI responses" : p.plan === "enterprise" ? "Dedicated account manager" : "Priority support",
+      ];
+    }
+    return out;
+  }, [plans]);
 
   useEffect(() => {
     if (!user) return;
@@ -198,19 +230,24 @@ const Billing = () => {
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {plans.map((plan) => {
-          const isCurrent = plan.id === currentPlan;
+          const isCurrent = plan.plan === currentPlan;
+          const price = plan.plan === "free"
+            ? `Free Trial (${plan.trial_days || 7} days)`
+            : plan.plan === "enterprise"
+            ? "Custom"
+            : `KES ${plan.amount_kes.toLocaleString()}/30 days`;
           return (
-            <Card key={plan.id} className={isCurrent ? "border-accent" : ""}>
+            <Card key={plan.plan} className={isCurrent ? "border-accent" : ""}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{plan.name}</CardTitle>
+                  <CardTitle className="text-base">{plan.display_name}</CardTitle>
                   {isCurrent && <Badge className="bg-accent text-accent-foreground">Current</Badge>}
                 </div>
-                <CardDescription className="text-lg font-bold text-foreground">{plan.price}</CardDescription>
+                <CardDescription className="text-lg font-bold text-foreground">{price}</CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm text-muted-foreground mb-4">
-                  {plan.features.map((f) => (
+                  {(planFeatureMap[plan.plan] || []).map((f) => (
                     <li key={f} className="flex items-center gap-2">
                       <Check className="h-3.5 w-3.5 text-accent" />
                       {f}
@@ -220,17 +257,19 @@ const Billing = () => {
                 <Button
                   variant={isCurrent ? "outline" : "default"}
                   className={`w-full ${isCurrent ? "" : "bg-accent text-accent-foreground hover:bg-accent/90"}`}
-                  disabled={isCurrent || startingCheckoutPlan === plan.id || verifyingPayment}
+                  disabled={isCurrent || startingCheckoutPlan === plan.plan || verifyingPayment || !plan.is_checkout_enabled}
                   size="sm"
-                  onClick={() => startCheckout(plan.id)}
+                  onClick={() => startCheckout(plan.plan)}
                 >
                   {isCurrent
                     ? "Current Plan"
                     : verifyingPayment
                     ? "Verifying..."
-                    : startingCheckoutPlan === plan.id
+                    : startingCheckoutPlan === plan.plan
                     ? "Redirecting..."
-                    : "Upgrade"}
+                    : plan.is_checkout_enabled
+                    ? "Upgrade"
+                    : "Contact Sales"}
                 </Button>
               </CardContent>
             </Card>

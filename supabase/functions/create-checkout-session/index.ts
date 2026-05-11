@@ -9,10 +9,30 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PLAN_CONFIG: Record<string, { amountKobo: number; currency: string; label: string }> = {
-  growth: { amountKobo: 500000, currency: "KES", label: "Mobiwave Growth (30 days)" },
-  premium: { amountKobo: 1000000, currency: "KES", label: "Mobiwave Premium (30 days)" },
+type BillingPlan = {
+  plan: string;
+  display_name: string;
+  amount_kes: number;
+  currency: string;
+  chats_limit: number;
+  leads_limit: number;
+  widget_sites_limit: number;
+  is_checkout_enabled: boolean;
 };
+
+async function fetchCheckoutPlan(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  plan: string,
+): Promise<BillingPlan | null> {
+  const { data, error } = await supabaseAdmin
+    .from("billing_plans")
+    .select("plan, display_name, amount_kes, currency, chats_limit, leads_limit, widget_sites_limit, is_checkout_enabled")
+    .eq("plan", plan)
+    .eq("is_checkout_enabled", true)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as BillingPlan;
+}
 
 function normalizeMpesaPhone(input: string): string | null {
   const digits = input.replace(/[^\d+]/g, "");
@@ -42,7 +62,7 @@ serve(async (req) => {
 
   try {
     const { plan, phone } = await req.json();
-    if (!plan || typeof plan !== "string" || !PLAN_CONFIG[plan]) {
+    if (!plan || typeof plan !== "string") {
       return new Response(JSON.stringify({ error: "Invalid plan" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -76,7 +96,14 @@ serve(async (req) => {
       });
     }
 
-    const cfg = PLAN_CONFIG[plan];
+    const supabaseAdmin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const cfg = await fetchCheckoutPlan(supabaseAdmin, plan.toLowerCase());
+    if (!cfg) {
+      return new Response(JSON.stringify({ error: "Plan is not available for checkout" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const paystackResp = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",
       headers: {
@@ -85,14 +112,14 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         email: userData.user.email,
-        amount: cfg.amountKobo,
-        currency: cfg.currency,
+        amount: Number(cfg.amount_kes) * 100,
+        currency: cfg.currency || "KES",
         channels: ["mobile_money"],
         callback_url: `${siteUrl}/dashboard/billing?checkout=success`,
         metadata: {
           user_id: userData.user.id,
-          plan,
-          label: cfg.label,
+          plan: cfg.plan,
+          label: `${cfg.display_name} (30 days)`,
           payment_method: "mpesa_stk",
           mpesa_phone: normalizedPhone,
         },

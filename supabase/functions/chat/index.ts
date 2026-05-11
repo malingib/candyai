@@ -12,6 +12,7 @@ const corsHeaders = {
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
+type ModelAttempt = { model: string; status: number; body: string };
 type QuotaRow = {
   allowed: boolean;
   reason: string;
@@ -39,6 +40,31 @@ function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): Ch
     out.push({ role, content: cleaned });
   }
   return out.length ? out : null;
+}
+
+function getPreferredModels(): string[] {
+  const raw = Deno.env.get("FREE_AI_MODELS");
+  if (!raw) return ["google/gemini-3-flash-preview", "groq/llama-3.1-8b-instant"];
+  return raw.split(",").map((m) => m.trim()).filter(Boolean);
+}
+
+async function callGatewayWithFallback(apiKey: string, messages: Array<{ role: string; content: string }>) {
+  const models = getPreferredModels();
+  const attempts: ModelAttempt[] = [];
+  for (const model of models) {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model, messages, stream: true }),
+    });
+    if (resp.ok) return { response: resp, model, attempts };
+    const body = await resp.text().catch(() => "");
+    attempts.push({ model, status: resp.status, body: body.slice(0, 600) });
+  }
+  return { response: null, model: null, attempts };
 }
 
 serve(async (req) => {
@@ -177,46 +203,33 @@ serve(async (req) => {
          Keep responses professional and under 150 words.
          If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.${knowledgeContext}`;
 
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...safeMessages,
-          ],
-          stream: true,
-        }),
-      }
-    );
+    const { response, model, attempts } = await callGatewayWithFallback(LOVABLE_API_KEY, [
+      { role: "system", content: systemPrompt },
+      ...safeMessages,
+    ]);
 
-    if (!response.ok) {
-      if (response.status === 429) {
+    if (!response || !response.ok) {
+      const last = attempts[attempts.length - 1];
+      if (last?.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (last?.status === 402) {
         return new Response(
           JSON.stringify({ error: "AI credits exhausted. Please try again later." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const text = await response.text();
-      console.error("AI gateway error:", response.status, text);
+      console.error("AI gateway fallback failed:", attempts);
       return new Response(
         JSON.stringify({ error: "AI service unavailable" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    console.log("chat model selected:", model);
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });

@@ -7,11 +7,26 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, content-type, x-fallback-token",
 };
 
-function limitsForPlan(plan: string): { chats: number; leads: number } {
-  if (plan === "growth") return { chats: 2000, leads: 1000 };
-  if (plan === "premium") return { chats: 10000, leads: 5000 };
-  if (plan === "enterprise") return { chats: 99999, leads: 20000 };
-  return { chats: 20, leads: 30 };
+type BillingPlan = {
+  plan: string;
+  amount_kes: number;
+  currency: string;
+  chats_limit: number;
+  leads_limit: number;
+  widget_sites_limit: number;
+};
+
+async function fetchBillingPlan(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  plan: string,
+): Promise<BillingPlan | null> {
+  const { data, error } = await supabaseAdmin
+    .from("billing_plans")
+    .select("plan, amount_kes, currency, chats_limit, leads_limit, widget_sites_limit")
+    .eq("plan", plan)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as BillingPlan;
 }
 
 serve(async (req) => {
@@ -115,14 +130,27 @@ serve(async (req) => {
       const now = new Date();
       const billingExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       const graceExpiresAt = new Date(billingExpiresAt.getTime() + 3 * 24 * 60 * 60 * 1000);
-      const limits = limitsForPlan(plan);
+      const limits = await fetchBillingPlan(supabase, plan);
+      if (!limits) {
+        failed += 1;
+        continue;
+      }
+      const expectedAmount = Number(limits.amount_kes) * 100;
+      const paidAmount = Number(tx?.amount || 0);
+      const paidCurrency = String(tx?.currency || "").toUpperCase();
+      const expectedCurrency = String(limits.currency || "KES").toUpperCase();
+      if (paidAmount !== expectedAmount || paidCurrency !== expectedCurrency) {
+        failed += 1;
+        continue;
+      }
 
       await supabase
         .from("profiles")
         .update({
           plan,
-          chats_limit: limits.chats,
-          leads_limit: limits.leads,
+          chats_limit: limits.chats_limit,
+          leads_limit: limits.leads_limit,
+          widget_sites_limit: limits.widget_sites_limit,
           chats_used: 0,
           leads_used: 0,
           subscription_started_at: now.toISOString(),

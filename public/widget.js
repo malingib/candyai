@@ -33,6 +33,7 @@
     businessName: "Mobiwave AI",
     welcome: "Hi! 👋 How can I help you today?",
     logoUrl: "",
+    website: "https://www.mobiwave.co.ke",
     whatsapp: "",
     call: "",
   };
@@ -81,6 +82,8 @@
     .mw-send{background:var(--mw-primary);color:#fff;border:none;border-radius:12px;width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center}
     .mw-send:disabled{opacity:.5;cursor:not-allowed}
     .mw-footer{text-align:center;font-size:10px;color:#9ca3af;padding:6px}
+    .mw-link{color:inherit;text-decoration:none;border-bottom:1px dotted rgba(37,99,235,.35)}
+    .mw-link:hover{text-decoration:underline}
     .mw-lead-form{padding:12px;background:#f9fafb;border-top:1px solid #e5e7eb;display:flex;flex-direction:column;gap:8px}
     .mw-lead-form input{border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;outline:none;font-family:inherit}
     .mw-lead-form input:focus{border-color:var(--mw-primary)}
@@ -110,6 +113,8 @@
   var conversationStarting = false;
   var leadFormOpen = false;
   var leadCaptured = false;
+  var widgetBlocked = false;
+  var widgetBlockedReason = "";
   // IDs of messages we wrote ourselves — skip when they come back over realtime
   var knownMsgIds = Object.create(null);
   var realtimeChannel = null;
@@ -183,6 +188,26 @@
     conversationStarting = true;
     return postWidget({ action: "start", business_id: businessId })
       .then(function (data) {
+        if (data && (data.code === "embed_limit_reached" || data.code === "domain_unverified")) {
+          widgetBlocked = true;
+          widgetBlockedReason = data.error || "This chat widget is not active for this website.";
+          messages.push({
+            role: "assistant",
+            content:
+              "⚠️ Widget unavailable on this website.\n\n" +
+              widgetBlockedReason +
+              "\n\nPlease contact the business owner to activate this domain.",
+          });
+          render();
+          return null;
+        }
+        if (data && data.error && !data.conversation_id) {
+          widgetBlocked = true;
+          widgetBlockedReason = data.error;
+          messages.push({ role: "assistant", content: "⚠️ " + widgetBlockedReason });
+          render();
+          return null;
+        }
         if (data && data.conversation_id) {
           conversationId = data.conversation_id;
           subscribeRealtime(conversationId);
@@ -336,7 +361,7 @@
     '<div class="mw-header">' +
       '<div class="mw-header-left">' +
         '<div class="mw-avatar"><img src="' + LOGO + '" alt="" /></div>' +
-        '<div><div class="mw-title" id="mw-biz-name">' + escapeHtml(theme.businessName) + '</div>' +
+        '<div><div class="mw-title" id="mw-biz-name"><a class="mw-link" id="mw-biz-link" href="' + escapeHtml(theme.website) + '" target="_blank" rel="noopener">' + escapeHtml(theme.businessName) + '</a></div>' +
         '<div class="mw-status"><span class="mw-dot"></span>Online</div></div>' +
       '</div>' +
       '<button class="mw-close" aria-label="Close">×</button>' +
@@ -359,7 +384,7 @@
         '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
       '</button>' +
     '</form>' +
-    '<div class="mw-footer">Powered by Mobiwave AI</div>';
+    '<div class="mw-footer"><a class="mw-link" id="mw-powered-link" href="' + escapeHtml(theme.website) + '" target="_blank" rel="noopener">Powered by Mobiwave Innovations</a></div>';
 
   function init() {
     if (document.body) {
@@ -383,6 +408,8 @@
   var actionsEl = panel.querySelector("#mw-actions");
   var leadFormEl = panel.querySelector("#mw-lead-form");
   var leadErrorEl = panel.querySelector("#mw-lead-error");
+  var bizLinkEl = panel.querySelector("#mw-biz-link");
+  var poweredLinkEl = panel.querySelector("#mw-powered-link");
 
   // ---- Action bar (lead CTA + WhatsApp/Call) ----
   function renderActions() {
@@ -480,6 +507,11 @@
   }
 
   function render() {
+    inputEl.disabled = !!widgetBlocked;
+    var sendBtn = formEl.querySelector(".mw-send");
+    if (sendBtn) sendBtn.disabled = !!widgetBlocked;
+    inputEl.placeholder = widgetBlocked ? "Widget unavailable for this website" : "Type a message...";
+
     var html = messages.map(function (m) {
       var avatar = m.role === "user"
         ? '<div class="mw-msg-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>'
@@ -532,6 +564,7 @@
 
   formEl.addEventListener("submit", function (e) {
     e.preventDefault();
+    if (widgetBlocked) return;
     var text = sanitizeText(inputEl.value, MAX_MESSAGE_CHARS);
     if (!text || isLoading) return;
     var now = Date.now();
@@ -552,6 +585,49 @@
   });
 
   function sendToAI() {
+    function formatResetAt(resetIso) {
+      if (!resetIso) return "";
+      try {
+        var dt = new Date(resetIso);
+        if (isNaN(dt.getTime())) return "";
+        return dt.toLocaleString();
+      } catch (e) {
+        return "";
+      }
+    }
+
+    function mapChatError(status, payload) {
+      var fallback = "Sorry, our chat assistant is temporarily unavailable. Please try again shortly.";
+      if (!payload || typeof payload !== "object") return fallback;
+      var message = typeof payload.error === "string" ? payload.error : fallback;
+      var limit = payload.limit && typeof payload.limit === "object" ? payload.limit : null;
+      if (status !== 402 || !limit) return message;
+
+      var reason = String(limit.reason || "");
+      var plan = String(limit.plan || "current");
+      var used = typeof limit.chats_used === "number" ? limit.chats_used : null;
+      var cap = typeof limit.chats_limit === "number" ? limit.chats_limit : null;
+      var resetAt = formatResetAt(limit.resets_at);
+      var usageLine = (used !== null && cap !== null) ? ("Usage: " + used + "/" + cap + " chats.") : "";
+      var resetLine = resetAt ? ("Next reset: " + resetAt + ".") : "";
+
+      if (reason === "trial_expired_payment_required") {
+        return "⚠️ Chat is paused: free trial ended.\n\nThis business account needs an upgrade to keep live chat active.\n" +
+          (usageLine ? ("\n" + usageLine) : "") +
+          "\nPlease use the contact buttons below so the team can assist you directly.";
+      }
+      if (reason === "subscription_expired_payment_required" || reason === "plan_expired") {
+        return "⚠️ Chat is paused: subscription expired.\n\nThis business account (" + plan + ") needs renewal to reactivate AI chat.\n" +
+          (usageLine ? ("\n" + usageLine) : "") +
+          (resetLine ? ("\n" + resetLine) : "") +
+          "\nPlease use WhatsApp or Call below to reach the team immediately.";
+      }
+      return "⚠️ Chat limit reached.\n\nThis business account has hit its current chat quota.\n" +
+        (usageLine ? ("\n" + usageLine) : "") +
+        (resetLine ? ("\n" + resetLine) : "") +
+        "\nYou can still contact the team via the buttons below.";
+    }
+
     fetch(SUPABASE_URL + "/functions/v1/chat", {
       method: "POST",
       headers: {
@@ -565,7 +641,15 @@
       }),
     })
       .then(function (resp) {
-        if (!resp.ok || !resp.body) throw new Error("Network error");
+        if (!resp.ok) {
+          return resp.json()
+            .catch(function () { return {}; })
+            .then(function (payload) {
+              var msg = mapChatError(resp.status, payload);
+              throw new Error(msg);
+            });
+        }
+        if (!resp.body) throw new Error("Network error");
         var reader = resp.body.getReader();
         var decoder = new TextDecoder();
         var buffer = "";
@@ -607,10 +691,10 @@
         }
         return pump();
       })
-      .catch(function () {
+      .catch(function (err) {
         isLoading = false;
-        var err = "Sorry, I'm having trouble connecting. Please try again.";
-        messages.push({ role: "assistant", content: err });
+        var text = (err && err.message) ? String(err.message) : "Sorry, I'm having trouble connecting. Please try again.";
+        messages.push({ role: "assistant", content: text });
         render();
       });
   }
@@ -631,12 +715,15 @@
         if (data.business_name) theme.businessName = data.business_name;
         if (data.welcome_message) theme.welcome = data.welcome_message;
         if (data.logo_url) theme.logoUrl = data.logo_url;
+        if (data.website && typeof data.website === "string") theme.website = data.website;
         LOGO = resolveLogo(theme.logoUrl);
         launcher.innerHTML = launcherMarkup();
         theme.whatsapp = data.whatsapp_number || "";
         theme.call = data.call_number || "";
         applyTheme();
-        bizNameEl.textContent = theme.businessName;
+        bizNameEl.innerHTML = '<a class="mw-link" id="mw-biz-link" href="' + escapeHtml(theme.website) + '" target="_blank" rel="noopener">' + escapeHtml(theme.businessName) + '</a>';
+        bizLinkEl = panel.querySelector("#mw-biz-link");
+        if (poweredLinkEl) poweredLinkEl.setAttribute("href", theme.website);
         if (messages.length === 1 && messages[0].role === "assistant") {
           messages[0].content = theme.welcome;
           if (isOpen) render();

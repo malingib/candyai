@@ -55,6 +55,7 @@ type ProfileRow = {
   chats_limit: number;
   leads_used: number;
   leads_limit: number;
+  widget_sites_limit: number;
   billing_expires_at: string | null;
   trial_expires_at: string | null;
 };
@@ -122,6 +123,7 @@ export default function Admin() {
   const [roleRows, setRoleRows] = useState<UserRoleRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [billingEvents, setBillingEvents] = useState<BillingEventRow[]>([]);
+  const [widgetDomainCountByUser, setWidgetDomainCountByUser] = useState<Record<string, number>>({});
 
   const [activeTab, setActiveTab] = useState("overview");
   const [eventFilter, setEventFilter] = useState<"all" | "rate_limited" | "error" | "unauthorized">("all");
@@ -144,7 +146,7 @@ export default function Admin() {
     if (!isAdmin) return;
     setIsRefreshing(true);
     try {
-      const [{ data: roles }, { data: logsData }, { data: profileData }, { data: billingData }] = await Promise.all([
+      const [{ data: roles }, { data: logsData }, { data: profileData }, { data: billingData }, { data: widgetDomains }] = await Promise.all([
         supabase.from("user_roles").select("id, user_id, role, created_at").order("created_at", { ascending: false }).limit(1000),
         (eventFilter === "all"
           ? supabase.from("request_logs").select("*")
@@ -153,7 +155,7 @@ export default function Admin() {
           .limit(500),
         supabase
           .from("profiles")
-          .select("user_id, business_name, plan, chats_used, chats_limit, leads_used, leads_limit, billing_expires_at, trial_expires_at")
+          .select("user_id, business_name, plan, chats_used, chats_limit, leads_used, leads_limit, widget_sites_limit, billing_expires_at, trial_expires_at")
           .order("updated_at", { ascending: false })
           .limit(1000),
         supabase
@@ -161,12 +163,23 @@ export default function Admin() {
           .select("id, created_at, provider, event_type, event_id, amount_cents, currency, user_id")
           .order("created_at", { ascending: false })
           .limit(1000),
+        supabase
+          .from("widget_domains")
+          .select("user_id, is_active")
+          .eq("is_active", true)
+          .limit(5000),
       ]);
 
       setRoleRows((roles ?? []) as UserRoleRow[]);
       setLogs((logsData ?? []) as LogRow[]);
       setProfiles((profileData ?? []) as ProfileRow[]);
       setBillingEvents((billingData ?? []) as BillingEventRow[]);
+      const counts: Record<string, number> = {};
+      (widgetDomains ?? []).forEach((d: { user_id?: string | null }) => {
+        if (!d.user_id) return;
+        counts[d.user_id] = (counts[d.user_id] ?? 0) + 1;
+      });
+      setWidgetDomainCountByUser(counts);
       setLastSyncedAt(new Date());
     } finally {
       setIsRefreshing(false);
@@ -211,6 +224,16 @@ export default function Admin() {
   }, [filteredProfiles, focusedUserId]);
 
   const focusedProfile = useMemo(() => profiles.find((p) => p.user_id === focusedUserId) ?? null, [profiles, focusedUserId]);
+
+  const accountStatus = (p: ProfileRow): "active" | "expired" | "inactive" => {
+    if (p.plan === "free") {
+      if (p.trial_expires_at && new Date(p.trial_expires_at).getTime() < Date.now()) return "expired";
+      return "active";
+    }
+    if (p.billing_expires_at && new Date(p.billing_expires_at).getTime() < Date.now()) return "expired";
+    if (p.chats_used >= p.chats_limit && p.leads_used >= p.leads_limit) return "inactive";
+    return "active";
+  };
 
   const adminsSet = useMemo(() => new Set(roleRows.filter((r) => r.role === "admin").map((r) => r.user_id)), [roleRows]);
 
@@ -403,7 +426,9 @@ export default function Admin() {
                           <th className="p-2 text-left">User</th>
                           <th className="p-2 text-left">Business</th>
                           <th className="p-2 text-left">Plan</th>
+                          <th className="p-2 text-left">Status</th>
                           <th className="p-2 text-left">Usage</th>
+                          <th className="p-2 text-left">Embeds</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -425,7 +450,11 @@ export default function Admin() {
                               <td className="p-2 font-mono text-xs">{p.user_id.slice(0, 8)}…</td>
                               <td className="p-2 text-xs">{p.business_name || "-"}</td>
                               <td className="p-2"><Badge variant="secondary" className="capitalize">{p.plan}</Badge></td>
+                              <td className="p-2">
+                                <Badge variant="outline" className="capitalize">{accountStatus(p)}</Badge>
+                              </td>
                               <td className="p-2 text-xs">{p.chats_used}/{p.chats_limit} chats</td>
+                              <td className="p-2 text-xs">{widgetDomainCountByUser[p.user_id] ?? 0}/{p.widget_sites_limit}</td>
                             </tr>
                           );
                         })}
@@ -446,9 +475,11 @@ export default function Admin() {
                             <p><span className="text-muted-foreground">User ID:</span> <span className="font-mono">{focusedProfile.user_id}</span></p>
                             <p><span className="text-muted-foreground">Business:</span> {focusedProfile.business_name || "-"}</p>
                             <p><span className="text-muted-foreground">Plan:</span> <span className="capitalize">{focusedProfile.plan}</span></p>
+                            <p><span className="text-muted-foreground">Status:</span> <span className="capitalize">{accountStatus(focusedProfile)}</span></p>
                             <p><span className="text-muted-foreground">Admin:</span> {adminsSet.has(focusedProfile.user_id) ? "Yes" : "No"}</p>
                             <p><span className="text-muted-foreground">Chats:</span> {focusedProfile.chats_used}/{focusedProfile.chats_limit}</p>
                             <p><span className="text-muted-foreground">Leads:</span> {focusedProfile.leads_used}/{focusedProfile.leads_limit}</p>
+                            <p><span className="text-muted-foreground">Widget Sites:</span> {widgetDomainCountByUser[focusedProfile.user_id] ?? 0}/{focusedProfile.widget_sites_limit}</p>
                           </div>
 
                           <div className="grid gap-2">
@@ -681,8 +712,8 @@ export default function Admin() {
                 variant="outline"
                 onClick={() => exportCsv(
                   `profiles-${new Date().toISOString().slice(0, 10)}.csv`,
-                  ["user_id", "business_name", "plan", "chats_used", "chats_limit", "leads_used", "leads_limit", "billing_expires_at", "trial_expires_at"],
-                  profiles.map((p) => [p.user_id, p.business_name, p.plan, p.chats_used, p.chats_limit, p.leads_used, p.leads_limit, p.billing_expires_at, p.trial_expires_at]),
+                  ["user_id", "business_name", "plan", "status", "chats_used", "chats_limit", "leads_used", "leads_limit", "widget_sites_used", "widget_sites_limit", "billing_expires_at", "trial_expires_at"],
+                  profiles.map((p) => [p.user_id, p.business_name, p.plan, accountStatus(p), p.chats_used, p.chats_limit, p.leads_used, p.leads_limit, widgetDomainCountByUser[p.user_id] ?? 0, p.widget_sites_limit, p.billing_expires_at, p.trial_expires_at]),
                 )}
               >
                 <Download className="mr-2 h-4 w-4" />Export Profiles CSV

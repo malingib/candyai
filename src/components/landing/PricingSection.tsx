@@ -15,11 +15,12 @@ const tiers = [
   },
   {
     name: "Growth",
-    price: "3,500",
+    price: "5,000",
     period: "KES/mo",
     description: "For businesses ready to scale their support.",
     features: [
       "2,000 chats/month",
+      "1 website embed",
       "Remove branding",
       "Lead capture & export",
       "Custom knowledge base",
@@ -31,13 +32,13 @@ const tiers = [
   },
   {
     name: "Premium",
-    price: "8,000",
+    price: "10,000",
     period: "KES/mo",
     description: "For high-volume teams that need everything.",
     features: [
       "10,000 chats/month",
+      "2 website embeds",
       "API access",
-      "Multiple websites",
       "SMS & email follow-up",
       "Custom integrations",
       "Dedicated support",
@@ -52,7 +53,8 @@ const tiers = [
     period: "",
     description: "For large orgs and agencies at scale.",
     features: [
-      "Unlimited chats",
+      "99,999 chats/month",
+      "4 website embeds",
       "Full API access",
       "Dedicated account manager",
       "SLA & uptime guarantee",

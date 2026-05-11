@@ -13,11 +13,24 @@ function isUuid(v: unknown): v is string {
   return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 }
 
-function limitsForPlan(plan: string): { chats: number; leads: number } {
-  if (plan === "growth") return { chats: 2000, leads: 1000 };
-  if (plan === "premium") return { chats: 10000, leads: 5000 };
-  if (plan === "enterprise") return { chats: 99999, leads: 20000 };
-  return { chats: 20, leads: 30 };
+type BillingPlan = {
+  plan: string;
+  chats_limit: number;
+  leads_limit: number;
+  widget_sites_limit: number;
+};
+
+async function fetchBillingPlan(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  plan: string,
+): Promise<BillingPlan | null> {
+  const { data, error } = await supabaseAdmin
+    .from("billing_plans")
+    .select("plan, chats_limit, leads_limit, widget_sites_limit")
+    .eq("plan", plan)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as BillingPlan;
 }
 
 function validEmail(v: string): boolean {
@@ -135,11 +148,15 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: "Invalid plan" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const now = new Date();
-      const limits = limitsForPlan(plan);
+      const limits = await fetchBillingPlan(supabaseAdmin, plan);
+      if (!limits) {
+        return new Response(JSON.stringify({ error: "Plan config missing in billing catalog" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       const update: Record<string, unknown> = {
         plan,
-        chats_limit: limits.chats,
-        leads_limit: limits.leads,
+        chats_limit: limits.chats_limit,
+        leads_limit: limits.leads_limit,
+        widget_sites_limit: limits.widget_sites_limit,
         updated_at: now.toISOString(),
       };
       if (plan === "free") {
@@ -184,11 +201,15 @@ serve(async (req) => {
       for (const userId of userIds as string[]) {
         try {
           if (bulkAction === "set_plan") {
-            const limits = limitsForPlan(rawPlan);
+            const limits = await fetchBillingPlan(supabaseAdmin, rawPlan);
+            if (!limits) {
+              throw new Error("Plan config missing in billing catalog");
+            }
             const update: Record<string, unknown> = {
               plan: rawPlan,
-              chats_limit: limits.chats,
-              leads_limit: limits.leads,
+              chats_limit: limits.chats_limit,
+              leads_limit: limits.leads_limit,
+              widget_sites_limit: limits.widget_sites_limit,
               updated_at: nowIso,
             };
             if (rawPlan === "free") {

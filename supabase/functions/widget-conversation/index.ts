@@ -15,6 +15,20 @@ function clamp(s: unknown, max: number): string {
   return String(s ?? "").slice(0, max);
 }
 
+function extractOriginFromHeaders(req: Request): string | null {
+  const ref = req.headers.get("referer");
+  const origin = req.headers.get("origin");
+  const candidate = ref || origin;
+  if (!candidate) return null;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return `${url.protocol}//${url.host}`.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 async function conversationBelongsToBusiness(
   supabase: ReturnType<typeof createClient>,
   conversationId: string,
@@ -65,6 +79,94 @@ serve(async (req) => {
 
     // ---- Create or reuse conversation ----
     if (action === "start") {
+      const embedOrigin = extractOriginFromHeaders(req);
+      if (!embedOrigin) {
+        return new Response(JSON.stringify({ error: "Unable to identify website origin for widget session." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: profileLimits, error: profileErr } = await supabase
+        .from("profiles")
+        .select("plan, widget_sites_limit")
+        .eq("user_id", business_id)
+        .single();
+      if (profileErr || !profileLimits) {
+        return new Response(JSON.stringify({ error: "Unable to validate embed limits." }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: existingDomain } = await supabase
+        .from("widget_domains")
+        .select("id, is_verified")
+        .eq("user_id", business_id)
+        .eq("origin", embedOrigin)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (existingDomain?.id) {
+        if (!existingDomain.is_verified) {
+          return new Response(JSON.stringify({
+            error: "Domain is registered but not verified. Complete domain verification in Embed settings.",
+            code: "domain_unverified",
+            origin: embedOrigin,
+          }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        await supabase
+          .from("widget_domains")
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq("id", existingDomain.id);
+      } else {
+        const { count: activeCount } = await supabase
+          .from("widget_domains")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", business_id)
+          .eq("is_active", true);
+
+        const current = activeCount ?? 0;
+        const maxSites = Number(profileLimits.widget_sites_limit ?? 1);
+        if (current >= maxSites) {
+          return new Response(JSON.stringify({
+            error: "Embed limit reached for this plan. Upgrade to allow more websites.",
+            code: "embed_limit_reached",
+            plan: profileLimits.plan,
+            sites_used: current,
+            sites_limit: maxSites,
+            origin: embedOrigin,
+          }), {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { error: insertDomainErr } = await supabase
+          .from("widget_domains")
+          .insert({
+            user_id: business_id,
+            origin: embedOrigin,
+            is_active: true,
+            is_verified: false,
+            verification_token: crypto.randomUUID().replace(/-/g, ""),
+          });
+        if (insertDomainErr) {
+          return new Response(JSON.stringify({ error: "Unable to register widget origin." }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({
+          error: "Domain registered but not verified. Verify this website in dashboard before chat can run.",
+          code: "domain_unverified",
+          origin: embedOrigin,
+        }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const meta = {
         user_agent: clamp(req.headers.get("user-agent"), 500),
         referer: clamp(req.headers.get("referer"), 500),
@@ -139,6 +241,23 @@ serve(async (req) => {
             status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+      }
+
+      const { data: profilePlan } = await supabase
+        .from("profiles")
+        .select("plan")
+        .eq("user_id", business_id)
+        .single();
+      const plan = String(profilePlan?.plan || "free");
+      const { data: planCfg } = await supabase
+        .from("billing_plans")
+        .select("allow_lead_capture")
+        .eq("plan", plan)
+        .maybeSingle();
+      if (!planCfg?.allow_lead_capture) {
+        return new Response(JSON.stringify({ error: "Lead capture is not available on this plan. Upgrade to Growth or higher." }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const leadPayload = {

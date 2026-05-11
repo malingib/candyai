@@ -30,7 +30,7 @@ const Auth = () => {
   const { toast } = useToast();
   const authRedirectBase =
     import.meta.env.VITE_AUTH_REDIRECT_URL?.replace(/\/$/, "") || window.location.origin;
-  const turnstileSiteKey = import.meta.env.TURNSTILE_SITE_KEY || import.meta.env.VITE_TURNSTILE_SITE_KEY;
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +55,18 @@ const Auth = () => {
         if (error) throw error;
         navigate("/dashboard");
       } else {
+        const precheckResp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pre-signup-check`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ email, turnstile_token: turnstileToken }),
+        });
+        const precheckPayload = await precheckResp.json().catch(() => ({}));
+        if (!precheckResp.ok) {
+          throw new Error(precheckPayload?.error || "Signup security check failed");
+        }
         const { error } = await supabase.auth.signUp({
           email,
           password,
