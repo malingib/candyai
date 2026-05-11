@@ -32,7 +32,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { isAdmin } = useIsAdmin(user?.id);
   const { unreadCount } = useUnreadConversations();
 
-  const items = isAdmin ? adminNavItems : userNavItems;
+  const onAdminRoute = location.pathname.startsWith("/dashboard/admin");
+  const items = (isAdmin || onAdminRoute) ? adminNavItems : userNavItems;
 
   return (
     <div className="flex min-h-screen bg-muted/30">

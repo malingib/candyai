@@ -43,15 +43,6 @@ const DashboardRoute = ({ children }: { children: React.ReactNode }) => (
   </ProtectedRoute>
 );
 
-const AdminOnlyRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
-  const { isAdmin, loading } = useIsAdmin(user?.id);
-
-  if (loading) return <LoadingSpinner />;
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
-  return <>{children}</>;
-};
-
 const UserOnlyRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const { isAdmin, loading } = useIsAdmin(user?.id);
@@ -106,7 +97,7 @@ const App = () => {
               <Route path="/dashboard/github-bot" element={<DashboardRoute><UserOnlyRoute><DashboardPageLoader><GitHubBot /></DashboardPageLoader></UserOnlyRoute></DashboardRoute>} />
               <Route path="/dashboard/tickets" element={<DashboardRoute><UserOnlyRoute><DashboardPageLoader><Tickets /></DashboardPageLoader></UserOnlyRoute></DashboardRoute>} />
               <Route path="/dashboard/canned-responses" element={<DashboardRoute><UserOnlyRoute><DashboardPageLoader><CannedResponses /></DashboardPageLoader></UserOnlyRoute></DashboardRoute>} />
-              <Route path="/dashboard/admin" element={<DashboardRoute><AdminOnlyRoute><DashboardPageLoader><Admin /></DashboardPageLoader></AdminOnlyRoute></DashboardRoute>} />
+              <Route path="/dashboard/admin" element={<DashboardRoute><DashboardPageLoader><Admin /></DashboardPageLoader></DashboardRoute>} />
               <Route path="/chat" element={<AiChat />} />
               <Route path="/legal/privacy" element={<PrivacyCompliance />} />
               <Route path="*" element={<NotFound />} />
