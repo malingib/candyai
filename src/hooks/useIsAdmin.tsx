@@ -45,6 +45,7 @@ export const useIsAdmin = (userId?: string) => {
             .select("role")
             .eq("user_id", userId)
             .eq("role", "admin")
+            .limit(1)
             .maybeSingle(),
         ).then(({ data, error }) => {
           if (!active) return;
@@ -52,7 +53,6 @@ export const useIsAdmin = (userId?: string) => {
           if (error) {
             const message = error.message || "Role lookup failed";
             logSupabaseDebug("roles:has_role", "error", message);
-            setIsAdmin(false);
             setError(message);
           } else {
             setIsAdmin(!!data);
@@ -66,7 +66,6 @@ export const useIsAdmin = (userId?: string) => {
         if (!active) return;
         const message = err instanceof Error ? err.message : "Role lookup failed";
         logSupabaseDebug("roles:has_role", "error", message);
-        setIsAdmin(false);
         setError(message);
         setLoading(false);
       });
