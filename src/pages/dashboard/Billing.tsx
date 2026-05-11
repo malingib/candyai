@@ -23,6 +23,18 @@ const Billing = () => {
   const [trialExpiresAt, setTrialExpiresAt] = useState<string | null>(null);
   const [startingCheckoutPlan, setStartingCheckoutPlan] = useState<string | null>(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [mpesaPhone, setMpesaPhone] = useState("");
+  const [promoMessage, setPromoMessage] = useState<string | null>(null);
+
+  const normalizeMpesaPhone = (value: string): string | null => {
+    const digits = value.replace(/[^\d+]/g, "");
+    if (/^(\+254|254|0)?7\d{8}$/.test(digits)) {
+      if (digits.startsWith("+254")) return digits;
+      if (digits.startsWith("254")) return `+${digits}`;
+      if (digits.startsWith("07")) return `+254${digits.slice(1)}`;
+    }
+    return null;
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -48,6 +60,7 @@ const Billing = () => {
     const checkoutStatus = params.get("checkout");
     const reference = params.get("reference") || params.get("trxref");
     if (checkoutStatus !== "success" || !reference) return;
+    setPromoMessage("Payment detected. Verifying your M-Pesa STK transaction...");
 
     let cancelled = false;
     const run = async () => {
@@ -82,8 +95,10 @@ const Billing = () => {
           setBillingExpiresAt(data.billing_expires_at ?? null);
           setTrialExpiresAt((data as { trial_expires_at?: string | null }).trial_expires_at ?? null);
         }
+        setPromoMessage("Upgrade successful. Your paid plan is now active.");
       } catch (error) {
         console.error(error);
+        setPromoMessage("We could not verify payment yet. If STK was charged, contact support with your reference.");
         alert("Payment verification failed. Please contact support if you were charged.");
       } finally {
         if (!cancelled) setVerifyingPayment(false);
@@ -100,6 +115,11 @@ const Billing = () => {
 
   const startCheckout = async (planId: string) => {
     if (!user || (planId !== "growth" && planId !== "premium")) return;
+    const normalizedPhone = normalizeMpesaPhone(mpesaPhone);
+    if (!normalizedPhone) {
+      setPromoMessage("Enter a valid Safaricom M-Pesa number (e.g. 07XXXXXXXX).");
+      return;
+    }
     setStartingCheckoutPlan(planId);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -112,13 +132,15 @@ const Billing = () => {
           Authorization: `Bearer ${token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: planId, phone: normalizedPhone }),
       });
       const payload = await resp.json();
       if (!resp.ok || !payload?.url) throw new Error(payload?.error || "Unable to start checkout");
+      setPromoMessage("Redirecting to M-Pesa STK checkout. Complete the prompt on your phone.");
       window.location.href = payload.url;
     } catch (error) {
       console.error(error);
+      setPromoMessage(error instanceof Error ? error.message : "Unable to start M-Pesa STK checkout.");
       alert("Unable to start payment. Please try again.");
     } finally {
       setStartingCheckoutPlan(null);
@@ -148,6 +170,31 @@ const Billing = () => {
             )}
           </CardContent>
         )}
+      </Card>
+      <Card className="border-accent/40 bg-accent/5">
+        <CardHeader>
+          <CardTitle className="text-base">Upgrade via M-Pesa STK</CardTitle>
+          <CardDescription>
+            M-Pesa is now the only checkout method. Enter your Safaricom number and confirm the STK prompt to upgrade instantly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <input
+              value={mpesaPhone}
+              onChange={(e) => setMpesaPhone(e.target.value)}
+              placeholder="07XXXXXXXX or +2547XXXXXXXX"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <Badge variant="secondary" className="h-10 px-3 inline-flex items-center">M-Pesa STK Only</Badge>
+          </div>
+          {promoMessage && <p className="text-sm text-foreground">{promoMessage}</p>}
+          {currentPlan === "free" && (
+            <p className="text-sm text-muted-foreground">
+              Promo: Upgrade today and unlock branding removal, higher chat limits, and advanced analytics immediately.
+            </p>
+          )}
+        </CardContent>
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {plans.map((plan) => {
@@ -191,7 +238,7 @@ const Billing = () => {
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Payments secured via Paystack. Enterprise plans are provisioned manually by support.
+        Payments secured via Paystack M-Pesa mobile money (STK). Enterprise plans are provisioned manually by support.
       </p>
     </div>
   );

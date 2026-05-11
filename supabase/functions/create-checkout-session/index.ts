@@ -14,6 +14,16 @@ const PLAN_CONFIG: Record<string, { amountKobo: number; currency: string; label:
   premium: { amountKobo: 1000000, currency: "KES", label: "Mobiwave Premium (30 days)" },
 };
 
+function normalizeMpesaPhone(input: string): string | null {
+  const digits = input.replace(/[^\d+]/g, "");
+  if (/^(\+254|254|0)?7\d{8}$/.test(digits)) {
+    if (digits.startsWith("+254")) return digits;
+    if (digits.startsWith("254")) return `+${digits}`;
+    if (digits.startsWith("07")) return `+254${digits.slice(1)}`;
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -31,9 +41,16 @@ serve(async (req) => {
   }
 
   try {
-    const { plan } = await req.json();
+    const { plan, phone } = await req.json();
     if (!plan || typeof plan !== "string" || !PLAN_CONFIG[plan]) {
       return new Response(JSON.stringify({ error: "Invalid plan" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const normalizedPhone = typeof phone === "string" ? normalizeMpesaPhone(phone) : null;
+    if (!normalizedPhone) {
+      return new Response(JSON.stringify({ error: "Valid M-Pesa phone is required (e.g. 07XXXXXXXX)." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -70,11 +87,14 @@ serve(async (req) => {
         email: userData.user.email,
         amount: cfg.amountKobo,
         currency: cfg.currency,
+        channels: ["mobile_money"],
         callback_url: `${siteUrl}/dashboard/billing?checkout=success`,
         metadata: {
           user_id: userData.user.id,
           plan,
           label: cfg.label,
+          payment_method: "mpesa_stk",
+          mpesa_phone: normalizedPhone,
         },
       }),
     });
