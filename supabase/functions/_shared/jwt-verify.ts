@@ -33,19 +33,23 @@ export async function verifyJWT(token: string): Promise<JwtPayload | null> {
  * Validates the Authorization header on a request. Returns a 401 Response if
  * invalid, or null if the token is valid (signature + expiry verified by Supabase).
  */
-export async function verifyTokenInRequest(req: Request): Promise<Response | null> {
+export async function verifyTokenInRequest(
+  req: Request,
+  corsHeaders?: Record<string, string>,
+): Promise<Response | null> {
+  const jsonHeaders = { ...(corsHeaders ?? {}), "Content-Type": "application/json" };
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(
       JSON.stringify({ error: "Missing Authorization header" }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
+      { status: 401, headers: jsonHeaders },
     );
   }
 
   if (!authHeader.startsWith("Bearer ")) {
     return new Response(
       JSON.stringify({ error: "Invalid Authorization header format" }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
+      { status: 401, headers: jsonHeaders },
     );
   }
 
@@ -54,7 +58,7 @@ export async function verifyTokenInRequest(req: Request): Promise<Response | nul
   if (!payload) {
     return new Response(
       JSON.stringify({ error: "Invalid or expired token" }),
-      { status: 401, headers: { "Content-Type": "application/json" } },
+      { status: 401, headers: jsonHeaders },
     );
   }
 

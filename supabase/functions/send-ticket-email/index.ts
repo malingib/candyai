@@ -52,7 +52,7 @@ serve(async (req) => {
     user: { limit: 60, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("send-ticket-email", rl.scope!, rl.ctx, corsHeaders);
-  const tokenError = await verifyTokenInRequest(req);
+  const tokenError = await verifyTokenInRequest(req, corsHeaders);
   if (tokenError) {
     logRequest({ function_name: "send-ticket-email", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
     return tokenError;

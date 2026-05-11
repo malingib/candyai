@@ -54,7 +54,7 @@ serve(async (req) => {
   });
   if (!rl.allowed) return rateLimitedResponse("create-checkout-session", rl.scope!, rl.ctx, corsHeaders);
 
-  const tokenError = await verifyTokenInRequest(req);
+  const tokenError = await verifyTokenInRequest(req, corsHeaders);
   if (tokenError) {
     logRequest({ function_name: "create-checkout-session", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
     return tokenError;

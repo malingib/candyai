@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
-import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,12 +31,6 @@ serve(async (req) => {
     session: { limit: 60, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("get-contact-info", rl.scope!, rl.ctx, corsHeaders);
-  const tokenError = await verifyTokenInRequest(req);
-  if (tokenError) {
-    logRequest({ function_name: "get-contact-info", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
-    return tokenError;
-  }
-
   try {
     const { user_id } = await req.json();
     if (!isUuid(user_id)) {

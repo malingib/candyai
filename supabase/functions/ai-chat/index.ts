@@ -65,7 +65,7 @@ serve(async (req) => {
   });
   if (!rl.allowed) return rateLimitedResponse("ai-chat", rl.scope!, rl.ctx, corsHeaders);
 
-  const tokenError = await verifyTokenInRequest(req);
+  const tokenError = await verifyTokenInRequest(req, corsHeaders);
   if (tokenError) {
     logRequest({ function_name: "ai-chat", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
     return tokenError;

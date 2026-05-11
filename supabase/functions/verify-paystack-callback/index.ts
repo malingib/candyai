@@ -41,7 +41,7 @@ serve(async (req) => {
   });
   if (!rl.allowed) return rateLimitedResponse("verify-paystack-callback", rl.scope!, rl.ctx, corsHeaders);
 
-  const tokenError = await verifyTokenInRequest(req);
+  const tokenError = await verifyTokenInRequest(req, corsHeaders);
   if (tokenError) {
     logRequest({ function_name: "verify-paystack-callback", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
     return tokenError;

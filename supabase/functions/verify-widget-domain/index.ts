@@ -28,7 +28,7 @@ serve(async (req) => {
   });
   if (!rl.allowed) return rateLimitedResponse("verify-widget-domain", rl.scope!, rl.ctx, corsHeaders);
 
-  const tokenError = await verifyTokenInRequest(req);
+  const tokenError = await verifyTokenInRequest(req, corsHeaders);
   if (tokenError) return tokenError;
 
   try {
