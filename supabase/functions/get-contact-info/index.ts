@@ -17,6 +17,13 @@ const empty = {
   welcome_message: "Hi! 👋 How can I help you today?",
 };
 
+const mobiwaveBranding = {
+  business_name: "Mobiwave AI",
+  logo_url: "",
+  primary_color: "#2563eb",
+  welcome_message: "Hi! 👋 How can I help you today?",
+};
+
 function isUuid(v: unknown): v is string {
   return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 }
@@ -46,18 +53,36 @@ serve(async (req) => {
 
     const { data } = await supabase
       .from("profiles")
-      .select("whatsapp_number, call_number, business_name, logo_url, primary_color, welcome_message")
+      .select("plan, whatsapp_number, call_number, business_name, logo_url, primary_color, welcome_message")
       .eq("user_id", user_id)
       .single();
+
+    const plan = String(data?.plan || "free");
+    const { data: planCfg } = await supabase
+      .from("billing_plans")
+      .select("allow_branding_removal")
+      .eq("plan", plan)
+      .maybeSingle();
+    const allowBrandingRemoval = !!planCfg?.allow_branding_removal;
+
+    const branding = allowBrandingRemoval
+      ? {
+          business_name: data?.business_name || "",
+          logo_url: data?.logo_url || "",
+          primary_color: data?.primary_color || empty.primary_color,
+          welcome_message: data?.welcome_message || empty.welcome_message,
+        }
+      : mobiwaveBranding;
 
     return new Response(
       JSON.stringify({
         whatsapp_number: data?.whatsapp_number || "",
         call_number: data?.call_number || "",
-        business_name: data?.business_name || "",
-        logo_url: data?.logo_url || "",
-        primary_color: data?.primary_color || empty.primary_color,
-        welcome_message: data?.welcome_message || empty.welcome_message,
+        business_name: branding.business_name,
+        logo_url: branding.logo_url,
+        primary_color: branding.primary_color,
+        welcome_message: branding.welcome_message,
+        allow_branding_removal: allowBrandingRemoval,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

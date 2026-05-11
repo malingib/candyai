@@ -28,12 +28,15 @@
   var DEFAULT_LOGO = ORIGIN + "/logo.png";
   var LOGO = DEFAULT_LOGO;
 
+  var MOBIWAVE_AI_SITE = "https://mobiwaveai.co.ke";
+  var MOBIWAVE_INNOVATIONS_SITE = "https://mobiwave.co.ke";
+
   var theme = {
     primary: "#2563eb",
     businessName: "Mobiwave AI",
     welcome: "Hi! 👋 How can I help you today?",
     logoUrl: "",
-    website: "https://www.mobiwave.co.ke",
+    website: MOBIWAVE_AI_SITE,
     whatsapp: "",
     call: "",
   };
@@ -384,7 +387,7 @@
         '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
       '</button>' +
     '</form>' +
-    '<div class="mw-footer"><a class="mw-link" id="mw-powered-link" href="' + escapeHtml(theme.website) + '" target="_blank" rel="noopener">Powered by Mobiwave Innovations</a></div>';
+    '<div class="mw-footer"><a class="mw-link" id="mw-powered-link-ai" href="' + escapeHtml(MOBIWAVE_AI_SITE) + '" target="_blank" rel="noopener">Mobiwave AI</a> . Powered by <a class="mw-link" id="mw-powered-link-innovations" href="' + escapeHtml(MOBIWAVE_INNOVATIONS_SITE) + '" target="_blank" rel="noopener">Mobiwave Innovations</a></div>';
 
   function init() {
     if (document.body) {
@@ -409,7 +412,8 @@
   var leadFormEl = panel.querySelector("#mw-lead-form");
   var leadErrorEl = panel.querySelector("#mw-lead-error");
   var bizLinkEl = panel.querySelector("#mw-biz-link");
-  var poweredLinkEl = panel.querySelector("#mw-powered-link");
+  var poweredLinkAiEl = panel.querySelector("#mw-powered-link-ai");
+  var poweredLinkInnovationsEl = panel.querySelector("#mw-powered-link-innovations");
 
   // ---- Action bar (lead CTA + WhatsApp/Call) ----
   function renderActions() {
@@ -628,14 +632,15 @@
         "\nYou can still contact the team via the buttons below.";
     }
 
-    fetch(SUPABASE_URL + "/functions/v1/chat", {
+    fetch(SUPABASE_URL + "/functions/v1/chat/demo", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        apikey: SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         messages: messages,
+        demo: true,
         user_id: sanitizeUuid(businessId),
         conversation_id: sanitizeUuid(conversationId),
       }),
@@ -705,7 +710,7 @@
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        apikey: SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ user_id: sanitizeUuid(businessId) }),
     })
@@ -723,7 +728,8 @@
         applyTheme();
         bizNameEl.innerHTML = '<a class="mw-link" id="mw-biz-link" href="' + escapeHtml(theme.website) + '" target="_blank" rel="noopener">' + escapeHtml(theme.businessName) + '</a>';
         bizLinkEl = panel.querySelector("#mw-biz-link");
-        if (poweredLinkEl) poweredLinkEl.setAttribute("href", theme.website);
+        if (poweredLinkAiEl) poweredLinkAiEl.setAttribute("href", MOBIWAVE_AI_SITE);
+        if (poweredLinkInnovationsEl) poweredLinkInnovationsEl.setAttribute("href", MOBIWAVE_INNOVATIONS_SITE);
         if (messages.length === 1 && messages[0].role === "assistant") {
           messages[0].content = theme.welcome;
           if (isOpen) render();
