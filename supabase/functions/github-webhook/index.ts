@@ -1,15 +1,31 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 
-// Function to verify HMAC signature
-function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
-  const crypto = require('crypto');
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(payload);
-  const expected = "sha256=" + hmac.digest('hex');
-  return expected === signature;
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
+
+async function verifyGithubSignature(rawBody: string, signatureHeader: string, secret: string): Promise<boolean> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+  const expected = `sha256=${toHex(new Uint8Array(sig))}`;
+  return timingSafeEqual(expected, signatureHeader);
 }
 
 const corsHeaders = {
@@ -25,15 +41,43 @@ serve(async (req) => {
 
   const rl = multiRateLimit(req, "github-webhook", { ip: { limit: 30, windowMs: 60_000 } });
   if (!rl.allowed) return rateLimitedResponse("github-webhook", rl.scope!, rl.ctx, corsHeaders);
-  const tokenError = await verifyTokenInRequest(req, corsHeaders);
-  if (tokenError) {
-    logRequest({ function_name: "github-webhook", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
-    return tokenError;
-  }
 
   try {
+    const webhookSecret = String(Deno.env.get("GITHUB_WEBHOOK_SECRET") || "").trim();
+    if (!webhookSecret) {
+      logRequest({ function_name: "github-webhook", event_type: "error", status_code: 500, ctx: rl.ctx, message: "missing webhook secret" });
+      return new Response(JSON.stringify({ error: "GITHUB_WEBHOOK_SECRET is not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const signature = req.headers.get("x-hub-signature-256") || "";
+    if (!signature) {
+      logRequest({ function_name: "github-webhook", event_type: "unauthorized", status_code: 401, ctx: rl.ctx, message: "missing signature" });
+      return new Response(JSON.stringify({ error: "Missing x-hub-signature-256" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const event = req.headers.get("x-github-event");
-    const payload = await req.json();
+    const rawBody = await req.text();
+    const sigOk = await verifyGithubSignature(rawBody, signature, webhookSecret);
+    if (!sigOk) {
+      logRequest({ function_name: "github-webhook", event_type: "unauthorized", status_code: 401, ctx: rl.ctx, message: "invalid signature" });
+      return new Response(JSON.stringify({ error: "Invalid webhook signature" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const payload = JSON.parse(rawBody);
+
+    if (event === "ping") {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (event !== "pull_request" || !["opened", "synchronize"].includes(payload.action)) {
       return new Response(JSON.stringify({ message: "Ignored event" }), {
@@ -64,10 +108,24 @@ serve(async (req) => {
       });
     }
 
-    const tokenRow = tokenRows[0];
-    // For security, we should use the encrypted token from the database
-    // The GitHub token should be retrieved through the database with proper decryption
-    const githubToken = tokenRow.token;
+    const tokenRow = tokenRows[0] as { user_id: string; token?: string | null; encrypted_token?: string | null };
+    let githubToken = String(tokenRow.token || "").trim();
+    if (!githubToken && tokenRow.encrypted_token) {
+      const { data: decrypted, error: decryptErr } = await supabaseAdmin.rpc("decrypt_github_token_func", {
+        encrypted_token: tokenRow.encrypted_token,
+      });
+      if (decryptErr) {
+        console.error("Failed to decrypt github token:", decryptErr);
+      } else {
+        githubToken = String(decrypted || "").trim();
+      }
+    }
+    if (!githubToken) {
+      return new Response(JSON.stringify({ error: "No usable GitHub token configured for this repo" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Fetch the PR diff
     const diffResp = await fetch(pr.diff_url, {

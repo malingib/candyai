@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
+import { formatCycleResetDate } from "@/lib/billing-cycle";
 
 type BillingPlanRow = {
   plan: "free" | "growth" | "premium" | "enterprise";
@@ -140,8 +141,6 @@ const Billing = () => {
     return () => { cancelled = true; };
   }, [user]);
 
-  const start = periodStart ? new Date(periodStart) : new Date();
-  const resetAt = new Date(start.getFullYear(), start.getMonth() + 1, 1, 0, 0, 0, 0);
   const remaining = Math.max(chatsLimit - chatsUsed, 0);
   const isExpired = !!billingExpiresAt && new Date(billingExpiresAt).getTime() < Date.now();
 
@@ -186,7 +185,7 @@ const Billing = () => {
           <CardTitle className="text-base">Usage & Renewal</CardTitle>
           <CardDescription>
             {remaining} chats remaining out of {chatsLimit}. Usage resets on{" "}
-            {resetAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}.
+            {formatCycleResetDate(periodStart)}.
           </CardDescription>
         </CardHeader>
         {billingExpiresAt && (

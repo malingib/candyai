@@ -637,10 +637,11 @@
       headers: {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         messages: messages,
-        demo: true,
+        demo: false,
         user_id: sanitizeUuid(businessId),
         conversation_id: sanitizeUuid(conversationId),
       }),
@@ -711,6 +712,7 @@
       headers: {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ user_id: sanitizeUuid(businessId) }),
     })

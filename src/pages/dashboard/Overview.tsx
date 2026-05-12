@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { MessageSquare, Users, BarChart3, Zap, TrendingUp } from "lucide-react";
 import { Navigate } from "react-router-dom";
+import { formatCycleResetDate } from "@/lib/billing-cycle";
 
 type Profile = {
   chats_used: number;
@@ -48,9 +49,7 @@ const Overview = () => {
   const usagePercent = profile ? Math.min((profile.chats_used / profile.chats_limit) * 100, 100) : 0;
   const remainingChats = profile ? Math.max((profile.chats_limit ?? 0) - (profile.chats_used ?? 0), 0) : 0;
   const remainingLeads = profile ? Math.max((profile.leads_limit ?? 0) - (profile.leads_used ?? 0), 0) : 0;
-  const periodStart = profile?.chats_period_started_at ? new Date(profile.chats_period_started_at) : new Date();
-  const resetAt = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 1, 0, 0, 0, 0);
-  const resetLabel = resetAt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const resetLabel = formatCycleResetDate(profile?.chats_period_started_at ?? null);
   const isBillingExpired =
     !!profile?.billing_expires_at && new Date(profile.billing_expires_at).getTime() < Date.now();
   const isFreeTrialExpired =

@@ -8,6 +8,8 @@ import TurnstileWidget from "@/components/security/TurnstileWidget";
 type Message = { role: "user" | "assistant"; content: string };
 
 const MAX_FREE_MESSAGES = 5;
+const fallbackWhatsapp = String(import.meta.env.VITE_DEMO_FALLBACK_WHATSAPP || "").trim();
+const fallbackCall = String(import.meta.env.VITE_DEMO_FALLBACK_CALL || "").trim();
 
 interface DemoChatWidgetProps {
   userId?: string;
@@ -26,6 +28,7 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+  const fallbackWhatsappDigits = fallbackWhatsapp.replace(/[^0-9]/g, "");
 
   useEffect(() => {
     if (!userId) return;
@@ -34,6 +37,7 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
       headers: {
         "Content-Type": "application/json",
         apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({ user_id: userId }),
     })
@@ -67,6 +71,7 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
           headers: {
             "Content-Type": "application/json",
             apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
             messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
@@ -219,15 +224,19 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
               )}
             </div>
           )}
-          {!contactInfo.whatsapp_number && !contactInfo.call_number && !userId && (
+          {!contactInfo.whatsapp_number && !contactInfo.call_number && !userId && (fallbackWhatsappDigits || fallbackCall) && (
             <div className="border-t px-3 py-2 flex items-center justify-center gap-3">
               <span className="text-xs text-muted-foreground">Talk to a human:</span>
-              <a href="https://wa.me/254700000000" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:underline">
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-              </a>
-              <a href="tel:+254700000000" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-                <Phone className="h-3.5 w-3.5" /> Call
-              </a>
+              {fallbackWhatsappDigits && (
+                <a href={`https://wa.me/${fallbackWhatsappDigits}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-green-600 hover:underline">
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </a>
+              )}
+              {fallbackCall && (
+                <a href={`tel:${fallbackCall}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                  <Phone className="h-3.5 w-3.5" /> Call
+                </a>
+              )}
             </div>
           )}
 
