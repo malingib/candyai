@@ -208,10 +208,41 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    let effectiveUserId: string | null = safeUserId;
+
+    if (!safeDemo) {
+      if (!safeUserId && !safeConversationId) {
+        return new Response(
+          JSON.stringify({ error: "user_id or conversation_id is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (safeConversationId) {
+        const { data: convOwner, error: convErr } = await supabase
+          .from("conversations")
+          .select("user_id")
+          .eq("id", safeConversationId)
+          .maybeSingle();
+        if (convErr || !convOwner?.user_id) {
+          return new Response(
+            JSON.stringify({ error: "invalid conversation_id" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (safeUserId && safeUserId !== convOwner.user_id) {
+          return new Response(
+            JSON.stringify({ error: "conversation_id and user_id mismatch" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        effectiveUserId = convOwner.user_id;
+      }
+    }
 
     // Enforce billing/chat quotas for non-demo business chats.
-    if (!safeDemo && safeUserId) {
-      const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_chat_quota", { p_user_id: safeUserId });
+    if (!safeDemo && effectiveUserId) {
+      const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_chat_quota", { p_user_id: effectiveUserId });
       const quota = (quotaData?.[0] ?? null) as QuotaRow | null;
       if (quotaErr || !quota) {
         console.error("quota check failed:", quotaErr);
@@ -272,14 +303,51 @@ serve(async (req) => {
     }
 
     let knowledgeContext = "";
+    let businessContext = "";
+    let websiteDataContext = "";
+
+    if (effectiveUserId && !safeDemo) {
+      try {
+        const [{ data: profile }, { data: domain }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("business_name, welcome_message, website_data")
+            .eq("user_id", effectiveUserId)
+            .maybeSingle(),
+          supabase
+            .from("widget_domains")
+            .select("origin")
+            .eq("user_id", effectiveUserId)
+            .eq("is_active", true)
+            .eq("is_verified", true)
+            .order("last_seen_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+        const lines: string[] = [];
+        if (profile?.business_name) lines.push(`Business name: ${profile.business_name}`);
+        if (domain?.origin) lines.push(`Website: ${domain.origin}`);
+        if (profile?.welcome_message) lines.push(`Welcome message: ${profile.welcome_message}`);
+        if (lines.length) {
+          businessContext = `\n\nBusiness profile:\n${lines.map((l) => `- ${l}`).join("\n")}`;
+        }
+        const websiteData = String(profile?.website_data ?? "").trim();
+        if (websiteData) {
+          websiteDataContext = `\n\nWebsite data (fallback when knowledge base is empty):\n${websiteData.slice(0, 8000)}`;
+        }
+      } catch (e) {
+        console.error("Failed to fetch profile context:", e);
+      }
+    }
 
     // If a user_id is provided, fetch their knowledge base entries for context
-    if (safeUserId && !safeDemo) {
+    if (effectiveUserId && !safeDemo) {
       try {
         const { data: kbEntries } = await supabase
           .from("knowledge_base")
           .select("title, content")
-          .eq("user_id", safeUserId)
+          .eq("user_id", effectiveUserId)
           .limit(50);
 
         if (kbEntries && kbEntries.length > 0) {
@@ -291,6 +359,10 @@ serve(async (req) => {
       }
     }
 
+    const fallbackWebsiteInstruction = websiteDataContext
+      ? "If the knowledge base context is empty, use the Website data fallback context."
+      : "If the knowledge base context is empty, state that business details are currently limited and ask one short clarifying question.";
+
     const systemPrompt = safeDemo
       ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites.
          Answer questions about the product's features: lead capture, email integration, 24/7 AI support, analytics, easy embed.
@@ -300,7 +372,9 @@ serve(async (req) => {
       : `You are a helpful AI assistant for a business website. Answer questions accurately and concisely based on the context provided.
          If a visitor asks for quotes, pricing, contact, or shows purchase intent, politely collect their name and email.
          Keep responses professional and under 150 words.
-         If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.${knowledgeContext}`;
+         If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.
+         Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
+         ${fallbackWebsiteInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
 
     const result = await callProviderWithFallback([
       { role: "system", content: systemPrompt },
