@@ -9,10 +9,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+const CHAT_UNAVAILABLE_MESSAGE = "Demo AI is temporarily unavailable. Please contact support or try again later.";
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
 type ModelAttempt = { model: string; status: number; body: string };
+type ProviderResponse = { content: string; model: string; attempts: ModelAttempt[] };
 type QuotaRow = {
   allowed: boolean;
   reason: string;
@@ -44,27 +46,117 @@ function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): Ch
 
 function getPreferredModels(): string[] {
   const raw = Deno.env.get("FREE_AI_MODELS");
-  if (!raw) return ["google/gemini-3-flash-preview", "groq/llama-3.1-8b-instant"];
+  if (!raw) return ["google/gemini-2.0-flash", "groq/llama-3.1-8b-instant"];
   return raw.split(",").map((m) => m.trim()).filter(Boolean);
 }
 
-async function callGatewayWithFallback(apiKey: string, messages: Array<{ role: string; content: string }>) {
+function toSseResponse(text: string) {
+  const payload = JSON.stringify({
+    id: "chatcmpl-local",
+    object: "chat.completion.chunk",
+    choices: [{ delta: { content: text }, index: 0, finish_reason: null }],
+  });
+  const body = `data: ${payload}\n\ndata: [DONE]\n\n`;
+  return new Response(body, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+  });
+}
+
+async function callGemini(
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+): Promise<{ ok: boolean; status: number; body: string; content?: string }> {
+  const system = messages.find((m) => m.role === "system")?.content ?? "";
+  const rest = messages.filter((m) => m.role !== "system");
+  const contents = rest.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: system ? { parts: [{ text: system }] } : undefined,
+        contents,
+        generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+      }),
+    },
+  );
+  const body = await resp.text().catch(() => "");
+  if (!resp.ok) return { ok: false, status: resp.status, body: body.slice(0, 600) };
+  try {
+    const parsed = JSON.parse(body);
+    const text = parsed?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("")?.trim();
+    if (!text) return { ok: false, status: 502, body: "Gemini returned empty response" };
+    return { ok: true, status: 200, body: "", content: text };
+  } catch {
+    return { ok: false, status: 502, body: "Gemini invalid JSON response" };
+  }
+}
+
+async function callGroq(
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+): Promise<{ ok: boolean; status: number; body: string; content?: string }> {
+  const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model, messages, temperature: 0.7, stream: false }),
+  });
+  const body = await resp.text().catch(() => "");
+  if (!resp.ok) return { ok: false, status: resp.status, body: body.slice(0, 600) };
+  try {
+    const parsed = JSON.parse(body);
+    const text = parsed?.choices?.[0]?.message?.content?.trim();
+    if (!text) return { ok: false, status: 502, body: "Groq returned empty response" };
+    return { ok: true, status: 200, body: "", content: text };
+  } catch {
+    return { ok: false, status: 502, body: "Groq invalid JSON response" };
+  }
+}
+
+async function callProviderWithFallback(messages: Array<{ role: string; content: string }>): Promise<ProviderResponse | null> {
   const models = getPreferredModels();
   const attempts: ModelAttempt[] = [];
+  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const groqKey = Deno.env.get("GROQ_API_KEY");
+
   for (const model of models) {
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ model, messages, stream: true }),
-    });
-    if (resp.ok) return { response: resp, model, attempts };
-    const body = await resp.text().catch(() => "");
-    attempts.push({ model, status: resp.status, body: body.slice(0, 600) });
+    if (model.startsWith("google/")) {
+      if (!geminiKey) {
+        attempts.push({ model, status: 0, body: "GEMINI_API_KEY missing" });
+        continue;
+      }
+      const geminiModel = model.replace("google/", "").trim();
+      const out = await callGemini(geminiKey, geminiModel, messages);
+      if (out.ok && out.content) return { content: out.content, model, attempts };
+      attempts.push({ model, status: out.status, body: out.body });
+      continue;
+    }
+
+    if (model.startsWith("groq/")) {
+      if (!groqKey) {
+        attempts.push({ model, status: 0, body: "GROQ_API_KEY missing" });
+        continue;
+      }
+      const groqModel = model.replace("groq/", "").trim();
+      const out = await callGroq(groqKey, groqModel, messages);
+      if (out.ok && out.content) return { content: out.content, model, attempts };
+      attempts.push({ model, status: out.status, body: out.body });
+      continue;
+    }
+
+    attempts.push({ model, status: 400, body: "Unsupported provider prefix. Use google/ or groq/." });
   }
-  return { response: null, model: null, attempts };
+  console.error("AI provider fallback failed:", attempts);
+  return null;
 }
 
 serve(async (req) => {
@@ -169,8 +261,15 @@ serve(async (req) => {
         }).catch((e) => console.error("auto-create-ticket failed:", e));
       }
     }
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GEMINI_API_KEY && !GROQ_API_KEY) {
+      console.error("chat misconfiguration: neither GEMINI_API_KEY nor GROQ_API_KEY is set");
+      return new Response(
+        JSON.stringify({ error: CHAT_UNAVAILABLE_MESSAGE, code: "chat_not_configured" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     let knowledgeContext = "";
 
@@ -203,40 +302,29 @@ serve(async (req) => {
          Keep responses professional and under 150 words.
          If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.${knowledgeContext}`;
 
-    const { response, model, attempts } = await callGatewayWithFallback(LOVABLE_API_KEY, [
+    const result = await callProviderWithFallback([
       { role: "system", content: systemPrompt },
       ...safeMessages,
     ]);
 
-    if (!response || !response.ok) {
-      const last = attempts[attempts.length - 1];
-      if (last?.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (last?.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please try again later." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      console.error("AI gateway fallback failed:", attempts);
+    if (!result) {
       return new Response(
         JSON.stringify({ error: "AI service unavailable" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("chat model selected:", model);
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    console.log("chat model selected:", result.model);
+    return toSseResponse(result.content);
   } catch (e) {
     console.error("Chat error:", e);
+    const message = e instanceof Error && /(LOVABLE_API_KEY|GEMINI_API_KEY|GROQ_API_KEY)/.test(e.message)
+      ? CHAT_UNAVAILABLE_MESSAGE
+      : e instanceof Error
+      ? e.message
+      : "Unknown error";
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

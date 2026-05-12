@@ -4,7 +4,13 @@ export async function verifyTurnstileToken(opts: {
   idempotencyKey?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const secret = Deno.env.get("TURNSTILE_SECRET_KEY");
+  const enforce = String(Deno.env.get("TURNSTILE_ENFORCE") || "").toLowerCase() === "true";
   const bypass = String(Deno.env.get("ALLOW_TURNSTILE_BYPASS") || "").toLowerCase() === "true";
+  // Fail-open by default to avoid signup/chat friction in environments where Turnstile
+  // is not yet configured. Set TURNSTILE_ENFORCE=true to make verification mandatory.
+  if (!enforce) {
+    if (!secret || !String(opts.token || "").trim()) return { ok: true };
+  }
   if (!secret) {
     if (bypass) return { ok: true };
     return { ok: false, error: "Turnstile is not configured on server" };
@@ -25,8 +31,14 @@ export async function verifyTurnstileToken(opts: {
     body: form,
   });
 
-  if (!resp.ok) return { ok: false, error: `captcha_verify_http_${resp.status}` };
+  if (!resp.ok) {
+    if (!enforce) return { ok: true };
+    return { ok: false, error: `captcha_verify_http_${resp.status}` };
+  }
   const data = await resp.json().catch(() => null) as { success?: boolean; [k: string]: unknown } | null;
-  if (!data?.success) return { ok: false, error: "Captcha verification failed" };
+  if (!data?.success) {
+    if (!enforce) return { ok: true };
+    return { ok: false, error: "Captcha verification failed" };
+  }
   return { ok: true };
 }

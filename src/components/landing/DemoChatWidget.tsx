@@ -82,7 +82,17 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
         }
       );
 
-      if (!resp.ok || !resp.body) throw new Error("Stream failed");
+      if (!resp.ok) {
+        let message = "Sorry, the demo assistant is unavailable right now. Please try again.";
+        try {
+          const payload = await resp.json();
+          if (payload?.error && typeof payload.error === "string") message = payload.error;
+        } catch {
+          // Keep default message when payload isn't JSON.
+        }
+        throw new Error(message);
+      }
+      if (!resp.body) throw new Error("Network error");
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -121,10 +131,13 @@ const DemoChatWidget = ({ userId, demo = true }: DemoChatWidgetProps) => {
           }
         }
       }
-    } catch {
+    } catch (error) {
+      const text = error instanceof Error && error.message
+        ? error.message
+        : "Sorry, I'm having trouble connecting. Please try again.";
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, I'm having trouble connecting. Please try again." },
+        { role: "assistant", content: text },
       ]);
     }
 
