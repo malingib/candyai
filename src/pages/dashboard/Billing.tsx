@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
 import { formatCycleResetDate } from "@/lib/billing-cycle";
+import { toast } from "sonner";
 
 type BillingPlanRow = {
   plan: "free" | "growth" | "premium" | "enterprise";
@@ -132,7 +133,7 @@ const Billing = () => {
       } catch (error) {
         console.error(error);
         setPromoMessage("We could not verify payment yet. If STK was charged, contact support with your reference.");
-        alert("Payment verification failed. Please contact support if you were charged.");
+        toast.error("Payment verification failed. Contact support if you were charged.");
       } finally {
         if (!cancelled) setVerifyingPayment(false);
       }
@@ -172,7 +173,7 @@ const Billing = () => {
     } catch (error) {
       console.error(error);
       setPromoMessage(error instanceof Error ? error.message : "Unable to start M-Pesa STK checkout.");
-      alert("Unable to start payment. Please try again.");
+      toast.error("Unable to start payment. Please try again.");
     } finally {
       setStartingCheckoutPlan(null);
     }

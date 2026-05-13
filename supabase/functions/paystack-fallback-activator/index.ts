@@ -17,6 +17,15 @@ type BillingPlan = {
   widget_sites_limit: number;
 };
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
+
 async function fetchBillingPlan(
   supabaseAdmin: ReturnType<typeof createClient>,
   plan: string,
@@ -44,7 +53,7 @@ serve(async (req) => {
 
   const token = req.headers.get("x-fallback-token") || req.headers.get("authorization")?.replace("Bearer ", "");
   const expected = Deno.env.get("PAYSTACK_FALLBACK_TOKEN");
-  if (!expected || token !== expected) {
+  if (!expected || !token || !timingSafeEqual(token, expected)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -84,6 +93,14 @@ serve(async (req) => {
       .in("event_type", ["callback.verified", "fallback.verified"]);
     if (verifiedErr) throw verifiedErr;
     const verifiedIds = new Set((verified ?? []).map((v) => String(v.event_id || "")));
+
+    // Batch fetch all billing plans once to avoid N+1 queries
+    const { data: allPlans } = await supabase
+      .from("billing_plans")
+      .select("plan, amount_kes, currency, chats_limit, leads_limit, widget_sites_limit")
+      .in("plan", ["growth", "premium", "enterprise"]);
+    const plansMap = new Map<string, BillingPlan>();
+    (allPlans ?? []).forEach((p) => plansMap.set(p.plan, p as BillingPlan));
 
     let activated = 0;
     let skipped = 0;
@@ -134,7 +151,7 @@ serve(async (req) => {
       const now = new Date();
       const billingExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       const graceExpiresAt = new Date(billingExpiresAt.getTime() + 3 * 24 * 60 * 60 * 1000);
-      const limits = await fetchBillingPlan(supabase, plan);
+      const limits = plansMap.get(plan);
       if (!limits) {
         failed += 1;
         continue;

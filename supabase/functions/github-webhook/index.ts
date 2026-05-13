@@ -224,13 +224,16 @@ Format as markdown. Be specific with line references. If the code looks good, sa
     await commentResp.text();
 
     // Log the review to github_reviews table
-    await supabaseAdmin.from("github_reviews").insert({
+    const { error: reviewInsertErr } = await supabaseAdmin.from("github_reviews").insert({
       user_id: tokenRow.user_id,
       repo: repoFullName,
       pr_number: pr.number,
       pr_title: pr.title || "",
       review_body: reviewBody,
     });
+    if (reviewInsertErr) {
+      console.error("Failed to log review:", reviewInsertErr);
+    }
 
     return new Response(
       JSON.stringify({ success: true, pr: pr.number, repo: repoFullName }),

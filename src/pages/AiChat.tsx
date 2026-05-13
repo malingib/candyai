@@ -46,7 +46,14 @@ const AiChat = () => {
       .select("id, title, created_at")
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false })
-      .then(({ data }) => setChats(data ?? []));
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Failed to load chats:", error);
+          toast.error("Failed to load conversations");
+          return;
+        }
+        setChats(data ?? []);
+      });
   }, [user]);
 
   useEffect(() => {
@@ -56,7 +63,15 @@ const AiChat = () => {
       .select("role, content")
       .eq("chat_id", activeChatId)
       .order("created_at")
-      .then(({ data }) => setMessages((data as Msg[]) ?? []));
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Failed to load messages:", error);
+          toast.error("Failed to load messages");
+          return;
+        }
+        const typedData = (data as Array<{ role: "user" | "assistant"; content: string }>) ?? [];
+        setMessages(typedData.map(m => ({ role: m.role, content: m.content })));
+      });
   }, [activeChatId]);
 
   useEffect(() => {

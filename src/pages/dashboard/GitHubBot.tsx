@@ -19,11 +19,12 @@ type Review = {
   created_at: string;
 };
 
-type Token = { id: string; token: string; repos: string[] };
+type Token = { id: string; token: string; repos: string[] } | null;
+
 const GitHubBot = () => {
   const { user } = useAuth();
   const [token, setToken] = useState("");
-  const [savedToken, setSavedToken] = useState<Token | null>(null);
+  const [savedToken, setSavedToken] = useState<Token>(null);
   const [repoInput, setRepoInput] = useState("");
   const [repos, setRepos] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -39,7 +40,7 @@ const GitHubBot = () => {
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
-          setSavedToken(data as any);
+          setSavedToken({ id: data.id, token: data.token ?? "", repos: (data.repos as string[]) ?? [] });
           setRepos((data.repos as string[]) ?? []);
         }
       });
@@ -51,7 +52,7 @@ const GitHubBot = () => {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(50)
-      .then(({ data }) => setReviews((data as Review[]) ?? []));
+      .then(({ data }) => setReviews(data ?? []));
   }, [user]);
 
   const saveToken = async () => {
@@ -59,19 +60,30 @@ const GitHubBot = () => {
     setSaving(true);
     try {
       if (savedToken) {
-        // For security, we'll only update the repos but not show the actual token
-        await supabase
+        const updateData: { repos: string[]; token?: string } = { repos };
+        if (token.trim()) {
+          updateData.token = token.trim();
+        }
+        const { data } = await supabase
           .from("github_tokens")
-          .update({ repos })
-          .eq("id", savedToken.id);
+          .update(updateData)
+          .eq("id", savedToken.id)
+          .select()
+          .single();
+        if (data) {
+          setSavedToken({ id: data.id, token: data.token ?? "", repos: (data.repos as string[]) ?? [] });
+        }
       } else {
         const { data } = await supabase
           .from("github_tokens")
           .insert({ user_id: user.id, token: token.trim(), repos })
           .select()
           .single();
-        setSavedToken(data as any);
+        if (data) {
+          setSavedToken({ id: data.id, token: data.token ?? "", repos: (data.repos as string[]) ?? [] });
+        }
       }
+      setToken("");
       toast.success("GitHub token saved!");
     } catch (error) {
       console.error("Error saving token:", error);

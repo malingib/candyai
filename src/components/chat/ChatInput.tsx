@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Paperclip, X, Image, FileText } from "lucide-react";
@@ -34,6 +34,15 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
   const [uploading, setUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const blobUrlsRef = useRef<Map<number, string>>(new Map());
+
+  const revokeBlobUrl = useCallback((idx: number) => {
+    const url = blobUrlsRef.current.get(idx);
+    if (url) {
+      URL.revokeObjectURL(url);
+      blobUrlsRef.current.delete(idx);
+    }
+  }, []);
 
   const handleFiles = (newFiles: FileList | File[]) => {
     const arr = Array.from(newFiles).slice(0, MAX_FILES);
@@ -44,7 +53,10 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
     setFiles((prev) => [...prev, ...valid].slice(0, MAX_FILES));
   };
 
-  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
+  const removeFile = (idx: number) => {
+    revokeBlobUrl(idx);
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -80,8 +92,18 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
     const attachments = await uploadFiles();
     onSend(cleanInput, attachments);
     setInput("");
+    blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    blobUrlsRef.current.clear();
     setFiles([]);
   };
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      blobUrlsRef.current.clear();
+    };
+  }, []);
 
   return (
     <div
@@ -96,10 +118,15 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
           <div className="flex flex-wrap gap-2">
             {files.map((f, i) => {
               const isImage = f.type.startsWith("image/");
+              let blobUrl = blobUrlsRef.current.get(i);
+              if (isImage && !blobUrl) {
+                blobUrl = URL.createObjectURL(f);
+                blobUrlsRef.current.set(i, blobUrl);
+              }
               return (
                 <div key={i} className="relative group bg-muted rounded-lg p-2 flex items-center gap-2 text-xs">
-                  {isImage ? (
-                    <img src={URL.createObjectURL(f)} alt={f.name} className="h-10 w-10 rounded object-cover" />
+                  {isImage && blobUrl ? (
+                    <img src={blobUrl} alt={f.name} className="h-10 w-10 rounded object-cover" />
                   ) : (
                     <FileText className="h-5 w-5 text-muted-foreground" />
                   )}

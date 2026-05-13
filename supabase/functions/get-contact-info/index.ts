@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
+import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,6 +43,14 @@ serve(async (req) => {
 
   const bodyLimitError = checkBodyLimit(req);
   if (bodyLimitError) return bodyLimitError;
+
+  const tokenError = await verifyTokenInRequest(req, corsHeaders);
+  if (tokenError) {
+    return new Response(JSON.stringify(empty), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const { user_id } = await req.json();

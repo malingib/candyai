@@ -59,6 +59,13 @@ serve(async (req) => {
     const secret = Deno.env.get("PAYSTACK_SECRET_KEY");
     if (!secret) return new Response("Webhook secret not configured", { status: 500, headers: corsHeaders });
 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("paystack-webhook: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+      return new Response("Server misconfiguration", { status: 500, headers: corsHeaders });
+    }
+
     const signature = req.headers.get("x-paystack-signature");
     if (!signature) return new Response("Missing x-paystack-signature", { status: 400, headers: corsHeaders });
 
@@ -69,11 +76,11 @@ serve(async (req) => {
     const event = JSON.parse(raw);
     const eventType = String(event?.event || "");
     const data = event?.data ?? {};
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const metadata = data?.metadata ?? {};
     const userId = typeof metadata?.user_id === "string" ? metadata.user_id : null;
 
-    await supabase.from("billing_events").insert({
+    const { error: billingEventError } = await supabase.from("billing_events").insert({
       user_id: userId,
       provider: "paystack",
       event_type: eventType || "unknown",
@@ -82,6 +89,9 @@ serve(async (req) => {
       currency: typeof data?.currency === "string" ? data.currency : null,
       payload: event,
     });
+    if (billingEventError) {
+      console.error("paystack-webhook: failed to log billing event:", billingEventError);
+    }
 
     if (eventType === "charge.success" && userId) {
       const plan = String(metadata?.plan || "").toLowerCase();
