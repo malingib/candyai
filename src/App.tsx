@@ -98,6 +98,8 @@ const App = () => {
               <Route path="/dashboard/tickets" element={<DashboardRoute><UserOnlyRoute><DashboardPageLoader><Tickets /></DashboardPageLoader></UserOnlyRoute></DashboardRoute>} />
               <Route path="/dashboard/canned-responses" element={<DashboardRoute><UserOnlyRoute><DashboardPageLoader><CannedResponses /></DashboardPageLoader></UserOnlyRoute></DashboardRoute>} />
               <Route path="/dashboard/admin" element={<DashboardRoute><DashboardPageLoader><Admin /></DashboardPageLoader></DashboardRoute>} />
+              <Route path="/members" element={<Navigate to="/dashboard/admin" replace />} />
+              <Route path="/dashboard/members" element={<Navigate to="/dashboard/admin" replace />} />
               <Route path="/chat" element={<AiChat />} />
               <Route path="/legal/privacy" element={<PrivacyCompliance />} />
               <Route path="*" element={<NotFound />} />

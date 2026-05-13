@@ -61,9 +61,6 @@ export default defineConfig(({ mode }) => ({
             if (id.includes("embla-carousel")) {
               return "vendor-carousel";
             }
-            if (id.includes("recharts")) {
-              return "vendor-charts";
-            }
             if (id.includes("@supabase")) {
               return "vendor-supabase";
             }

@@ -15,6 +15,25 @@ if (cloudflareToken && typeof document !== "undefined" && readConsent()?.analyti
 
 const telemetryEndpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/client-telemetry`;
 let lastTelemetryAt = 0;
+
+const CHUNK_RECOVERY_KEY = "chunk_recovery_attempted";
+function isLikelyStaleChunkError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("failed to fetch dynamically imported module") ||
+    m.includes("loading chunk") ||
+    m.includes("importing a module script failed")
+  );
+}
+
+function tryRecoverFromStaleChunk(message: string): boolean {
+  if (!isLikelyStaleChunkError(message)) return false;
+  if (sessionStorage.getItem(CHUNK_RECOVERY_KEY) === "1") return false;
+  sessionStorage.setItem(CHUNK_RECOVERY_KEY, "1");
+  window.location.reload();
+  return true;
+}
+
 async function sendClientTelemetry(level: "error" | "warn", message: string, metadata: Record<string, unknown> = {}) {
   const now = Date.now();
   if (now - lastTelemetryAt < 3000) return;
@@ -43,6 +62,8 @@ async function sendClientTelemetry(level: "error" | "warn", message: string, met
 }
 
 window.addEventListener("error", (e) => {
+  const message = e.message || "window error";
+  if (tryRecoverFromStaleChunk(message)) return;
   void sendClientTelemetry("error", e.message || "window error", {
     filename: e.filename,
     lineno: e.lineno,
@@ -51,6 +72,7 @@ window.addEventListener("error", (e) => {
 });
 window.addEventListener("unhandledrejection", (e) => {
   const reason = e.reason instanceof Error ? e.reason.message : String(e.reason || "promise rejection");
+  if (tryRecoverFromStaleChunk(reason)) return;
   void sendClientTelemetry("error", reason);
 });
 

@@ -326,6 +326,63 @@ export type Database = {
           },
         ]
       }
+      billing_plans: {
+        Row: {
+          allow_advanced_analytics: boolean
+          allow_api_access: boolean
+          allow_branding_removal: boolean
+          allow_lead_capture: boolean
+          amount_kes: number
+          chats_limit: number
+          created_at: string
+          currency: string
+          display_name: string
+          is_checkout_enabled: boolean
+          is_public: boolean
+          leads_limit: number
+          plan: string
+          trial_days: number
+          updated_at: string
+          widget_sites_limit: number
+        }
+        Insert: {
+          allow_advanced_analytics?: boolean
+          allow_api_access?: boolean
+          allow_branding_removal?: boolean
+          allow_lead_capture?: boolean
+          amount_kes?: number
+          chats_limit: number
+          created_at?: string
+          currency?: string
+          display_name: string
+          is_checkout_enabled?: boolean
+          is_public?: boolean
+          leads_limit: number
+          plan: string
+          trial_days?: number
+          updated_at?: string
+          widget_sites_limit: number
+        }
+        Update: {
+          allow_advanced_analytics?: boolean
+          allow_api_access?: boolean
+          allow_branding_removal?: boolean
+          allow_lead_capture?: boolean
+          amount_kes?: number
+          chats_limit?: number
+          created_at?: string
+          currency?: string
+          display_name?: string
+          is_checkout_enabled?: boolean
+          is_public?: boolean
+          leads_limit?: number
+          plan?: string
+          trial_days?: number
+          updated_at?: string
+          widget_sites_limit?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           billing_expires_at: string | null
@@ -347,8 +404,10 @@ export type Database = {
           trial_started_at: string
           updated_at: string
           user_id: string
+          website_data: string | null
           welcome_message: string
           whatsapp_number: string
+          widget_sites_limit: number
         }
         Insert: {
           billing_expires_at?: string | null
@@ -370,8 +429,10 @@ export type Database = {
           trial_started_at?: string
           updated_at?: string
           user_id: string
+          website_data?: string | null
           welcome_message?: string
           whatsapp_number?: string
+          widget_sites_limit?: number
         }
         Update: {
           billing_expires_at?: string | null
@@ -393,8 +454,10 @@ export type Database = {
           trial_started_at?: string
           updated_at?: string
           user_id?: string
+          website_data?: string | null
           welcome_message?: string
           whatsapp_number?: string
+          widget_sites_limit?: number
         }
         Relationships: []
       }
@@ -606,6 +669,42 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      widget_domains: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_verified: boolean
+          last_seen_at: string
+          origin: string
+          user_id: string
+          verification_token: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          last_seen_at?: string
+          origin: string
+          user_id: string
+          verification_token?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          last_seen_at?: string
+          origin?: string
+          user_id?: string
+          verification_token?: string | null
+          verified_at?: string | null
         }
         Relationships: []
       }

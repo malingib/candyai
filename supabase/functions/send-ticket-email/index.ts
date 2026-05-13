@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { checkBodyLimit } from "../_shared/body-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +53,10 @@ serve(async (req) => {
     user: { limit: 60, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("send-ticket-email", rl.scope!, rl.ctx, corsHeaders);
+
+  const bodyLimitError = checkBodyLimit(req);
+  if (bodyLimitError) return bodyLimitError;
+
   const tokenError = await verifyTokenInRequest(req, corsHeaders);
   if (tokenError) {
     logRequest({ function_name: "send-ticket-email", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });

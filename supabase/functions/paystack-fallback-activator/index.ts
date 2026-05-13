@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
+import { checkBodyLimit } from "../_shared/body-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,6 +38,9 @@ serve(async (req) => {
     session: { limit: 100, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("paystack-fallback-activator", rl.scope!, rl.ctx, corsHeaders);
+
+  const bodyLimitError = checkBodyLimit(req);
+  if (bodyLimitError) return bodyLimitError;
 
   const token = req.headers.get("x-fallback-token") || req.headers.get("authorization")?.replace("Bearer ", "");
   const expected = Deno.env.get("PAYSTACK_FALLBACK_TOKEN");

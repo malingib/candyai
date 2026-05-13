@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { checkBodyLimit } from "../_shared/body-limit.ts";
 
 function toHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -41,6 +42,9 @@ serve(async (req) => {
 
   const rl = multiRateLimit(req, "github-webhook", { ip: { limit: 30, windowMs: 60_000 } });
   if (!rl.allowed) return rateLimitedResponse("github-webhook", rl.scope!, rl.ctx, corsHeaders);
+
+  const bodyLimitError = checkBodyLimit(req);
+  if (bodyLimitError) return bodyLimitError;
 
   try {
     const webhookSecret = String(Deno.env.get("GITHUB_WEBHOOK_SECRET") || "").trim();

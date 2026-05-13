@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyJWT } from "../_shared/jwt-verify.ts";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { checkBodyLimit } from "../_shared/body-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,39 +62,40 @@ async function ensureAdmin(req: Request, supabaseAdmin: ReturnType<typeof create
 
 async function findUserIdByEmail(supabaseUrl: string, serviceRoleKey: string, email: string): Promise<string | null> {
   const normalized = email.trim().toLowerCase();
-  for (let page = 1; page <= 20; page += 1) {
-    const resp = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=${page}&per_page=200`, {
+  const resp = await fetch(`${supabaseUrl}/auth/v1/admin/users?filter=email%3D${encodeURIComponent(normalized)}`, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+    },
+  });
+  if (!resp.ok) {
+    const resp2 = await fetch(`${supabaseUrl}/auth/v1/admin/users?per_page=1000`, {
       headers: {
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
       },
     });
-    if (!resp.ok) break;
-    const payload = await resp.json();
+    if (!resp2.ok) return null;
+    const payload = await resp2.json();
     const users = payload?.users ?? [];
     const hit = users.find((u: { email?: string }) => (u.email || "").toLowerCase() === normalized);
-    if (hit?.id) return hit.id as string;
-    if (!users.length) break;
+    return hit?.id ?? null;
   }
-  return null;
+  const payload = await resp.json();
+  const users = payload?.users ?? [];
+  return users.length ? (users[0].id as string) : null;
 }
 
 async function findUserEmailById(supabaseUrl: string, serviceRoleKey: string, userId: string): Promise<string | null> {
-  for (let page = 1; page <= 20; page += 1) {
-    const resp = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=${page}&per_page=200`, {
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-      },
-    });
-    if (!resp.ok) break;
-    const payload = await resp.json();
-    const users = payload?.users ?? [];
-    const hit = users.find((u: { id?: string; email?: string }) => u.id === userId);
-    if (hit?.email) return String(hit.email).toLowerCase();
-    if (!users.length) break;
-  }
-  return null;
+  const resp = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+    },
+  });
+  if (!resp.ok) return null;
+  const payload = await resp.json();
+  return typeof payload?.email === "string" ? (payload.email as string).toLowerCase() : null;
 }
 
 serve(async (req) => {
@@ -105,6 +107,9 @@ serve(async (req) => {
     session: { limit: 60, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("admin-control", rl.scope!, rl.ctx, corsHeaders);
+
+  const bodyLimitError = checkBodyLimit(req);
+  if (bodyLimitError) return bodyLimitError;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -197,8 +202,9 @@ serve(async (req) => {
 
       const results: Array<{ user_id: string; ok: boolean; error?: string }> = [];
       const nowIso = new Date().toISOString();
+      const concurrency = 10;
 
-      for (const userId of userIds as string[]) {
+      const processUser = async (userId: string) => {
         try {
           if (bulkAction === "set_plan") {
             const limits = await fetchBillingPlan(supabaseAdmin, rawPlan);
@@ -237,10 +243,16 @@ serve(async (req) => {
             const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
             if (error) throw error;
           }
-          results.push({ user_id: userId, ok: true });
+          return { user_id: userId, ok: true };
         } catch (e) {
-          results.push({ user_id: userId, ok: false, error: e instanceof Error ? e.message : "Unknown error" });
+          return { user_id: userId, ok: false, error: e instanceof Error ? e.message : "Unknown error" };
         }
+      };
+
+      for (let i = 0; i < userIds.length; i += concurrency) {
+        const batch = (userIds as string[]).slice(i, i + concurrency);
+        const batchResults = await Promise.all(batch.map(processUser));
+        results.push(...batchResults);
       }
 
       const successCount = results.filter((r) => r.ok).length;

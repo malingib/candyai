@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { verifyTurnstileToken } from "../_shared/turnstile.ts";
+import { checkBodyLimit } from "../_shared/body-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +15,7 @@ const CHAT_UNAVAILABLE_MESSAGE = "Demo AI is temporarily unavailable. Please con
 type ChatRole = "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
 type ModelAttempt = { model: string; status: number; body: string };
-type ProviderResponse = { content: string; model: string; attempts: ModelAttempt[] };
+type StreamResult = { response: Response; model: string; attempts: ModelAttempt[] } | { response: null; model: null; attempts: ModelAttempt[] };
 type QuotaRow = {
   allowed: boolean;
   reason: string;
@@ -50,113 +51,40 @@ function getPreferredModels(): string[] {
   return raw.split(",").map((m) => m.trim()).filter(Boolean);
 }
 
-function toSseResponse(text: string) {
-  const payload = JSON.stringify({
-    id: "chatcmpl-local",
-    object: "chat.completion.chunk",
-    choices: [{ delta: { content: text }, index: 0, finish_reason: null }],
-  });
-  const body = `data: ${payload}\n\ndata: [DONE]\n\n`;
-  return new Response(body, {
-    headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-  });
-}
-
-async function callGemini(
+async function callGatewayStream(
   apiKey: string,
   model: string,
   messages: Array<{ role: string; content: string }>,
-): Promise<{ ok: boolean; status: number; body: string; content?: string }> {
-  const system = messages.find((m) => m.role === "system")?.content ?? "";
-  const rest = messages.filter((m) => m.role !== "system");
-  const contents = rest.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: system ? { parts: [{ text: system }] } : undefined,
-        contents,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
-      }),
-    },
-  );
-  const body = await resp.text().catch(() => "");
-  if (!resp.ok) return { ok: false, status: resp.status, body: body.slice(0, 600) };
-  try {
-    const parsed = JSON.parse(body);
-    const text = parsed?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("")?.trim();
-    if (!text) return { ok: false, status: 502, body: "Gemini returned empty response" };
-    return { ok: true, status: 200, body: "", content: text };
-  } catch {
-    return { ok: false, status: 502, body: "Gemini invalid JSON response" };
-  }
-}
-
-async function callGroq(
-  apiKey: string,
-  model: string,
-  messages: Array<{ role: string; content: string }>,
-): Promise<{ ok: boolean; status: number; body: string; content?: string }> {
-  const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+): Promise<{ ok: boolean; response?: Response; status: number; body?: string }> {
+  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model, messages, temperature: 0.7, stream: false }),
+    body: JSON.stringify({ model, messages, temperature: 0.7, stream: true }),
   });
-  const body = await resp.text().catch(() => "");
-  if (!resp.ok) return { ok: false, status: resp.status, body: body.slice(0, 600) };
-  try {
-    const parsed = JSON.parse(body);
-    const text = parsed?.choices?.[0]?.message?.content?.trim();
-    if (!text) return { ok: false, status: 502, body: "Groq returned empty response" };
-    return { ok: true, status: 200, body: "", content: text };
-  } catch {
-    return { ok: false, status: 502, body: "Groq invalid JSON response" };
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    return { ok: false, status: resp.status, body: body.slice(0, 600) };
   }
+  return { ok: true, response: resp, status: 200 };
 }
 
-async function callProviderWithFallback(messages: Array<{ role: string; content: string }>): Promise<ProviderResponse | null> {
+async function callProviderWithFallbackStream(
+  apiKey: string,
+  messages: Array<{ role: string; content: string }>,
+): Promise<StreamResult> {
   const models = getPreferredModels();
   const attempts: ModelAttempt[] = [];
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");
-  const groqKey = Deno.env.get("GROQ_API_KEY");
 
   for (const model of models) {
-    if (model.startsWith("google/")) {
-      if (!geminiKey) {
-        attempts.push({ model, status: 0, body: "GEMINI_API_KEY missing" });
-        continue;
-      }
-      const geminiModel = model.replace("google/", "").trim();
-      const out = await callGemini(geminiKey, geminiModel, messages);
-      if (out.ok && out.content) return { content: out.content, model, attempts };
-      attempts.push({ model, status: out.status, body: out.body });
-      continue;
-    }
-
-    if (model.startsWith("groq/")) {
-      if (!groqKey) {
-        attempts.push({ model, status: 0, body: "GROQ_API_KEY missing" });
-        continue;
-      }
-      const groqModel = model.replace("groq/", "").trim();
-      const out = await callGroq(groqKey, groqModel, messages);
-      if (out.ok && out.content) return { content: out.content, model, attempts };
-      attempts.push({ model, status: out.status, body: out.body });
-      continue;
-    }
-
-    attempts.push({ model, status: 400, body: "Unsupported provider prefix. Use google/ or groq/." });
+    const out = await callGatewayStream(apiKey, model, messages);
+    if (out.ok && out.response) return { response: out.response, model, attempts };
+    attempts.push({ model, status: out.status, body: out.body ?? "" });
   }
   console.error("AI provider fallback failed:", attempts);
-  return null;
+  return { response: null, model: null, attempts };
 }
 
 serve(async (req) => {
@@ -170,6 +98,9 @@ serve(async (req) => {
     session: { limit: 30, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("chat", rl.scope!, rl.ctx, corsHeaders);
+
+  const bodyLimitError = checkBodyLimit(req);
+  if (bodyLimitError) return bodyLimitError;
 
   if (!req.url.includes('/chat/demo')) {
     const tokenError = await verifyTokenInRequest(req, corsHeaders);
@@ -292,10 +223,9 @@ serve(async (req) => {
         }).catch((e) => console.error("auto-create-ticket failed:", e));
       }
     }
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-    if (!GEMINI_API_KEY && !GROQ_API_KEY) {
-      console.error("chat misconfiguration: neither GEMINI_API_KEY nor GROQ_API_KEY is set");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      console.error("chat misconfiguration: LOVABLE_API_KEY is not set");
       return new Response(
         JSON.stringify({ error: CHAT_UNAVAILABLE_MESSAGE, code: "chat_not_configured" }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -376,12 +306,19 @@ serve(async (req) => {
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
          ${fallbackWebsiteInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
 
-    const result = await callProviderWithFallback([
+    const result = await callProviderWithFallbackStream(LOVABLE_API_KEY, [
       { role: "system", content: systemPrompt },
       ...safeMessages,
     ]);
 
-    if (!result) {
+    if (!result.response) {
+      const last = result.attempts[result.attempts.length - 1];
+      if (last?.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: "AI service unavailable" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -389,10 +326,12 @@ serve(async (req) => {
     }
 
     console.log("chat model selected:", result.model);
-    return toSseResponse(result.content);
+    return new Response(result.response.body, {
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+    });
   } catch (e) {
     console.error("Chat error:", e);
-    const message = e instanceof Error && /(LOVABLE_API_KEY|GEMINI_API_KEY|GROQ_API_KEY)/.test(e.message)
+    const message = e instanceof Error && /(LOVABLE_API_KEY)/.test(e.message)
       ? CHAT_UNAVAILABLE_MESSAGE
       : e instanceof Error
       ? e.message
