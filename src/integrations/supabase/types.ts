@@ -47,12 +47,80 @@ export type Database = {
         ]
       }
       ai_chats: {
-        Row: {
+Row: {
+          billing_expires_at: string | null
+          business_name: string
+          call_number: string
+          chats_limit: number
+          chats_period_started_at: string
+          chats_used: number
           created_at: string
+          grace_expires_at: string | null
           id: string
-          title: string
+          leads_limit: number
+          leads_used: number
+          logo_url: string
+          plan: string
+          primary_color: string
+          subscription_started_at: string
+          trial_expires_at: string
+          trial_started_at: string
           updated_at: string
           user_id: string
+          website_data: string | null
+          welcome_message: string
+          whatsapp_number: string
+          widget_sites_limit: number
+        }
+        Insert: {
+          billing_expires_at?: string | null
+          business_name?: string
+          call_number?: string
+          chats_limit?: number
+          chats_period_started_at?: string
+          chats_used?: number
+          created_at?: string
+          grace_expires_at?: string | null
+          id?: string
+          leads_limit?: number
+          leads_used?: number
+          logo_url?: string
+          plan?: string
+          primary_color?: string
+          subscription_started_at?: string
+          trial_expires_at?: string
+          trial_started_at?: string
+          updated_at?: string
+          user_id: string
+          website_data?: string | null
+          welcome_message?: string
+          whatsapp_number?: string
+          widget_sites_limit?: number
+        }
+        Update: {
+          billing_expires_at?: string | null
+          business_name?: string
+          call_number?: string
+          chats_limit?: number
+          chats_period_started_at?: string
+          chats_used?: number
+          created_at?: string
+          grace_expires_at?: string | null
+          id?: string
+          leads_limit?: number
+          leads_used?: number
+          logo_url?: string
+          plan?: string
+          primary_color?: string
+          subscription_started_at?: string
+          trial_expires_at?: string
+          trial_started_at?: string
+          updated_at?: string
+          user_id?: string
+          website_data?: string | null
+          welcome_message?: string
+          whatsapp_number?: string
+          widget_sites_limit?: number
         }
         Insert: {
           created_at?: string
@@ -344,6 +412,42 @@ export type Database = {
           trial_days?: number
           updated_at?: string
           widget_sites_limit?: number
+        }
+        Relationships: []
+      }
+      billing_events: {
+        Row: {
+          amount_cents: number | null
+          created_at: string
+          currency: string | null
+          event_id: string | null
+          event_type: string
+          id: string
+          payload: Json
+          provider: string
+          user_id: string | null
+        }
+        Insert: {
+          amount_cents?: number | null
+          created_at?: string
+          currency?: string | null
+          event_id?: string | null
+          event_type: string
+          id?: string
+          payload?: Json
+          provider?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount_cents?: number | null
+          created_at?: string
+          currency?: string | null
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          provider?: string
+          user_id?: string | null
         }
         Relationships: []
       }
