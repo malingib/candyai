@@ -38,8 +38,8 @@ export const UnreadConversationsProvider = ({ children }: { children: React.Reac
     }
 
     let active = true;
-    let convChannel: any = null;
-    let msgChannel: any = null;
+    let convChannel: import("@supabase/supabase-js").RealtimeChannel | null = null;
+    let msgChannel: import("@supabase/supabase-js").RealtimeChannel | null = null;
 
     getSupabaseClient()
       .then((supabase) => {

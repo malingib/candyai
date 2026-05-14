@@ -67,7 +67,7 @@ serve(async (req) => {
         .from("widget_domains")
         .upsert({ user_id: userId, origin, is_active: true, is_verified: false, verification_token: tokenValue, verified_at: null }, { onConflict: "user_id,origin" });
       if (error) throw error;
-      return new Response(JSON.stringify({ ok: true, origin, verification_token: tokenValue, meta_tag: `<meta name=\"mobiwave-domain-verification\" content=\"${tokenValue}\" />` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, origin, verification_token: tokenValue, meta_tag: `<meta name="mobiwave-domain-verification" content="${tokenValue}" />` }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "verify") {
@@ -96,8 +96,8 @@ serve(async (req) => {
         }
       }
 
-      const expectedMeta = `name=\"mobiwave-domain-verification\" content=\"${tokenValue}\"`;
-      const expectedMeta2 = `name='mobiwave-domain-verification' content='${tokenValue}'`;
+const expectedMeta = `name="mobiwave-domain-verification" content="${tokenValue}"`;
+       const expectedMeta2 = `name='mobiwave-domain-verification' content='${tokenValue}'`;
       const matched = html.includes(expectedMeta) || html.includes(expectedMeta2) || html.includes(tokenValue);
       if (!matched) {
         return new Response(JSON.stringify({ error: "Verification token not found on website. Add the meta tag and retry." }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });

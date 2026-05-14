@@ -136,14 +136,14 @@ const Conversations = () => {
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (!active) return;
-        const enriched = (data ?? []).map((c: any) => {
-          const msgs = c.messages || [];
-          return {
-            ...c,
-            message_count: msgs.length,
-            user_message_count: msgs.filter((m: any) => m.role === "user").length,
-          };
-        });
+const enriched = (data ?? []).map((c: { id: string; messages?: { role: string }[] }) => {
+           const msgs = c.messages || [];
+           return {
+             ...c,
+             message_count: msgs.length,
+             user_message_count: msgs.filter((m: { role: string }) => m.role === "user").length,
+           };
+         });
         setConversations(enriched);
       });
 
@@ -158,11 +158,11 @@ const Conversations = () => {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          setConversations((prev) => {
-            if (payload.eventType === "INSERT") {
-              if (prev.some((c) => c.id === payload.new.id)) return prev;
-              return [payload.new as any, ...prev];
-            }
+setConversations((prev) => {
+             if (payload.eventType === "INSERT") {
+               if (prev.some((c) => c.id === payload.new.id)) return prev;
+               return [{ id: payload.new.id, visitor_name: payload.new.visitor_name, status: payload.new.status, created_at: payload.new.created_at, message_count: 0, user_message_count: 0, ...payload.new } as unknown as typeof prev[0], ...prev];
+             }
             if (payload.eventType === "UPDATE") {
               return prev.map((c) => (c.id === payload.new.id ? { ...c, ...payload.new } : c));
             }
@@ -207,11 +207,11 @@ const Conversations = () => {
           table: "messages",
           filter: `conversation_id=eq.${selectedId}`,
         },
-        (payload) => {
-          setMessages((prev) =>
-            prev.some((m) => m.id === payload.new.id) ? prev : [...prev, payload.new as any]
-          );
-        }
+(payload) => {
+           setMessages((prev) =>
+             prev.some((m) => m.id === payload.new.id) ? prev : [...prev, { id: payload.new.id, role: payload.new.role, content: payload.new.content, created_at: payload.new.created_at } as unknown as typeof prev[0]]
+           );
+         }
       )
       .subscribe();
 

@@ -157,9 +157,9 @@ const embedSnippet = `<!-- Mobiwave AI Chat Widget -->
               onChange={(e) => setDomainInput(e.target.value)}
             />
             <Button size="sm" onClick={() => void registerDomain()}>Register Domain</Button>
-            {verificationToken && (
-              <pre className="rounded bg-muted p-2 text-xs overflow-x-auto">{`<meta name=\"mobiwave-domain-verification\" content=\"${verificationToken}\" />`}</pre>
-            )}
+{verificationToken && (
+               <pre className="rounded bg-muted p-2 text-xs overflow-x-auto">{`<meta name="mobiwave-domain-verification" content="${verificationToken}" />`}</pre>
+             )}
           </div>
           {atLimit && (
             <p className="mt-3 text-xs text-destructive">

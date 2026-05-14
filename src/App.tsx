@@ -8,6 +8,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import SplashScreen from "./components/SplashScreen";
 import LoadingSpinner from "./components/LoadingSpinner";
 import CookieConsentBanner from "./components/CookieConsentBanner";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
@@ -54,7 +55,7 @@ const UserOnlyRoute = ({ children }: { children: React.ReactNode }) => {
 
 const DashboardPageLoader = ({ children }: { children: React.ReactNode }) => (
   <Suspense fallback={<LoadingSpinner />}>
-    {children}
+    <ErrorBoundary>{children}</ErrorBoundary>
   </Suspense>
 );
 

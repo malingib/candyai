@@ -6,7 +6,7 @@ export interface JwtPayload {
   iat?: number;
   email?: string;
   role?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 const supabaseAuth = createClient(

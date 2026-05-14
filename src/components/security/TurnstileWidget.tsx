@@ -34,7 +34,7 @@ export default function TurnstileWidget({ siteKey, onToken, theme = "auto" }: Pr
     const renderWidget = () => {
       if (!window.turnstile || !ref.current) return;
       if (widgetIdRef.current) {
-        try { window.turnstile.reset(widgetIdRef.current); } catch {}
+        try { window.turnstile.reset(widgetIdRef.current); } catch { /* widget reset failed */ }
         return;
       }
       widgetIdRef.current = window.turnstile.render(ref.current, {
@@ -63,7 +63,7 @@ export default function TurnstileWidget({ siteKey, onToken, theme = "auto" }: Pr
 
     return () => {
       if (widgetIdRef.current && window.turnstile?.remove) {
-        try { window.turnstile.remove(widgetIdRef.current); } catch {}
+        try { window.turnstile.remove(widgetIdRef.current); } catch { /* widget remove failed */ }
       }
       widgetIdRef.current = null;
     };
