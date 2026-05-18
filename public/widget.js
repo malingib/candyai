@@ -612,7 +612,6 @@
       if (status !== 402 || !limit) return message;
 
       var reason = String(limit.reason || "");
-      var plan = String(limit.plan || "current");
       var used = typeof limit.chats_used === "number" ? limit.chats_used : null;
       var cap = typeof limit.chats_limit === "number" ? limit.chats_limit : null;
       var resetAt = formatResetAt(limit.resets_at);
@@ -620,15 +619,10 @@
       var resetLine = resetAt ? ("Next reset: " + resetAt + ".") : "";
 
       if (reason === "trial_expired_payment_required") {
-        return "⚠️ Chat is paused: free trial ended.\n\nThis business account needs an upgrade to keep live chat active.\n" +
-          (usageLine ? ("\n" + usageLine) : "") +
-          "\nPlease use the contact buttons below so the team can assist you directly.";
+        return "⚠️ Live chat is temporarily unavailable.\n\nPlease use WhatsApp or Call below to reach the team directly.";
       }
       if (reason === "subscription_expired_payment_required" || reason === "plan_expired") {
-        return "⚠️ Chat is paused: subscription expired.\n\nThis business account (" + plan + ") needs renewal to reactivate AI chat.\n" +
-          (usageLine ? ("\n" + usageLine) : "") +
-          (resetLine ? ("\n" + resetLine) : "") +
-          "\nPlease use WhatsApp or Call below to reach the team immediately.";
+        return "⚠️ Live chat is temporarily unavailable.\n\nPlease use WhatsApp or Call below to reach the team directly.";
       }
       return "⚠️ Chat limit reached.\n\nThis business account has hit its current chat quota.\n" +
         (usageLine ? ("\n" + usageLine) : "") +

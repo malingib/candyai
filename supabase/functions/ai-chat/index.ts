@@ -35,16 +35,35 @@ function getPreferredModels(): string[] {
   return raw.split(",").map((m) => m.trim()).filter(Boolean);
 }
 
-async function callGatewayWithFallback(apiKey: string, messages: Array<{ role: string; content: string }>) {
+function getProviderConfig(): { url: string; token: string | null } | null {
+  const proxyUrl = String(Deno.env.get("LOVABLE_PROXY_URL") ?? "").trim();
+  if (proxyUrl) {
+    return {
+      url: proxyUrl,
+      token: String(Deno.env.get("LOVABLE_PROXY_TOKEN") ?? "").trim() || null,
+    };
+  }
+
+  const apiKey = String(Deno.env.get("LOVABLE_API_KEY") ?? "").trim();
+  if (!apiKey) return null;
+  return {
+    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+    token: apiKey,
+  };
+}
+
+async function callGatewayWithFallback(providerUrl: string, providerToken: string | null, messages: Array<{ role: string; content: string }>) {
   const models = getPreferredModels();
   const attempts: ModelAttempt[] = [];
   for (const model of models) {
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (providerToken) headers.Authorization = `Bearer ${providerToken}`;
+
+    const resp = await fetch(providerUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({ model, messages, stream: true }),
     });
     if (resp.ok) return { response: resp, model, attempts };
@@ -106,10 +125,10 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const provider = getProviderConfig();
+    if (!provider?.url) throw new Error("No AI provider configured: set LOVABLE_PROXY_URL or LOVABLE_API_KEY");
 
-    const { response, model, attempts } = await callGatewayWithFallback(LOVABLE_API_KEY, [
+    const { response, model, attempts } = await callGatewayWithFallback(provider.url, provider.token, [
       {
         role: "system",
         content: `You are Mobiwave AI, a powerful and helpful AI assistant. You can help with coding, writing, analysis, math, brainstorming, and more.

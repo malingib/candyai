@@ -48,17 +48,37 @@ function getPreferredModels(): string[] {
   return raw.split(",").map((m) => m.trim()).filter(Boolean);
 }
 
+function getProviderConfig(): { url: string; token: string | null } | null {
+  const proxyUrl = String(Deno.env.get("LOVABLE_PROXY_URL") ?? "").trim();
+  if (proxyUrl) {
+    return {
+      url: proxyUrl,
+      token: String(Deno.env.get("LOVABLE_PROXY_TOKEN") ?? "").trim() || null,
+    };
+  }
+
+  const apiKey = String(Deno.env.get("LOVABLE_API_KEY") ?? "").trim();
+  if (!apiKey) return null;
+  return {
+    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+    token: apiKey,
+  };
+}
+
 async function callGatewayStream(
-  apiKey: string,
+  providerUrl: string,
+  providerToken: string | null,
   model: string,
   messages: Array<{ role: string; content: string }>,
 ): Promise<{ ok: boolean; response?: Response; status: number; body?: string }> {
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (providerToken) headers.Authorization = `Bearer ${providerToken}`;
+
+  const resp = await fetch(providerUrl, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({ model, messages, temperature: 0.7, stream: true }),
   });
   if (!resp.ok) {
@@ -69,14 +89,15 @@ async function callGatewayStream(
 }
 
 async function callProviderWithFallbackStream(
-  apiKey: string,
+  providerUrl: string,
+  providerToken: string | null,
   messages: Array<{ role: string; content: string }>,
 ): Promise<StreamResult> {
   const models = getPreferredModels();
   const attempts: ModelAttempt[] = [];
 
   for (const model of models) {
-    const out = await callGatewayStream(apiKey, model, messages);
+    const out = await callGatewayStream(providerUrl, providerToken, model, messages);
     if (out.ok && out.response) return { response: out.response, model, attempts };
     attempts.push({ model, status: out.status, body: out.body ?? "" });
   }
@@ -215,9 +236,9 @@ serve(async (req) => {
         }
       }
     }
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("chat misconfiguration: LOVABLE_API_KEY is not set");
+    const provider = getProviderConfig();
+    if (!provider?.url) {
+      console.error("chat misconfiguration: no provider configured (set LOVABLE_PROXY_URL or LOVABLE_API_KEY)");
       return errorResponse(CHAT_UNAVAILABLE_MESSAGE, 503, "chat_not_configured", corsHeaders);
     }
 
@@ -295,7 +316,7 @@ serve(async (req) => {
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
          ${fallbackWebsiteInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
 
-    const result = await callProviderWithFallbackStream(LOVABLE_API_KEY, [
+    const result = await callProviderWithFallbackStream(provider.url, provider.token, [
       { role: "system", content: systemPrompt },
       ...truncatedMessages,
     ]);
@@ -314,7 +335,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("Chat error:", e);
-    const message = e instanceof Error && /(LOVABLE_API_KEY)/.test(e.message)
+    const message = e instanceof Error && /(LOVABLE_API_KEY|LOVABLE_PROXY_URL)/.test(e.message)
       ? CHAT_UNAVAILABLE_MESSAGE
       : e instanceof Error
       ? e.message

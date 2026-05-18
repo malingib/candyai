@@ -31,6 +31,41 @@ async function fetchBillingPlan(
   return data as BillingPlan;
 }
 
+async function reactivateUserAccess(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<void> {
+  const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
+  if (unbanError) throw unbanError;
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("plan")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (profileError) throw profileError;
+
+  const plan = String(profile?.plan || "free").toLowerCase();
+  const now = new Date();
+  const update: Record<string, unknown> = {
+    status: "active",
+    updated_at: now.toISOString(),
+  };
+
+  if (plan !== "free" && validPlan(plan)) {
+    update.subscription_started_at = now.toISOString();
+    update.chats_period_started_at = now.toISOString();
+    update.billing_expires_at = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    update.grace_expires_at = new Date(now.getTime() + 33 * 24 * 60 * 60 * 1000).toISOString();
+  } else {
+    update.billing_expires_at = null;
+    update.grace_expires_at = null;
+  }
+
+  const { error: updateError } = await supabaseAdmin.from("profiles").update(update).eq("user_id", userId);
+  if (updateError) throw updateError;
+}
+
 function validEmail(v: string): boolean {
   if (!v || v.length > 254) return false;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -234,8 +269,7 @@ serve(async (req) => {
             const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
             if (error) throw error;
           } else if (bulkAction === "reactivate_user") {
-            const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
-            if (error) throw error;
+            await reactivateUserAccess(supabaseAdmin, userId);
           }
           return { user_id: userId, ok: true };
         } catch (e) {
@@ -293,8 +327,7 @@ serve(async (req) => {
       if (!isUuid(userId)) {
         return errorResponse("Valid user_id required", 400, undefined, corsHeaders);
       }
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
-      if (error) throw error;
+      await reactivateUserAccess(supabaseAdmin, userId);
       logRequest({ function_name: "admin-control", event_type: "success", status_code: 200, ctx: rl.ctx, user_id: adminCheck.userId, message: `reactivate_user:${userId}` });
       return jsonResponse({ ok: true }, 200, corsHeaders);
     }
