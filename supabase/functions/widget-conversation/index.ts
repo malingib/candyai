@@ -2,19 +2,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
+import { isUuid, clamp, jsonResponse, errorResponse } from "../_shared/utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-function isUuid(v: unknown): v is string {
-  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-}
-function clamp(s: unknown, max: number): string {
-  return String(s ?? "").slice(0, max);
-}
 
 function extractOriginFromHeaders(req: Request): string | null {
   const ref = req.headers.get("referer");
@@ -62,9 +56,7 @@ serve(async (req) => {
     const { action, business_id } = body;
 
     if (!isUuid(business_id)) {
-      return new Response(JSON.stringify({ error: "invalid business_id" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("invalid business_id", 400, undefined, corsHeaders);
     }
 
     const supabase = createClient(
@@ -76,18 +68,14 @@ serve(async (req) => {
     const { data: profile } = await supabase
       .from("profiles").select("user_id").eq("user_id", business_id).maybeSingle();
     if (!profile) {
-      return new Response(JSON.stringify({ error: "business not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("business not found", 404, undefined, corsHeaders);
     }
 
     // ---- Create or reuse conversation ----
     if (action === "start") {
       const embedOrigin = extractOriginFromHeaders(req);
       if (!embedOrigin) {
-        return new Response(JSON.stringify({ error: "Unable to identify website origin for widget session." }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Unable to identify website origin for widget session.", 400, undefined, corsHeaders);
       }
 
       const { data: profileLimits, error: profileErr } = await supabase
@@ -96,9 +84,7 @@ serve(async (req) => {
         .eq("user_id", business_id)
         .single();
       if (profileErr || !profileLimits) {
-        return new Response(JSON.stringify({ error: "Unable to validate embed limits." }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Unable to validate embed limits.", 500, undefined, corsHeaders);
       }
 
       const { data: existingDomain } = await supabase
@@ -111,14 +97,7 @@ serve(async (req) => {
 
       if (existingDomain?.id) {
         if (!existingDomain.is_verified) {
-          return new Response(JSON.stringify({
-            error: "Domain is registered but not verified. Complete domain verification in Embed settings.",
-            code: "domain_unverified",
-            origin: embedOrigin,
-          }), {
-            status: 403,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return errorResponse("Domain is registered but not verified. Complete domain verification in Embed settings.", 403, "domain_unverified", corsHeaders);
         }
         await supabase
           .from("widget_domains")
@@ -134,17 +113,7 @@ serve(async (req) => {
         const current = activeCount ?? 0;
         const maxSites = Number(profileLimits.widget_sites_limit ?? 1);
         if (current >= maxSites) {
-          return new Response(JSON.stringify({
-            error: "Embed limit reached for this plan. Upgrade to allow more websites.",
-            code: "embed_limit_reached",
-            plan: profileLimits.plan,
-            sites_used: current,
-            sites_limit: maxSites,
-            origin: embedOrigin,
-          }), {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return errorResponse("Embed limit reached for this plan. Upgrade to allow more websites.", 402, "embed_limit_reached", corsHeaders);
         }
 
         const { error: insertDomainErr } = await supabase
@@ -157,18 +126,9 @@ serve(async (req) => {
             verification_token: crypto.randomUUID().replace(/-/g, ""),
           });
         if (insertDomainErr) {
-          return new Response(JSON.stringify({ error: "Unable to register widget origin." }), {
-            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return errorResponse("Unable to register widget origin.", 500, undefined, corsHeaders);
         }
-        return new Response(JSON.stringify({
-          error: "Domain registered but not verified. Verify this website in dashboard before chat can run.",
-          code: "domain_unverified",
-          origin: embedOrigin,
-        }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Domain registered but not verified. Verify this website in dashboard before chat can run.", 403, "domain_unverified", corsHeaders);
       }
 
       const meta = {
@@ -186,38 +146,28 @@ serve(async (req) => {
           throw error;
         }
       }
-      return new Response(JSON.stringify({ conversation_id: data.id }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ conversation_id: data.id }, 200, corsHeaders);
     }
 
     // ---- Persist a message ----
     if (action === "message") {
       const { conversation_id, role, content } = body;
       if (!isUuid(conversation_id) || !["user", "assistant"].includes(role)) {
-        return new Response(JSON.stringify({ error: "invalid input" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("invalid input", 400, undefined, corsHeaders);
       }
       const ownsConversation = await conversationBelongsToBusiness(supabase, conversation_id, business_id);
       if (!ownsConversation) {
-        return new Response(JSON.stringify({ error: "invalid conversation" }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("invalid conversation", 403, undefined, corsHeaders);
       }
       const text = clamp(content, 4000);
-      if (!text) return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (!text) return jsonResponse({ ok: true }, 200, corsHeaders);
       const { data, error } = await supabase.from("messages").insert({
         conversation_id, role, content: text,
       }).select("id").single();
       if (error) throw error;
       // Touch conversation updated_at
       await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversation_id);
-      return new Response(JSON.stringify({ ok: true, message_id: data?.id }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: true, message_id: data?.id }, 200, corsHeaders);
     }
 
     // ---- Capture a lead ----
@@ -228,22 +178,16 @@ serve(async (req) => {
       const cleanPhone = clamp(phone, 30).trim();
 
       if (!cleanName && !cleanEmail && !cleanPhone) {
-        return new Response(JSON.stringify({ error: "at least one field required" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("at least one field required", 400, undefined, corsHeaders);
       }
       if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-        return new Response(JSON.stringify({ error: "invalid email" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("invalid email", 400, undefined, corsHeaders);
       }
 
       if (isUuid(conversation_id)) {
         const ownsConversation = await conversationBelongsToBusiness(supabase, conversation_id, business_id);
         if (!ownsConversation) {
-          return new Response(JSON.stringify({ error: "invalid conversation" }), {
-            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return errorResponse("invalid conversation", 403, undefined, corsHeaders);
         }
       }
 
@@ -259,9 +203,7 @@ serve(async (req) => {
         .eq("plan", plan)
         .maybeSingle();
       if (!planCfg?.allow_lead_capture) {
-        return new Response(JSON.stringify({ error: "Lead capture is not available on this plan. Upgrade to Growth or higher." }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return errorResponse("Lead capture is not available on this plan. Upgrade to Growth or higher.", 403, undefined, corsHeaders);
       }
 
       const leadPayload = {
@@ -319,15 +261,12 @@ serve(async (req) => {
         const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_lead_quota", { p_user_id: business_id });
         const quota = quotaData?.[0] as { allowed?: boolean; reason?: string; remaining?: number; resets_at?: string } | undefined;
         if (quotaErr || !quota?.allowed) {
-          return new Response(JSON.stringify({
+          return jsonResponse({
             error: "Lead capture limit reached. Upgrade plan to capture more leads.",
             reason: quota?.reason ?? "limit_reached",
             remaining: quota?.remaining ?? 0,
             resets_at: quota?.resets_at ?? null,
-          }), {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          }, 402, corsHeaders);
         }
 
         ({ error } = await supabase.from("leads").insert(leadPayload));
@@ -340,18 +279,12 @@ serve(async (req) => {
           .update({ visitor_name: cleanName || null, visitor_email: cleanEmail || null })
           .eq("id", conversation_id);
       }
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: true }, 200, corsHeaders);
     }
 
-    return new Response(JSON.stringify({ error: "unknown action" }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse("unknown action", 400, undefined, corsHeaders);
   } catch (e) {
     console.error("widget-conversation error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(e instanceof Error ? e.message : "Unknown error", 500, undefined, corsHeaders);
   }
 });

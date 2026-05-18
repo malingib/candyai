@@ -105,6 +105,8 @@
 
   function applyTheme() {
     document.documentElement.style.setProperty("--mw-primary", theme.primary);
+    // Support dark mode websites by ensuring the panel background is explicit
+    if (panel) panel.style.backgroundColor = "#ffffff";
   }
   applyTheme();
 
@@ -279,6 +281,7 @@
           var data = JSON.parse(ev.data);
           // Agent broadcast (typing or message)
           if (data.event === "broadcast" && data.topic === typingTopic) {
+            // Note: Dashboard uses Supabase SDK which wraps payload in { payload: { ... } }
             var p = data.payload && data.payload.payload;
             if (p) {
               if (typeof p.typing === "boolean") {
@@ -328,6 +331,7 @@
     var ws = realtimeChannel;
     if (!ws || ws.readyState !== 1 || !realtimeTypingTopic) return;
     try {
+      // We nest the payload to match how the dashboard (Supabase SDK) expects it
       ws.send(JSON.stringify({
         topic: realtimeTypingTopic,
         event: "broadcast",
@@ -519,13 +523,13 @@
     var html = messages.map(function (m) {
       var avatar = m.role === "user"
         ? '<div class="mw-msg-avatar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>'
-        : '<div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>';
+        : '<div class="mw-msg-avatar"><img src="' + escapeHtml(LOGO) + '" alt="" /></div>';
       return '<div class="mw-msg ' + m.role + '">' + avatar +
         '<div class="mw-msg-bubble">' + escapeHtml(m.content) + '</div></div>';
     }).join("");
     if (isLoading || agentTyping) {
-      var label = agentTyping && !isLoading ? '<div style="font-size:10px;color:#6b7280;margin-bottom:2px">Agent is typing</div>' : '';
-      html += '<div class="mw-msg assistant"><div class="mw-msg-avatar"><img src="' + LOGO + '" alt="" /></div>' +
+      var label = (agentTyping && !isLoading) ? '<div style="font-size:10px;color:#6b7280;margin-bottom:2px">Agent is typing</div>' : '';
+      html += '<div class="mw-msg assistant"><div class="mw-msg-avatar"><img src="' + escapeHtml(LOGO) + '" alt="" /></div>' +
         '<div class="mw-msg-bubble">' + label + '<div class="mw-typing"><span></span><span></span><span></span></div></div></div>';
     }
     msgEl.innerHTML = html;

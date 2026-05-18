@@ -109,14 +109,19 @@ serve(async (req) => {
     if (tErr) throw tErr;
 
     // Fire email notification (non-blocking)
-    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-ticket-email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      },
-      body: JSON.stringify({ ticket_id: ticket.id, event: "created" }),
-    }).catch((e) => console.error("Email notify failed:", e));
+    const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const internalUrl = Deno.env.get("SUPABASE_URL");
+    if (adminKey && internalUrl) {
+      fetch(`${internalUrl}/functions/v1/send-ticket-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminKey}`,
+          apikey: adminKey,
+        },
+        body: JSON.stringify({ ticket_id: ticket.id, event: "created" }),
+      }).catch((e) => console.error("Email notify failed:", e));
+    }
 
     return new Response(JSON.stringify({ created: true, ticket_id: ticket.id, priority: detection.priority }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

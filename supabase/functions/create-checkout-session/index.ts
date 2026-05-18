@@ -118,7 +118,7 @@ serve(async (req) => {
         email: userData.user.email,
         amount: Number(cfg.amount_kes) * 100,
         currency: cfg.currency || "KES",
-        channels: ["mobile_money"],
+        channels: ["mobile_money", "card"],
         callback_url: `${siteUrl}/dashboard/billing?checkout=success`,
         metadata: {
           user_id: userData.user.id,

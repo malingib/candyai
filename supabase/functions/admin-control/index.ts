@@ -3,16 +3,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyJWT } from "../_shared/jwt-verify.ts";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
+import { isUuid, jsonResponse, errorResponse } from "../_shared/utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-function isUuid(v: unknown): v is string {
-  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
 
 type BillingPlan = {
   plan: string;
@@ -118,10 +115,7 @@ serve(async (req) => {
   const adminCheck = await ensureAdmin(req, supabaseAdmin);
   if (!adminCheck.ok) {
     logRequest({ function_name: "admin-control", event_type: "unauthorized", status_code: 403, ctx: rl.ctx, message: adminCheck.message });
-    return new Response(JSON.stringify({ error: adminCheck.message }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(adminCheck.message!, 403, undefined, corsHeaders);
   }
 
   try {
@@ -131,31 +125,31 @@ serve(async (req) => {
     if (action === "grant_admin") {
       const email = String(body?.email || "").trim().toLowerCase();
       if (!validEmail(email)) {
-        return new Response(JSON.stringify({ error: "Valid email required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Valid email required", 400, undefined, corsHeaders);
       }
       const userId = await findUserIdByEmail(supabaseUrl, serviceRoleKey, email);
       if (!userId) {
-        return new Response(JSON.stringify({ error: "User not found by email" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("User not found by email", 404, undefined, corsHeaders);
       }
       const { error } = await supabaseAdmin.from("user_roles").upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
       if (error) throw error;
       logRequest({ function_name: "admin-control", event_type: "success", status_code: 200, ctx: rl.ctx, user_id: adminCheck.userId, message: `grant_admin:${userId}` });
-      return new Response(JSON.stringify({ ok: true, user_id: userId }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ ok: true, user_id: userId }, 200, corsHeaders);
     }
 
     if (action === "set_plan") {
       const userId = body?.user_id;
       const plan = String(body?.plan || "").toLowerCase();
       if (!isUuid(userId)) {
-        return new Response(JSON.stringify({ error: "Valid user_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Valid user_id required", 400, undefined, corsHeaders);
       }
       if (!validPlan(plan)) {
-        return new Response(JSON.stringify({ error: "Invalid plan" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Invalid plan", 400, undefined, corsHeaders);
       }
       const now = new Date();
       const limits = await fetchBillingPlan(supabaseAdmin, plan);
       if (!limits) {
-        return new Response(JSON.stringify({ error: "Plan config missing in billing catalog" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Plan config missing in billing catalog", 400, undefined, corsHeaders);
       }
       const update: Record<string, unknown> = {
         plan,
@@ -176,7 +170,7 @@ serve(async (req) => {
       const { error } = await supabaseAdmin.from("profiles").update(update).eq("user_id", userId);
       if (error) throw error;
       logRequest({ function_name: "admin-control", event_type: "success", status_code: 200, ctx: rl.ctx, user_id: adminCheck.userId, message: `set_plan:${userId}:${plan}` });
-      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ ok: true }, 200, corsHeaders);
     }
 
     if (action === "bulk_manage_users") {
@@ -185,19 +179,19 @@ serve(async (req) => {
       const rawPlan = String(body?.plan || "").toLowerCase();
 
       if (!["set_plan", "reset_usage", "suspend_user", "reactivate_user"].includes(bulkAction)) {
-        return new Response(JSON.stringify({ error: "Invalid bulk_action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Invalid bulk_action", 400, undefined, corsHeaders);
       }
       if (!userIds.length) {
-        return new Response(JSON.stringify({ error: "user_ids is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("user_ids is required", 400, undefined, corsHeaders);
       }
       if (userIds.length > 200) {
-        return new Response(JSON.stringify({ error: "Maximum 200 user_ids per request" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Maximum 200 user_ids per request", 400, undefined, corsHeaders);
       }
       if (userIds.some((id: unknown) => !isUuid(id))) {
-        return new Response(JSON.stringify({ error: "All user_ids must be valid UUIDs" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("All user_ids must be valid UUIDs", 400, undefined, corsHeaders);
       }
       if (bulkAction === "set_plan" && !validPlan(rawPlan)) {
-        return new Response(JSON.stringify({ error: "Valid plan required for set_plan bulk action" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Valid plan required for set_plan bulk action", 400, undefined, corsHeaders);
       }
 
       const results: Array<{ user_id: string; ok: boolean; error?: string }> = [];
@@ -265,16 +259,13 @@ serve(async (req) => {
         user_id: adminCheck.userId,
         message: `bulk_manage_users:${bulkAction}:ok=${successCount}:fail=${failureCount}`,
       });
-      return new Response(JSON.stringify({ ok: failureCount === 0, success_count: successCount, failure_count: failureCount, results }), {
-        status: failureCount === 0 ? 200 : 207,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: failureCount === 0, success_count: successCount, failure_count: failureCount, results }, failureCount === 0 ? 200 : 207, corsHeaders);
     }
 
     if (action === "reset_usage") {
       const userId = body?.user_id;
       if (!isUuid(userId)) {
-        return new Response(JSON.stringify({ error: "Valid user_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Valid user_id required", 400, undefined, corsHeaders);
       }
       const now = new Date().toISOString();
       const { error } = await supabaseAdmin
@@ -283,47 +274,47 @@ serve(async (req) => {
         .eq("user_id", userId);
       if (error) throw error;
       logRequest({ function_name: "admin-control", event_type: "success", status_code: 200, ctx: rl.ctx, user_id: adminCheck.userId, message: `reset_usage:${userId}` });
-      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ ok: true }, 200, corsHeaders);
     }
 
     if (action === "suspend_user") {
       const userId = body?.user_id;
       if (!isUuid(userId)) {
-        return new Response(JSON.stringify({ error: "Valid user_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Valid user_id required", 400, undefined, corsHeaders);
       }
       const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
       if (error) throw error;
       logRequest({ function_name: "admin-control", event_type: "success", status_code: 200, ctx: rl.ctx, user_id: adminCheck.userId, message: `suspend_user:${userId}` });
-      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ ok: true }, 200, corsHeaders);
     }
 
     if (action === "reactivate_user") {
       const userId = body?.user_id;
       if (!isUuid(userId)) {
-        return new Response(JSON.stringify({ error: "Valid user_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Valid user_id required", 400, undefined, corsHeaders);
       }
       const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
       if (error) throw error;
       logRequest({ function_name: "admin-control", event_type: "success", status_code: 200, ctx: rl.ctx, user_id: adminCheck.userId, message: `reactivate_user:${userId}` });
-      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ ok: true }, 200, corsHeaders);
     }
 
     if (action === "impersonate_user") {
       const userId = body?.user_id;
       const emailInput = String(body?.email || "").trim().toLowerCase();
       if (!isUuid(userId)) {
-        return new Response(JSON.stringify({ error: "Valid user_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Valid user_id required", 400, undefined, corsHeaders);
       }
 
       const resolvedEmail = await findUserEmailById(supabaseUrl, serviceRoleKey, userId);
       if (!resolvedEmail) {
-        return new Response(JSON.stringify({ error: "User email could not be resolved for this user_id" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("User email could not be resolved for this user_id", 404, undefined, corsHeaders);
       }
       if (emailInput && !validEmail(emailInput)) {
-        return new Response(JSON.stringify({ error: "If provided, email must be valid" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("If provided, email must be valid", 400, undefined, corsHeaders);
       }
       if (emailInput && emailInput !== resolvedEmail) {
-        return new Response(JSON.stringify({ error: "Provided email does not match the selected user_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Provided email does not match the selected user_id", 400, undefined, corsHeaders);
       }
 
       const { data, error } = await supabaseAdmin.auth.admin.generateLink({
@@ -336,19 +327,17 @@ serve(async (req) => {
       if (error) throw error;
       const targetUser = data?.user;
       if (!targetUser || targetUser.id !== userId) {
-        return new Response(JSON.stringify({ error: "Unable to generate impersonation link for selected user_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Unable to generate impersonation link for selected user_id", 400, undefined, corsHeaders);
       }
       logRequest({ function_name: "admin-control", event_type: "success", status_code: 200, ctx: rl.ctx, user_id: adminCheck.userId, message: `impersonate_user:${userId}` });
-      return new Response(JSON.stringify({ ok: true, action_link: data?.properties?.action_link ?? null }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: true, action_link: data?.properties?.action_link ?? null }, 200, corsHeaders);
     }
 
     if (action === "run_paystack_fallback") {
       const minutes = Number(body?.minutes ?? 10);
       const fallbackToken = Deno.env.get("PAYSTACK_FALLBACK_TOKEN");
       if (!fallbackToken) {
-        return new Response(JSON.stringify({ error: "Fallback token not configured" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return errorResponse("Fallback token not configured", 500, undefined, corsHeaders);
       }
       const resp = await fetch(`${supabaseUrl}/functions/v1/paystack-fallback-activator`, {
         method: "POST",
@@ -361,21 +350,12 @@ serve(async (req) => {
       });
       const data = await resp.json().catch(() => ({}));
       logRequest({ function_name: "admin-control", event_type: resp.ok ? "success" : "error", status_code: resp.status, ctx: rl.ctx, user_id: adminCheck.userId, message: "run_paystack_fallback" });
-      return new Response(JSON.stringify({ ok: resp.ok, status: resp.status, data }), {
-        status: resp.ok ? 200 : 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: resp.ok, status: resp.status, data }, resp.ok ? 200 : 500, corsHeaders);
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse("Unknown action", 400, undefined, corsHeaders);
   } catch (e) {
     console.error("admin-control error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(e instanceof Error ? e.message : "Unknown error", 500, undefined, corsHeaders);
   }
 });

@@ -80,6 +80,9 @@ serve(async (req) => {
     const metadata = data?.metadata ?? {};
     const userId = typeof metadata?.user_id === "string" ? metadata.user_id : null;
 
+    // Support both mobile_money and card payments for Growth/Premium/Enterprise
+    const isPaymentSuccess = eventType === "charge.success";
+
     const { error: billingEventError } = await supabase.from("billing_events").insert({
       user_id: userId,
       provider: "paystack",
@@ -93,10 +96,10 @@ serve(async (req) => {
       console.error("paystack-webhook: failed to log billing event:", billingEventError);
     }
 
-    if (eventType === "charge.success" && userId) {
+    if (isPaymentSuccess && userId) {
       const plan = String(metadata?.plan || "").toLowerCase();
       const channel = String(data?.channel || "").toLowerCase();
-      if (["growth", "premium", "enterprise"].includes(plan) && channel === "mobile_money") {
+      if (["growth", "premium", "enterprise"].includes(plan)) {
         const limits = await fetchBillingPlan(supabase, plan);
         if (limits) {
           const expectedAmount = Number(limits.amount_kes) * 100;
