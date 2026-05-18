@@ -15,7 +15,7 @@ const CHAT_UNAVAILABLE_MESSAGE = "Demo AI is temporarily unavailable. Please con
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
-type ModelAttempt = { model: string; status: number; body: string };
+type ModelAttempt = { provider: string; model: string; status: number; body: string };
 type StreamResult = { response: Response; model: string; attempts: ModelAttempt[] } | { response: null; model: null; attempts: ModelAttempt[] };
 type QuotaRow = {
   allowed: boolean;
@@ -48,29 +48,77 @@ function getPreferredModels(): string[] {
   return raw.split(",").map((m) => m.trim()).filter(Boolean);
 }
 
-function getProviderConfig(): { url: string; token: string | null } | null {
+function getProviderConfigs(): Array<{ name: string; url: string; token: string | null }> {
+  const providers: Array<{ name: string; url: string; token: string | null }> = [];
   const proxyUrl = String(Deno.env.get("LOVABLE_PROXY_URL") ?? "").trim();
   if (proxyUrl) {
-    return {
+    providers.push({
+      name: "lovable_proxy",
       url: proxyUrl,
       token: String(Deno.env.get("LOVABLE_PROXY_TOKEN") ?? "").trim() || null,
-    };
+    });
   }
 
   const apiKey = String(Deno.env.get("LOVABLE_API_KEY") ?? "").trim();
-  if (!apiKey) return null;
-  return {
-    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-    token: apiKey,
-  };
+  if (apiKey) {
+    providers.push({
+      name: "lovable_gateway",
+      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+      token: apiKey,
+    });
+  }
+  return providers;
+}
+
+function toSseResponse(content: string): Response {
+  const payload =
+    `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n` +
+    "data: [DONE]\n\n";
+  return new Response(payload, {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+async function callGeminiFallback(messages: Array<{ role: string; content: string }>): Promise<{ ok: boolean; text?: string; status: number; body?: string }> {
+  const geminiKey = String(Deno.env.get("GEMINI_API_KEY") ?? "").trim();
+  if (!geminiKey) return { ok: false, status: 503, body: "GEMINI_API_KEY missing" };
+
+  const prompt = messages
+    .map((m) => `${m.role === "assistant" ? "Assistant" : m.role === "system" ? "System" : "User"}: ${m.content}`)
+    .join("\n\n");
+
+  const model = "gemini-1.5-flash";
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 600 },
+    }),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    return { ok: false, status: resp.status, body: body.slice(0, 600) };
+  }
+  const data = await resp.json().catch(() => null);
+  const text = String(data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+  if (!text) return { ok: false, status: 502, body: "empty Gemini response" };
+  return { ok: true, text, status: 200 };
 }
 
 async function callGatewayStream(
+  providerName: string,
   providerUrl: string,
   providerToken: string | null,
   model: string,
   messages: Array<{ role: string; content: string }>,
-): Promise<{ ok: boolean; response?: Response; status: number; body?: string }> {
+): Promise<{ ok: boolean; response?: Response; status: number; body?: string; provider: string }> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -83,23 +131,24 @@ async function callGatewayStream(
   });
   if (!resp.ok) {
     const body = await resp.text().catch(() => "");
-    return { ok: false, status: resp.status, body: body.slice(0, 600) };
+    return { ok: false, status: resp.status, body: body.slice(0, 600), provider: providerName };
   }
-  return { ok: true, response: resp, status: 200 };
+  return { ok: true, response: resp, status: 200, provider: providerName };
 }
 
 async function callProviderWithFallbackStream(
-  providerUrl: string,
-  providerToken: string | null,
+  providers: Array<{ name: string; url: string; token: string | null }>,
   messages: Array<{ role: string; content: string }>,
 ): Promise<StreamResult> {
   const models = getPreferredModels();
   const attempts: ModelAttempt[] = [];
 
-  for (const model of models) {
-    const out = await callGatewayStream(providerUrl, providerToken, model, messages);
-    if (out.ok && out.response) return { response: out.response, model, attempts };
-    attempts.push({ model, status: out.status, body: out.body ?? "" });
+  for (const provider of providers) {
+    for (const model of models) {
+      const out = await callGatewayStream(provider.name, provider.url, provider.token, model, messages);
+      if (out.ok && out.response) return { response: out.response, model, attempts };
+      attempts.push({ provider: out.provider, model, status: out.status, body: out.body ?? "" });
+    }
   }
   console.error("AI provider fallback failed:", attempts);
   return { response: null, model: null, attempts };
@@ -236,8 +285,8 @@ serve(async (req) => {
         }
       }
     }
-    const provider = getProviderConfig();
-    if (!provider?.url) {
+    const providers = getProviderConfigs();
+    if (!providers.length) {
       console.error("chat misconfiguration: no provider configured (set LOVABLE_PROXY_URL or LOVABLE_API_KEY)");
       return errorResponse(CHAT_UNAVAILABLE_MESSAGE, 503, "chat_not_configured", corsHeaders);
     }
@@ -316,15 +365,21 @@ serve(async (req) => {
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
          ${fallbackWebsiteInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
 
-    const result = await callProviderWithFallbackStream(provider.url, provider.token, [
+    const requestMessages = [
       { role: "system", content: systemPrompt },
       ...truncatedMessages,
-    ]);
+    ];
+    const result = await callProviderWithFallbackStream(providers, requestMessages);
 
     if (!result.response) {
       const last = result.attempts[result.attempts.length - 1];
       if (last?.status === 429) {
         return errorResponse("Rate limit exceeded. Please try again later.", 429, undefined, corsHeaders);
+      }
+      const gemini = await callGeminiFallback(requestMessages);
+      if (gemini.ok && gemini.text) {
+        console.log("chat model selected: gemini-fallback");
+        return toSseResponse(gemini.text);
       }
       return errorResponse("AI service unavailable", 500, undefined, corsHeaders);
     }
