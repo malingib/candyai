@@ -37,6 +37,7 @@ PAGES=(
   "$BASE_URL/about"
   "$BASE_URL/services"
   "$BASE_URL/products"
+  "$BASE_URL/pricing"
   "$BASE_URL/contact"
 )
 
@@ -55,6 +56,18 @@ extract_text() {
   [[ -n "$desc" ]] && echo "Description: $desc"
   [[ -n "$og_desc" ]] && echo "OG Description: $og_desc"
   [[ -n "$tw_desc" ]] && echo "Twitter Description: $tw_desc"
+
+  echo "Visible Content Preview:"
+  printf '%s' "$html" | perl -0777 -ne '
+    s/<script[^>]*>.*?<\/script>//gs;
+    s/<style[^>]*>.*?<\/style>//gs;
+    s/<[^>]+>/ /g;
+    s/&nbsp;/ /g;
+    s/&[a-z]+;/ /g;
+    s/\s+/ /g;
+    s/^\s+|\s+$//g;
+    print $_;
+  ' | cut -c1-5000
 }
 
 OUT_FILE="$TMP_DIR/website_data.txt"
