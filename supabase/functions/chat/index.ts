@@ -4,6 +4,7 @@ import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { verifyTurnstileToken } from "../_shared/turnstile.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
+import { isUuid, errorResponse } from "../_shared/utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,10 +26,6 @@ type QuotaRow = {
   resets_at: string;
   plan: string;
 };
-
-function isUuid(v: unknown): v is string {
-  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
 
 function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): ChatMessage[] | null {
   if (!Array.isArray(input) || input.length === 0 || input.length > maxMessages) return null;
@@ -102,7 +99,10 @@ serve(async (req) => {
   const bodyLimitError = checkBodyLimit(req);
   if (bodyLimitError) return bodyLimitError;
 
-  if (!req.url.includes('/chat/demo')) {
+  const url = new URL(req.url);
+  const isDemoRoute = url.pathname.endsWith('/chat/demo') || url.pathname.endsWith('/chat/demo/');
+
+  if (!isDemoRoute) {
     const tokenError = await verifyTokenInRequest(req, corsHeaders);
     if (tokenError) {
       logRequest({ function_name: "chat", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
@@ -114,11 +114,13 @@ serve(async (req) => {
     const { messages, demo, user_id, conversation_id, turnstile_token } = await req.json();
     const safeMessages = sanitizeMessages(messages);
     if (!safeMessages) {
-      return new Response(
-        JSON.stringify({ error: "Invalid messages payload" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse("Invalid messages payload", 400, undefined, corsHeaders);
     }
+    // Limit message length to avoid context window explosion
+    const truncatedMessages = safeMessages.map(m => ({
+      ...m,
+      content: m.content.slice(0, 4000)
+    }));
     const safeDemo = !!demo;
     const safeUserId = isUuid(user_id) ? user_id : null;
     const safeConversationId = isUuid(conversation_id) ? conversation_id : null;
@@ -129,10 +131,7 @@ serve(async (req) => {
         remoteip: req.headers.get("cf-connecting-ip") ?? undefined,
       });
       if (!captcha.ok) {
-        return new Response(
-          JSON.stringify({ error: captcha.error || "Captcha validation failed" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse(captcha.error || "Captcha validation failed", 400, undefined, corsHeaders);
       }
     }
 
@@ -143,10 +142,7 @@ serve(async (req) => {
 
     if (!safeDemo) {
       if (!safeUserId && !safeConversationId) {
-        return new Response(
-          JSON.stringify({ error: "user_id or conversation_id is required" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse("user_id or conversation_id is required", 400, undefined, corsHeaders);
       }
 
       if (safeConversationId) {
@@ -156,16 +152,10 @@ serve(async (req) => {
           .eq("id", safeConversationId)
           .maybeSingle();
         if (convErr || !convOwner?.user_id) {
-          return new Response(
-            JSON.stringify({ error: "invalid conversation_id" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return errorResponse("invalid conversation_id", 403, undefined, corsHeaders);
         }
         if (safeUserId && safeUserId !== convOwner.user_id) {
-          return new Response(
-            JSON.stringify({ error: "conversation_id and user_id mismatch" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return errorResponse("conversation_id and user_id mismatch", 403, undefined, corsHeaders);
         }
         effectiveUserId = convOwner.user_id;
       }
@@ -177,10 +167,7 @@ serve(async (req) => {
       const quota = (quotaData?.[0] ?? null) as QuotaRow | null;
       if (quotaErr || !quota) {
         console.error("quota check failed:", quotaErr);
-        return new Response(
-          JSON.stringify({ error: "Unable to validate usage limits. Try again shortly." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse("Unable to validate usage limits. Try again shortly.", 500, undefined, corsHeaders);
       }
       if (!quota.allowed) {
         const reason = quota.reason;
@@ -210,26 +197,28 @@ serve(async (req) => {
     }
 
     // Fire-and-forget: detect issue in latest user message and auto-create ticket
-    if (!safeDemo && safeConversationId && safeMessages.length) {
-      const lastUserMsg = [...safeMessages].reverse().find((m) => m.role === "user");
+    if (!safeDemo && safeConversationId && truncatedMessages.length) {
+      const lastUserMsg = [...truncatedMessages].reverse().find((m) => m.role === "user");
       if (lastUserMsg?.content) {
-        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/auto-create-ticket`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({ conversation_id: safeConversationId, message: lastUserMsg.content }),
-        }).catch((e) => console.error("auto-create-ticket failed:", e));
+        const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        const internalUrl = Deno.env.get("SUPABASE_URL");
+        if (adminKey && internalUrl) {
+          fetch(`${internalUrl}/functions/v1/auto-create-ticket`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${adminKey}`,
+              apikey: adminKey,
+            },
+            body: JSON.stringify({ conversation_id: safeConversationId, message: lastUserMsg.content }),
+          }).catch((e) => console.error("auto-create-ticket failed:", e));
+        }
       }
     }
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       console.error("chat misconfiguration: LOVABLE_API_KEY is not set");
-      return new Response(
-        JSON.stringify({ error: CHAT_UNAVAILABLE_MESSAGE, code: "chat_not_configured" }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(CHAT_UNAVAILABLE_MESSAGE, 503, "chat_not_configured", corsHeaders);
     }
 
     let knowledgeContext = "";
@@ -308,21 +297,15 @@ serve(async (req) => {
 
     const result = await callProviderWithFallbackStream(LOVABLE_API_KEY, [
       { role: "system", content: systemPrompt },
-      ...safeMessages,
+      ...truncatedMessages,
     ]);
 
     if (!result.response) {
       const last = result.attempts[result.attempts.length - 1];
       if (last?.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return errorResponse("Rate limit exceeded. Please try again later.", 429, undefined, corsHeaders);
       }
-      return new Response(
-        JSON.stringify({ error: "AI service unavailable" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse("AI service unavailable", 500, undefined, corsHeaders);
     }
 
     console.log("chat model selected:", result.model);
@@ -336,9 +319,6 @@ serve(async (req) => {
       : e instanceof Error
       ? e.message
       : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(message, 500, undefined, corsHeaders);
   }
 });

@@ -74,7 +74,7 @@ const Conversations = () => {
       typingChannelRef.current.send({
         type: "broadcast",
         event: "agent_message",
-        payload: { content: text, role: "assistant" }
+        payload: { content: text, role: "assistant", event: "agent_message" }
       });
     }
 
@@ -231,10 +231,10 @@ setConversations((prev) => {
       config: { broadcast: { self: false } },
     });
     ch.on("broadcast", { event: "visitor_typing" }, (payload) => {
-      const typing = !!(payload?.payload as {typing?: boolean})?.typing;
-      setVisitorTyping(typing);
+      const isTyping = !!(payload?.payload as {typing?: boolean})?.typing;
+      setVisitorTyping(isTyping);
       if (visitorTypingTimerRef.current) clearTimeout(visitorTypingTimerRef.current);
-      if (typing) {
+      if (isTyping) {
         // auto-clear if no follow-up event arrives
         visitorTypingTimerRef.current = setTimeout(() => setVisitorTyping(false), 4000);
       }

@@ -91,13 +91,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const channel = String(tx?.channel || "").toLowerCase();
-    if (channel !== "mobile_money") {
-      return new Response(JSON.stringify({ error: "Only M-Pesa mobile money payments are accepted" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const plan = String(tx?.metadata?.plan || "").toLowerCase();
     const paidUserId = String(tx?.metadata?.user_id || "");

@@ -89,6 +89,19 @@ const Overview = () => {
     },
   ];
 
+  const [widgetSitesCount, setWidgetSitesCount] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("widget_domains")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .then(({ count }) => setWidgetSitesCount(count ?? 0));
+  }, [user]);
+
+  const remainingWidgetSites = profile ? Math.max((profile.widget_sites_limit ?? 0) - widgetSitesCount, 0) : 0;
+
   return (
     <div className="space-y-6">
       {/* Welcome */}
@@ -143,6 +156,10 @@ const Overview = () => {
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{remainingLeads} leads remaining</span>
               <span>30-day cycle</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{remainingWidgetSites} widget sites remaining</span>
+              <span>Limit: {profile?.widget_sites_limit ?? 0}</span>
             </div>
             {isBillingExpired && (
               <p className="text-xs text-destructive">
