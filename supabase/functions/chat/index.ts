@@ -92,7 +92,7 @@ async function callGeminiFallback(messages: Array<{ role: string; content: strin
     .map((m) => `${m.role === "assistant" ? "Assistant" : m.role === "system" ? "System" : "User"}: ${m.content}`)
     .join("\n\n");
 
-  const model = "gemini-1.5-flash";
+  const model = "gemini-2.0-flash";
   const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -109,6 +109,39 @@ async function callGeminiFallback(messages: Array<{ role: string; content: strin
   const data = await resp.json().catch(() => null);
   const text = String(data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
   if (!text) return { ok: false, status: 502, body: "empty Gemini response" };
+  return { ok: true, text, status: 200 };
+}
+
+async function callGroqFallback(messages: Array<{ role: string; content: string }>): Promise<{ ok: boolean; text?: string; status: number; body?: string }> {
+  const groqKey = String(Deno.env.get("GROQ_API_KEY") ?? "").trim();
+  if (!groqKey) return { ok: false, status: 503, body: "GROQ_API_KEY missing" };
+
+  const compactMessages = messages
+    .filter((m) => m.role === "system" || m.role === "user" || m.role === "assistant")
+    .slice(-8)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 500) }));
+
+  const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${groqKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "llama-3.1-8b-instant",
+      messages: compactMessages,
+      temperature: 0.7,
+      stream: false,
+    }),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    return { ok: false, status: resp.status, body: body.slice(0, 600) };
+  }
+  const data = await resp.json().catch(() => null);
+  const text = String(data?.choices?.[0]?.message?.content ?? "").trim();
+  if (!text) return { ok: false, status: 502, body: "empty Groq response" };
   return { ok: true, text, status: 200 };
 }
 
@@ -286,10 +319,6 @@ serve(async (req) => {
       }
     }
     const providers = getProviderConfigs();
-    if (!providers.length) {
-      console.error("chat misconfiguration: no provider configured (set LOVABLE_PROXY_URL or LOVABLE_API_KEY)");
-      return errorResponse(CHAT_UNAVAILABLE_MESSAGE, 503, "chat_not_configured", corsHeaders);
-    }
 
     let knowledgeContext = "";
     let businessContext = "";
@@ -355,13 +384,18 @@ serve(async (req) => {
     const systemPrompt = safeDemo
       ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites.
          Answer questions about the product's features: lead capture, email integration, 24/7 AI support, analytics, easy embed.
-         Be helpful, concise, and enthusiastic. Use simple language. Keep responses under 100 words.
+         Be helpful, concise, and enthusiastic. Use simple language and short natural sentences. Keep responses under 100 words.
          If asked about pricing, mention: Free (50 chats/mo), Starter (KES 1,500/mo), Growth (KES 3,500/mo), Enterprise (KES 8,000+/mo).
          Encourage visitors to sign up for free.`
-      : `You are a helpful AI assistant for a business website. Answer questions accurately and concisely based on the context provided.
+      : `You are a helpful AI assistant for a business website. Sound natural and human, not robotic.
+         Write in a warm, conversational tone with clear short paragraphs.
+         Answer questions accurately and concisely based on the context provided.
          If a visitor asks for quotes, pricing, contact, or shows purchase intent, politely collect their name and email.
          Keep responses professional and under 150 words.
          If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.
+         Prefer this message structure: quick direct answer first, then 1-3 useful details, then one helpful next-step question when needed.
+         Use light formatting only when useful: short bullet list (max 4 bullets) for multiple items, otherwise plain paragraphs.
+         Never use stiff phrases like "As an AI assistant" or template wording.
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
          ${fallbackWebsiteInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
 
@@ -380,6 +414,11 @@ serve(async (req) => {
       if (gemini.ok && gemini.text) {
         console.log("chat model selected: gemini-fallback");
         return toSseResponse(gemini.text);
+      }
+      const groq = await callGroqFallback(requestMessages);
+      if (groq.ok && groq.text) {
+        console.log("chat model selected: groq-fallback");
+        return toSseResponse(groq.text);
       }
       return errorResponse("AI service unavailable", 500, undefined, corsHeaders);
     }

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build && cp public/.htaccess dist/.htaccess",
     "build:dev": "vite build --mode development && cp public/.htaccess dist/.htaccess",
+    "maintain:website-data": "./scripts/maintain-website-data.sh",
     "pages:create": "npx wrangler pages project create candyai --production-branch main",
     "deploy:pages": "./scripts/deploy-pages.sh",
     "lint": "eslint .",
