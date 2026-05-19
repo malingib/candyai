@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Upload, Loader2 } from "lucide-react";
+import { Save, Upload, Loader2, Plus } from "lucide-react";
 import WidgetPreview from "@/components/dashboard/WidgetPreview";
 
 const SettingsPage = () => {
@@ -19,6 +19,9 @@ const SettingsPage = () => {
   const [logoUrl, setLogoUrl] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#2563eb");
   const [welcomeMessage, setWelcomeMessage] = useState("Hi! 👋 How can I help you today?");
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  const [newQuickReply, setNewQuickReply] = useState("");
+  const [widgetPosition, setWidgetPosition] = useState<"left" | "right">("right");
   const [smtp, setSmtp] = useState({ host: "", port: 587, username: "", password: "", encryption: "tls", from_email: "" });
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -27,7 +30,7 @@ const SettingsPage = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("business_name, whatsapp_number, call_number, logo_url, primary_color, welcome_message").eq("user_id", user.id).single().then(({ data }) => {
+    supabase.from("profiles").select("business_name, whatsapp_number, call_number, logo_url, primary_color, welcome_message, quick_replies, widget_position").eq("user_id", user.id).single().then(({ data }) => {
       if (data) {
         setBusinessName(data.business_name);
         setWhatsappNumber(data.whatsapp_number || "");
@@ -35,6 +38,8 @@ const SettingsPage = () => {
         setLogoUrl(data.logo_url || "");
         if (data.primary_color) setPrimaryColor(data.primary_color);
         if (data.welcome_message) setWelcomeMessage(data.welcome_message);
+        if (data.quick_replies) setQuickReplies(data.quick_replies);
+        if (data.widget_position) setWidgetPosition(data.widget_position as "left" | "right");
       }
     });
     supabase.from("smtp_settings").select("*").eq("user_id", user.id).maybeSingle().then(({ data }) => {
@@ -45,10 +50,29 @@ const SettingsPage = () => {
   const handleSaveProfile = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ business_name: businessName, whatsapp_number: whatsappNumber, call_number: callNumber, logo_url: logoUrl, primary_color: primaryColor, welcome_message: welcomeMessage }).eq("user_id", user.id);
+    const { error } = await supabase.from("profiles").update({
+      business_name: businessName,
+      whatsapp_number: whatsappNumber,
+      call_number: callNumber,
+      logo_url: logoUrl,
+      primary_color: primaryColor,
+      welcome_message: welcomeMessage,
+      quick_replies: quickReplies,
+      widget_position: widgetPosition
+    }).eq("user_id", user.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else toast({ title: "Profile updated!" });
     setSaving(false);
+  };
+
+  const addQuickReply = () => {
+    if (!newQuickReply.trim() || quickReplies.length >= 5) return;
+    setQuickReplies([...quickReplies, newQuickReply.trim()]);
+    setNewQuickReply("");
+  };
+
+  const removeQuickReply = (index: number) => {
+    setQuickReplies(quickReplies.filter((_, i) => i !== index));
   };
 
   const handleSaveSmtp = async () => {
@@ -159,6 +183,31 @@ const SettingsPage = () => {
               <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} placeholder="#2563eb" className="flex-1" />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label>Widget Position</Label>
+            <Select value={widgetPosition} onValueChange={(v: "left" | "right") => setWidgetPosition(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="right">Bottom Right</SelectItem>
+                <SelectItem value="left">Bottom Left</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Quick Replies (max 5)</Label>
+            <div className="flex gap-2">
+              <Input value={newQuickReply} onChange={(e) => setNewQuickReply(e.target.value)} placeholder="e.g. See Pricing" onKeyDown={(e) => e.key === "Enter" && addQuickReply()} />
+              <Button type="button" variant="outline" onClick={addQuickReply}><Plus className="h-4 w-4" /></Button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {quickReplies.map((qr, i) => (
+                <div key={i} className="flex items-center gap-1 bg-accent/10 text-accent px-2 py-1 rounded-md text-xs">
+                  {qr}
+                  <button onClick={() => removeQuickReply(i)} className="hover:text-destructive">×</button>
+                </div>
+              ))}
+            </div>
+          </div>
           <Button onClick={handleSaveProfile} disabled={saving} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2">
             <Save className="h-4 w-4" /> Save
           </Button>
@@ -220,6 +269,7 @@ const SettingsPage = () => {
             whatsappNumber={whatsappNumber}
             callNumber={callNumber}
             logoUrl={logoUrl || "/logo.png"}
+            quickReplies={quickReplies}
           />
         </div>
       </div>
