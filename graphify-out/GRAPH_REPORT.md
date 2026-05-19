@@ -1,11 +1,11 @@
 # Graph Report - candyai  (2026-05-18)
 
 ## Corpus Check
-- 135 files · ~115,384 words
+- 135 files · ~115,388 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 336 nodes · 335 edges · 11 communities detected
+- 336 nodes · 334 edges · 11 communities detected
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 22 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -49,7 +49,7 @@
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.08
+Cohesion: 0.07
 Nodes (16): callGatewayWithFallback(), getPreferredModels(), timingSafeEqual(), toHex(), verifyGithubSignature(), verifyJWT(), verifyTokenInRequest(), admin() (+8 more)
 
 ### Community 1 - "Community 1"
@@ -106,6 +106,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Are the 14 inferred relationships involving `toast()` (e.g. with `handleAuth()` and `handleSave()`) actually correct?**
   _`toast()` has 14 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.08 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._

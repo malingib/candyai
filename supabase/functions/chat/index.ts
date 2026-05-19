@@ -42,6 +42,44 @@ function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): Ch
   return out.length ? out : null;
 }
 
+function isPricingIntent(text: string): boolean {
+  const t = text.toLowerCase();
+  return /\b(price|pricing|quote|cost|rate|rates|package|packages|sms)\b/.test(t);
+}
+
+function extractSmsPricingFacts(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const facts: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/(ksh\.?|kes)\s*\d+(\.\d+)?\s*per\s*sms/i.test(line)) continue;
+
+    // try to include nearest package/range context
+    let packageName = "";
+    let range = "";
+    for (let j = Math.max(0, i - 5); j < i; j++) {
+      if (!packageName && /(small|medium|large|enterprise)\s+business/i.test(lines[j])) {
+        packageName = lines[j];
+      }
+      if (!range && /\d[\d,]*\s*-\s*\d[\d,]*\s*sms/i.test(lines[j])) {
+        range = lines[j];
+      }
+      if (!range && /above\s+\d[\d,]*\s*sms/i.test(lines[j])) {
+        range = lines[j];
+      }
+    }
+
+    const composed = [packageName, line, range].filter(Boolean).join(" | ");
+    facts.push(composed || line);
+    if (facts.length >= 6) break;
+  }
+  return Array.from(new Set(facts));
+}
+
 function getPreferredModels(): string[] {
   const raw = Deno.env.get("FREE_AI_MODELS");
   if (!raw) return ["google/gemini-2.0-flash", "groq/llama-3.1-8b-instant"];
@@ -377,6 +415,12 @@ serve(async (req) => {
       }
     }
 
+    const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const pricingFacts = websiteDataContext ? extractSmsPricingFacts(websiteDataContext) : [];
+    const pricingGuardInstruction = isPricingIntent(lastUserMessage) && pricingFacts.length
+      ? `\n\nPricing facts from this business context (use exactly these values, no conversions):\n${pricingFacts.map((f) => `- ${f}`).join("\n")}\nDo not output cents-based pricing unless cents are explicitly present in these facts.`
+      : "";
+
     const fallbackWebsiteInstruction = websiteDataContext
       ? "If the knowledge base context is empty, use the Website data fallback context."
       : "If the knowledge base context is empty, state that business details are currently limited and ask one short clarifying question.";
@@ -390,6 +434,10 @@ serve(async (req) => {
       : `You are a helpful AI assistant for a business website. Sound natural and human, not robotic.
          Write in a warm, conversational tone with clear short paragraphs.
          Answer questions accurately and concisely based on the context provided.
+         Treat the provided business context, knowledge base, and website data as the source of truth for business facts.
+         Never invent prices, currencies, package limits, phone numbers, emails, links, or policy details.
+         If exact pricing is not explicitly present in context, do not guess numbers. Say pricing depends on needs and ask for details to prepare a quote.
+         When context includes pricing, keep the same currency and values exactly as provided.
          If a visitor asks for quotes, pricing, contact, or shows purchase intent, politely collect their name and email.
          Keep responses professional and under 150 words.
          If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.
@@ -397,7 +445,7 @@ serve(async (req) => {
          Use light formatting only when useful: short bullet list (max 4 bullets) for multiple items, otherwise plain paragraphs.
          Never use stiff phrases like "As an AI assistant" or template wording.
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
-         ${fallbackWebsiteInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
+         ${fallbackWebsiteInstruction}${pricingGuardInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
 
     const requestMessages = [
       { role: "system", content: systemPrompt },

@@ -62,7 +62,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.admin-control]
-verify_jwt = true
+verify_jwt = false
 
 [functions.client-telemetry]
 verify_jwt = true

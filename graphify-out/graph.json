@@ -79,7 +79,7 @@
       "label": "isUuid()",
       "file_type": "code",
       "source_file": "supabase/functions/get-contact-info/index.ts",
-      "source_location": "L29",
+      "source_location": "L28",
       "id": "get_contact_info_index_isuuid",
       "community": 0,
       "norm_label": "isuuid()"
@@ -3102,22 +3102,10 @@
       "confidence_score": 1.0
     },
     {
-      "relation": "imports_from",
-      "confidence": "EXTRACTED",
-      "source_file": "supabase/functions/get-contact-info/index.ts",
-      "source_location": "L5",
-      "weight": 1.0,
-      "_src": "supabase_functions_get_contact_info_index_ts",
-      "_tgt": "supabase_functions_shared_jwt_verify_ts",
-      "source": "supabase_functions_get_contact_info_index_ts",
-      "target": "supabase_functions_shared_jwt_verify_ts",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "supabase/functions/get-contact-info/index.ts",
-      "source_location": "L29",
+      "source_location": "L28",
       "weight": 1.0,
       "_src": "supabase_functions_get_contact_info_index_ts",
       "_tgt": "get_contact_info_index_isuuid",
