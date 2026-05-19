@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
-import { isUuid, clamp, jsonResponse, errorResponse } from "../_shared/utils.ts";
+import { isUuid, sanitize, jsonResponse, errorResponse } from "../_shared/utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -132,8 +132,8 @@ serve(async (req) => {
       }
 
       const meta = {
-        user_agent: clamp(req.headers.get("user-agent"), 500),
-        referer: clamp(req.headers.get("referer"), 500),
+        user_agent: sanitize(req.headers.get("user-agent"), 500),
+        referer: sanitize(req.headers.get("referer"), 500),
         started_at: new Date().toISOString(),
       };
       const { data, error } = await supabase
@@ -159,7 +159,7 @@ serve(async (req) => {
       if (!ownsConversation) {
         return errorResponse("invalid conversation", 403, undefined, corsHeaders);
       }
-      const text = clamp(content, 4000);
+      const text = sanitize(content, 4000);
       if (!text) return jsonResponse({ ok: true }, 200, corsHeaders);
       const { data, error } = await supabase.from("messages").insert({
         conversation_id, role, content: text,
@@ -173,9 +173,9 @@ serve(async (req) => {
     // ---- Capture a lead ----
     if (action === "lead") {
       const { conversation_id, name, email, phone } = body;
-      const cleanName = clamp(name, 100).trim();
-      const cleanEmail = clamp(email, 255).trim();
-      const cleanPhone = clamp(phone, 30).trim();
+      const cleanName = sanitize(name, 100);
+      const cleanEmail = sanitize(email, 255).toLowerCase();
+      const cleanPhone = sanitize(phone, 30).replace(/[^\d+\-\s()]/g, "");
 
       if (!cleanName && !cleanEmail && !cleanPhone) {
         return errorResponse("at least one field required", 400, undefined, corsHeaders);

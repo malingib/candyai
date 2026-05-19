@@ -4,7 +4,7 @@ import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { verifyTurnstileToken } from "../_shared/turnstile.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
-import { isUuid, errorResponse } from "../_shared/utils.ts";
+import { isUuid, sanitize, errorResponse } from "../_shared/utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +27,21 @@ type QuotaRow = {
   plan: string;
 };
 
+const INJECTION_PATTERNS = [
+  /ignore all previous instructions/i,
+  /system prompt/i,
+  /reveal your instructions/i,
+  /you are now a/i,
+  /bypass/i,
+  /sql injection/i,
+  /drop table/i,
+  /<script>/i,
+];
+
+function detectInjection(content: string): boolean {
+  return INJECTION_PATTERNS.some(pattern => pattern.test(content));
+}
+
 function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): ChatMessage[] | null {
   if (!Array.isArray(input) || input.length === 0 || input.length > maxMessages) return null;
   const out: ChatMessage[] = [];
@@ -35,7 +50,7 @@ function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): Ch
     const role = (m as Record<string, unknown>).role;
     const content = (m as Record<string, unknown>).content;
     if ((role !== "user" && role !== "assistant") || typeof content !== "string") return null;
-    const cleaned = content.trim().slice(0, maxChars);
+    const cleaned = sanitize(content, maxChars);
     if (!cleaned) continue;
     out.push({ role, content: cleaned });
   }
@@ -257,6 +272,21 @@ serve(async (req) => {
     if (!safeMessages) {
       return errorResponse("Invalid messages payload", 400, undefined, corsHeaders);
     }
+
+    // Detect potential prompt injection
+    const lastMsg = safeMessages[safeMessages.length - 1];
+    if (lastMsg.role === "user" && detectInjection(lastMsg.content)) {
+      logRequest({
+        function_name: "chat",
+        event_type: "error",
+        status_code: 400,
+        ctx: rl.ctx,
+        message: "Potential prompt injection detected",
+        metadata: { content: lastMsg.content.slice(0, 100) }
+      });
+      return toSseResponse("I'm sorry, I cannot process that request for security reasons.");
+    }
+
     // Limit message length to avoid context window explosion
     const truncatedMessages = safeMessages.map(m => ({
       ...m,
@@ -388,9 +418,9 @@ serve(async (req) => {
         if (lines.length) {
           businessContext = `\n\nBusiness profile:\n${lines.map((l) => `- ${l}`).join("\n")}`;
         }
-        const websiteData = String(profile?.website_data ?? "").trim();
+        const websiteData = sanitize(profile?.website_data ?? "", 8000);
         if (websiteData) {
-          websiteDataContext = `\n\nWebsite data (fallback when knowledge base is empty):\n${websiteData.slice(0, 8000)}`;
+          websiteDataContext = `\n\nWebsite data (fallback when knowledge base is empty):\n${websiteData}`;
         }
       } catch (e) {
         console.error("Failed to fetch profile context:", e);
@@ -429,7 +459,7 @@ serve(async (req) => {
 
             if (!matchErr && matches && matches.length > 0) {
               knowledgeContext = "\n\nRelevant business information:\n\n" +
-                matches.map((m: { content: string }) => `- ${m.content}`).join("\n\n");
+                matches.map((m: { content: string }) => `- ${sanitize(m.content, 2000)}`).join("\n\n");
             }
           }
         }
@@ -444,7 +474,7 @@ serve(async (req) => {
 
           if (kbEntries && kbEntries.length > 0) {
             knowledgeContext = "\n\nBusiness knowledge base:\n\n" +
-              kbEntries.map((e: { title?: string; content?: string }) => `### ${e.title}\n${e.content}`).join("\n\n");
+              kbEntries.map((e: { title?: string; content?: string }) => `### ${sanitize(e.title, 200)}\n${sanitize(e.content, 2000)}`).join("\n\n");
           }
         }
       } catch (e) {
