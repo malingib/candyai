@@ -359,21 +359,58 @@ serve(async (req) => {
       }
     }
 
-    // If a user_id is provided, fetch their knowledge base entries for context
-    if (effectiveUserId && !safeDemo) {
+    // If a user_id is provided, perform vector search for relevant context
+    if (effectiveUserId && !safeDemo && truncatedMessages.length) {
       try {
-        const { data: kbEntries } = await supabase
-          .from("knowledge_base")
-          .select("title, content")
-          .eq("user_id", effectiveUserId)
-          .limit(50);
+        const lastUserMsg = [...truncatedMessages].reverse().find((m) => m.role === "user");
+        if (lastUserMsg?.content) {
+          // Get embedding for the query
+          const apiKey = Deno.env.get("LOVABLE_API_KEY");
+          const embeddingResp = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: "text-embedding-3-small",
+              input: lastUserMsg.content,
+            }),
+          });
 
-        if (kbEntries && kbEntries.length > 0) {
-          knowledgeContext = "\n\nHere is the business's knowledge base. Use this to answer visitor questions accurately:\n\n" +
-            kbEntries.map((e: { title?: string; content?: string }) => `### ${e.title}\n${e.content}`).join("\n\n");
+          if (embeddingResp.ok) {
+            const { data: [{ embedding }] } = await embeddingResp.json();
+
+            // Search for matches
+            const { data: matches, error: matchErr } = await supabase.rpc("match_kb_embeddings", {
+              query_embedding: embedding,
+              match_threshold: 0.7,
+              match_count: 5,
+              p_user_id: effectiveUserId,
+            });
+
+            if (!matchErr && matches && matches.length > 0) {
+              knowledgeContext = "\n\nRelevant business information:\n\n" +
+                matches.map((m: { content: string }) => `- ${m.content}`).join("\n\n");
+            }
+          }
+        }
+
+        // Fallback to basic KB if no vector matches or embedding failed
+        if (!knowledgeContext) {
+          const { data: kbEntries } = await supabase
+            .from("knowledge_base")
+            .select("title, content")
+            .eq("user_id", effectiveUserId)
+            .limit(10);
+
+          if (kbEntries && kbEntries.length > 0) {
+            knowledgeContext = "\n\nBusiness knowledge base:\n\n" +
+              kbEntries.map((e: { title?: string; content?: string }) => `### ${e.title}\n${e.content}`).join("\n\n");
+          }
         }
       } catch (e) {
-        console.error("Failed to fetch knowledge base:", e);
+        console.error("RAG search failed:", e);
       }
     }
 
@@ -405,7 +442,51 @@ serve(async (req) => {
       { role: "system", content: systemPrompt },
       ...truncatedMessages,
     ];
+
+
     const result = await callProviderWithFallbackStream(providers, requestMessages);
+
+    // Perform critical async tasks before closing connection if possible
+    // or use EdgeRuntime.waitUntil for Deno/Supabase if available
+    if (!safeDemo && safeConversationId) {
+      const lastMsg = truncatedMessages[truncatedMessages.length - 1];
+      if (lastMsg && lastMsg.role === "user") {
+        const apiKey = Deno.env.get("LOVABLE_API_KEY");
+        if (apiKey) {
+          // Fire and forget sentiment analysis - but in Deno we should ideally wait
+          // or use a separate worker/queue for production reliability.
+          // For now we attempt it without blocking the main response.
+          (async () => {
+            try {
+              const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-2.0-flash",
+                  messages: [
+                    { role: "system", content: "Classify the sentiment of the following user message as 'positive', 'neutral', or 'negative'. Reply with ONLY the one-word label." },
+                    { role: "user", content: lastMsg.content }
+                  ],
+                  temperature: 0,
+                }),
+              });
+              if (r.ok) {
+                const d = await r.json();
+                const sentiment = d.choices[0].message.content.toLowerCase().trim();
+                if (['positive', 'neutral', 'negative'].includes(sentiment)) {
+                  await supabase.from("conversations").update({ sentiment }).eq("id", safeConversationId);
+                }
+              }
+            } catch (e) {
+              console.error("Sentiment analysis failed:", e);
+            }
+          })();
+        }
+      }
+    }
 
     if (!result.response) {
       const last = result.attempts[result.attempts.length - 1];
