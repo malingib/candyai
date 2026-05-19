@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
-import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
+import { isUuid, sanitize, jsonResponse, errorResponse } from "../_shared/utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,48 +14,43 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const rl = multiRateLimit(req, "client-telemetry", {
-    ip: { limit: 20, windowMs: 60_000 },
-    user: { limit: 40, windowMs: 60_000 },
-    session: { limit: 40, windowMs: 60_000 },
+    ip: { limit: 100, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("client-telemetry", rl.scope!, rl.ctx, corsHeaders);
 
   const bodyLimitError = checkBodyLimit(req);
   if (bodyLimitError) return bodyLimitError;
 
-  const tokenError = await verifyTokenInRequest(req, corsHeaders);
-  if (tokenError) {
-    logRequest({ function_name: "client-telemetry", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
-    return tokenError;
-  }
-
   try {
-    const body = await req.json();
-    const level = String(body?.level || "error");
-    const message = String(body?.message || "client error").slice(0, 500);
-    const metadata = body?.metadata && typeof body.metadata === "object" ? body.metadata : {};
+    const { event_name, payload, business_id } = await req.json();
 
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    await supabase.from("request_logs").insert({
-      function_name: "client-telemetry",
-      event_type: level === "warn" ? "error" : "error",
-      status_code: 500,
-      scope: "session",
-      message,
-      metadata: {
-        source: "browser",
-        ...metadata,
-      },
+    if (!event_name || !business_id) {
+      return errorResponse("Missing required fields", 400, undefined, corsHeaders);
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const safePayload = typeof payload === "object" ? payload : {};
+    const meta = {
+      user_agent: sanitize(req.headers.get("user-agent"), 500),
+      ip: rl.ctx.ip,
+      referer: sanitize(req.headers.get("referer"), 500),
+    };
+
+    const { error } = await supabase.from("client_telemetry").insert({
+      event_name: sanitize(event_name, 100),
+      business_id: isUuid(business_id) ? business_id : null,
+      payload: safePayload,
+      metadata: meta,
     });
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (error) throw error;
+    return jsonResponse({ ok: true }, 200, corsHeaders);
   } catch (e) {
-    console.error("client-telemetry error:", e);
-    return new Response(JSON.stringify({ error: "telemetry failed" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("Telemetry error:", e);
+    return errorResponse("Telemetry failed", 500, undefined, corsHeaders);
   }
 });

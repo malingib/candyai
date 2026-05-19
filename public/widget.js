@@ -3,7 +3,6 @@
   window.__MobiwaveWidgetLoaded = true;
 
   // ---- Config ----
-  // We look for our script tag to get the businessId
   var scripts = document.getElementsByTagName("script");
   var businessId = "";
   var currentScript = null;
@@ -16,7 +15,6 @@
     }
   }
 
-  // Fallback if the script was injected without a src we recognize but we have the ID on it
   if (!businessId && document.currentScript && document.currentScript.dataset.businessId) {
     currentScript = document.currentScript;
     businessId = currentScript.dataset.businessId;
@@ -105,7 +103,6 @@
 
   function applyTheme() {
     document.documentElement.style.setProperty("--mw-primary", theme.primary);
-    // Support dark mode websites by ensuring the panel background is explicit
     if (panel) panel.style.backgroundColor = "#ffffff";
   }
   applyTheme();
@@ -120,7 +117,6 @@
   var leadCaptured = false;
   var widgetBlocked = false;
   var widgetBlockedReason = "";
-  // IDs of messages we wrote ourselves — skip when they come back over realtime
   var knownMsgIds = Object.create(null);
   var realtimeChannel = null;
   var realtimeTypingTopic = null;
@@ -138,6 +134,7 @@
 
   // ---- Helpers ----
   function escapeHtml(s) {
+    if (!s) return "";
     return String(s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
@@ -236,7 +233,6 @@
     }).catch(function () {});
   }
 
-  // ---- Supabase Realtime over WebSocket (vanilla, no SDK) ----
   function subscribeRealtime(convId) {
     if (!convId || realtimeChannel) return;
     try {
@@ -249,7 +245,6 @@
       var heartbeat;
 
       ws.onopen = function () {
-        // Join messages postgres_changes channel
         ws.send(JSON.stringify({
           topic: msgTopic,
           event: "phx_join",
@@ -262,7 +257,6 @@
           },
           ref: String(++ref),
         }));
-        // Join broadcast typing channel
         ws.send(JSON.stringify({
           topic: typingTopic,
           event: "phx_join",
@@ -279,15 +273,12 @@
       ws.onmessage = function (ev) {
         try {
           var data = JSON.parse(ev.data);
-          // Agent broadcast (typing or message)
           if (data.event === "broadcast" && data.topic === typingTopic) {
-            // Note: Dashboard uses Supabase SDK which wraps payload in { payload: { ... } }
             var p = data.payload && data.payload.payload;
             if (p) {
               if (typeof p.typing === "boolean") {
                 setAgentTyping(!!p.typing);
               } else if (p.role === "assistant" && p.content) {
-                // Human agent sent a message from the dashboard
                 setAgentTyping(false);
                 messages.push({ role: "assistant", content: p.content });
                 if (isOpen) render(); else { unreadAgent += 1; updateLauncherBadge(); }
@@ -295,15 +286,12 @@
             }
             return;
           }
-          // Fallback to postgres_changes for standard AI replies (if AI function inserts directly)
-          // Note: In this app, AI replies are streamed via the chat Edge Function,
-          // but we keep this for robustness if the dashboard or a trigger inserts it.
           if (data.event !== "postgres_changes") return;
           var rec = data.payload && data.payload.data && data.payload.data.record;
           if (!rec || !rec.id) return;
-          if (knownMsgIds[rec.id]) return; // we wrote it
+          if (knownMsgIds[rec.id]) return;
           knownMsgIds[rec.id] = true;
-          if (rec.role !== "assistant") return; // only show agent/AI replies
+          if (rec.role !== "assistant") return;
           setAgentTyping(false);
           messages.push({ role: "assistant", content: rec.content });
           if (isOpen) render(); else { unreadAgent += 1; updateLauncherBadge(); }
@@ -316,12 +304,10 @@
         ref = 0;
         realtimeTypingTopic = null;
         setAgentTyping(false);
-        // best-effort reconnect after 3s if we still have a conversation
         setTimeout(function () { if (conversationId) subscribeRealtime(conversationId); }, 3000);
       };
       ws.onerror = function () { try { ws.close(); } catch (e) {} };
 
-      // Expose ref/topic so visitor-typing broadcaster can reuse the socket
       realtimeChannel.__getRef = function () { return String(++ref); };
       realtimeTypingTopic = typingTopic;
     } catch (e) { /* ignore */ }
@@ -331,7 +317,6 @@
     var ws = realtimeChannel;
     if (!ws || ws.readyState !== 1 || !realtimeTypingTopic) return;
     try {
-      // We nest the payload to match how the dashboard (Supabase SDK) expects it
       ws.send(JSON.stringify({
         topic: realtimeTypingTopic,
         event: "broadcast",
@@ -367,8 +352,8 @@
   panel.innerHTML =
     '<div class="mw-header">' +
       '<div class="mw-header-left">' +
-        '<div class="mw-avatar"><img src="' + LOGO + '" alt="" /></div>' +
-        '<div><div class="mw-title" id="mw-biz-name"><a class="mw-link" id="mw-biz-link" href="' + escapeHtml(theme.website) + '" target="_blank" rel="noopener">' + escapeHtml(theme.businessName) + '</a></div>' +
+        '<div class="mw-avatar"><img src="' + escapeHtml(LOGO) + '" alt="" /></div>' +
+        '<div><div class="mw-title" id="mw-biz-name"></div>' +
         '<div class="mw-status"><span class="mw-dot"></span>Online</div></div>' +
       '</div>' +
       '<button class="mw-close" aria-label="Close">×</button>' +
@@ -397,6 +382,7 @@
     if (document.body) {
       document.body.appendChild(launcher);
       document.body.appendChild(panel);
+      updateBizNameUI();
     } else {
       setTimeout(init, 50);
     }
@@ -415,11 +401,16 @@
   var actionsEl = panel.querySelector("#mw-actions");
   var leadFormEl = panel.querySelector("#mw-lead-form");
   var leadErrorEl = panel.querySelector("#mw-lead-error");
-  var bizLinkEl = panel.querySelector("#mw-biz-link");
-  var poweredLinkAiEl = panel.querySelector("#mw-powered-link-ai");
-  var poweredLinkInnovationsEl = panel.querySelector("#mw-powered-link-innovations");
 
-  // ---- Action bar (lead CTA + WhatsApp/Call) ----
+  function updateBizNameUI() {
+    if (bizNameEl) {
+      bizNameEl.innerHTML = '<a class="mw-link" id="mw-biz-link" target="_blank" rel="noopener"></a>';
+      var link = bizNameEl.querySelector("#mw-biz-link");
+      link.href = escapeHtml(theme.website);
+      link.textContent = theme.businessName;
+    }
+  }
+
   function renderActions() {
     var html = "";
     if (!leadCaptured) {
@@ -553,7 +544,6 @@
   launcher.addEventListener("click", function () { toggle(true); });
   closeBtn.addEventListener("click", function () { toggle(false); });
 
-  // Visitor typing → broadcast to dashboard
   inputEl.addEventListener("input", function () {
     var hasText = inputEl.value.length > 0;
     Promise.resolve(ensureConversation()).then(function () {
@@ -703,7 +693,6 @@
       });
   }
 
-  // ---- Fetch theme/contact for this business ----
   if (businessId) {
     fetch(SUPABASE_URL + "/functions/v1/get-contact-info", {
       method: "POST",
@@ -726,10 +715,7 @@
         theme.whatsapp = data.whatsapp_number || "";
         theme.call = data.call_number || "";
         applyTheme();
-        bizNameEl.innerHTML = '<a class="mw-link" id="mw-biz-link" href="' + escapeHtml(theme.website) + '" target="_blank" rel="noopener">' + escapeHtml(theme.businessName) + '</a>';
-        bizLinkEl = panel.querySelector("#mw-biz-link");
-        if (poweredLinkAiEl) poweredLinkAiEl.setAttribute("href", MOBIWAVE_AI_SITE);
-        if (poweredLinkInnovationsEl) poweredLinkInnovationsEl.setAttribute("href", MOBIWAVE_INNOVATIONS_SITE);
+        updateBizNameUI();
         if (messages.length === 1 && messages[0].role === "assistant") {
           messages[0].content = theme.welcome;
           if (isOpen) render();
