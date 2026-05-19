@@ -260,6 +260,15 @@ setConversations((prev) => {
   const currentPage = Math.min(page, totalPages);
   const pageItems = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
+  const getSentimentBadge = (sentiment?: string) => {
+    switch (sentiment) {
+      case "positive": return <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">Positive</Badge>;
+      case "negative": return <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">Negative</Badge>;
+      case "neutral": return <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">Neutral</Badge>;
+      default: return null;
+    }
+  };
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       <div className={`md:col-span-1 space-y-2 ${selectedId ? "hidden md:block" : ""}`}>
@@ -298,6 +307,7 @@ setConversations((prev) => {
                 <Badge variant={engagedConv ? "default" : "outline"} className="text-[10px]">
                   {engagedConv ? `${conv.user_message_count} msg${conv.user_message_count === 1 ? "" : "s"}` : "Visitor"}
                 </Badge>
+                {getSentimentBadge((conv as any).sentiment)}
                 <Badge variant="secondary" className="text-[10px]">{conv.status}</Badge>
                 <span className="text-xs text-muted-foreground">{format(new Date(conv.created_at), "MMM d, HH:mm")}</span>
               </div>

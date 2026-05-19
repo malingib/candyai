@@ -397,21 +397,58 @@ serve(async (req) => {
       }
     }
 
-    // If a user_id is provided, fetch their knowledge base entries for context
-    if (effectiveUserId && !safeDemo) {
+    // If a user_id is provided, perform vector search for relevant context
+    if (effectiveUserId && !safeDemo && truncatedMessages.length) {
       try {
-        const { data: kbEntries } = await supabase
-          .from("knowledge_base")
-          .select("title, content")
-          .eq("user_id", effectiveUserId)
-          .limit(50);
+        const lastUserMsg = [...truncatedMessages].reverse().find((m) => m.role === "user");
+        if (lastUserMsg?.content) {
+          // Get embedding for the query
+          const apiKey = Deno.env.get("LOVABLE_API_KEY");
+          const embeddingResp = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: "text-embedding-3-small",
+              input: lastUserMsg.content,
+            }),
+          });
 
-        if (kbEntries && kbEntries.length > 0) {
-          knowledgeContext = "\n\nHere is the business's knowledge base. Use this to answer visitor questions accurately:\n\n" +
-            kbEntries.map((e: { title?: string; content?: string }) => `### ${e.title}\n${e.content}`).join("\n\n");
+          if (embeddingResp.ok) {
+            const { data: [{ embedding }] } = await embeddingResp.json();
+
+            // Search for matches
+            const { data: matches, error: matchErr } = await supabase.rpc("match_kb_embeddings", {
+              query_embedding: embedding,
+              match_threshold: 0.7,
+              match_count: 5,
+              p_user_id: effectiveUserId,
+            });
+
+            if (!matchErr && matches && matches.length > 0) {
+              knowledgeContext = "\n\nRelevant business information:\n\n" +
+                matches.map((m: { content: string }) => `- ${m.content}`).join("\n\n");
+            }
+          }
+        }
+
+        // Fallback to basic KB if no vector matches or embedding failed
+        if (!knowledgeContext) {
+          const { data: kbEntries } = await supabase
+            .from("knowledge_base")
+            .select("title, content")
+            .eq("user_id", effectiveUserId)
+            .limit(10);
+
+          if (kbEntries && kbEntries.length > 0) {
+            knowledgeContext = "\n\nBusiness knowledge base:\n\n" +
+              kbEntries.map((e: { title?: string; content?: string }) => `### ${e.title}\n${e.content}`).join("\n\n");
+          }
         }
       } catch (e) {
-        console.error("Failed to fetch knowledge base:", e);
+        console.error("RAG search failed:", e);
       }
     }
 
@@ -423,7 +460,7 @@ serve(async (req) => {
 
     const fallbackWebsiteInstruction = websiteDataContext
       ? "If the knowledge base context is empty, use the Website data fallback context."
-      : "If the knowledge base context is empty, state that business details are currently limited and ask one short clarifying question.";
+      : "If the knowledge base context is empty, state that business details are currently limited. Do NOT ask clarifying questions unless absolutely necessary for the core query.";
 
     const systemPrompt = safeDemo
       ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites.
@@ -433,15 +470,17 @@ serve(async (req) => {
          Encourage visitors to sign up for free.`
       : `You are a helpful AI assistant for a business website. Sound natural and human, not robotic.
          Write in a warm, conversational tone with clear short paragraphs.
-         Answer questions accurately and concisely based on the context provided.
+         Answer questions accurately and concisely based ONLY on the context provided.
          Treat the provided business context, knowledge base, and website data as the source of truth for business facts.
          Never invent prices, currencies, package limits, phone numbers, emails, links, or policy details.
          If exact pricing is not explicitly present in context, do not guess numbers. Say pricing depends on needs and ask for details to prepare a quote.
          When context includes pricing, keep the same currency and values exactly as provided.
+         If the answer is not found in the context, politely state that you don't have that specific information yet and avoid making up details.
          If a visitor asks for quotes, pricing, contact, or shows purchase intent, politely collect their name and email.
          Keep responses professional and under 150 words.
          If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.
-         Prefer this message structure: quick direct answer first, then 1-3 useful details, then one helpful next-step question when needed.
+         Prefer this message structure: quick direct answer first, then 1-3 useful details.
+         ONLY ask a follow-up question if it is essential to help the user; otherwise, end your response naturally. Avoid asking too many questions.
          Use light formatting only when useful: short bullet list (max 4 bullets) for multiple items, otherwise plain paragraphs.
          Never use stiff phrases like "As an AI assistant" or template wording.
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
@@ -451,7 +490,51 @@ serve(async (req) => {
       { role: "system", content: systemPrompt },
       ...truncatedMessages,
     ];
+
+
     const result = await callProviderWithFallbackStream(providers, requestMessages);
+
+    // Perform critical async tasks before closing connection if possible
+    // or use EdgeRuntime.waitUntil for Deno/Supabase if available
+    if (!safeDemo && safeConversationId) {
+      const lastMsg = truncatedMessages[truncatedMessages.length - 1];
+      if (lastMsg && lastMsg.role === "user") {
+        const apiKey = Deno.env.get("LOVABLE_API_KEY");
+        if (apiKey) {
+          // Fire and forget sentiment analysis - but in Deno we should ideally wait
+          // or use a separate worker/queue for production reliability.
+          // For now we attempt it without blocking the main response.
+          (async () => {
+            try {
+              const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-2.0-flash",
+                  messages: [
+                    { role: "system", content: "Classify the sentiment of the following user message as 'positive', 'neutral', or 'negative'. Reply with ONLY the one-word label." },
+                    { role: "user", content: lastMsg.content }
+                  ],
+                  temperature: 0,
+                }),
+              });
+              if (r.ok) {
+                const d = await r.json();
+                const sentiment = d.choices[0].message.content.toLowerCase().trim();
+                if (['positive', 'neutral', 'negative'].includes(sentiment)) {
+                  await supabase.from("conversations").update({ sentiment }).eq("id", safeConversationId);
+                }
+              }
+            } catch (e) {
+              console.error("Sentiment analysis failed:", e);
+            }
+          })();
+        }
+      }
+    }
 
     if (!result.response) {
       const last = result.attempts[result.attempts.length - 1];

@@ -7,6 +7,7 @@ interface WidgetPreviewProps {
   whatsappNumber?: string;
   callNumber?: string;
   logoUrl?: string;
+  quickReplies?: string[];
 }
 
 const WidgetPreview = ({
@@ -16,6 +17,7 @@ const WidgetPreview = ({
   whatsappNumber,
   callNumber,
   logoUrl = "/logo.png",
+  quickReplies = [],
 }: WidgetPreviewProps) => {
   const safeColor = useMemo(() => {
     return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(primaryColor) ? primaryColor : "#2563eb";
@@ -50,6 +52,15 @@ const WidgetPreview = ({
             {welcomeMessage || "Hi! 👋 How can I help you today?"}
           </div>
         </div>
+        {quickReplies.length > 0 && (
+          <div className="flex flex-wrap gap-2 justify-end pt-2">
+            {quickReplies.map((reply, i) => (
+              <div key={i} className="px-3 py-1.5 rounded-full border bg-card text-[11px] font-medium shadow-sm cursor-default" style={{ borderColor: safeColor, color: safeColor }}>
+                {reply}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="px-3 py-2 border-t bg-card flex gap-2 flex-wrap">
