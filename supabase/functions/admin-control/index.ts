@@ -35,8 +35,14 @@ async function reactivateUserAccess(
   supabaseAdmin: ReturnType<typeof createClient>,
   userId: string,
 ): Promise<void> {
-  const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
-  if (unbanError) throw unbanError;
+  // GoTrue versions can differ on accepted "unban" payloads.
+  // Try the canonical form first, then a safe fallback duration.
+  let { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "none" });
+  if (unbanError) {
+    const fallback = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: "0s" });
+    unbanError = fallback.error;
+  }
+  if (unbanError) throw new Error(`Unable to reactivate auth user: ${unbanError.message}`);
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
