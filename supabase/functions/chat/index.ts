@@ -1,5 +1,13 @@
+// @ts-ignore
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @ts-ignore
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { verifyTurnstileToken } from "../_shared/turnstile.ts";
@@ -98,7 +106,7 @@ function extractSmsPricingFacts(text: string): string[] {
 function getPreferredModels(): string[] {
   const raw = Deno.env.get("FREE_AI_MODELS");
   if (!raw) return ["google/gemini-2.0-flash", "groq/llama-3.1-8b-instant"];
-  return raw.split(",").map((m) => m.trim()).filter(Boolean);
+  return raw.split(",").map((m: string) => m.trim()).filter(Boolean);
 }
 
 function getProviderConfigs(): Array<{ name: string; url: string; token: string | null }> {
@@ -240,7 +248,7 @@ async function callProviderWithFallbackStream(
   return { response: null, model: null, attempts };
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
