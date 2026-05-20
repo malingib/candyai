@@ -71,6 +71,20 @@ ALTER TABLE public.request_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "No public access to request logs" ON public.request_logs;
 CREATE POLICY "No public access to request logs" ON public.request_logs FOR ALL TO authenticated USING (false);
 
+CREATE TABLE IF NOT EXISTS public.client_telemetry (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  business_id uuid,
+  event_name text NOT NULL,
+  payload jsonb DEFAULT '{}'::jsonb,
+  metadata jsonb DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_telemetry_business_created
+  ON public.client_telemetry (business_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_client_telemetry_event_created
+  ON public.client_telemetry (event_name, created_at DESC);
+
 ALTER TABLE public.client_telemetry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "No public access to telemetry" ON public.client_telemetry;
 CREATE POLICY "No public access to telemetry" ON public.client_telemetry FOR ALL TO authenticated USING (false);
