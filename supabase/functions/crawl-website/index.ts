@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse, jsonResponse } from "../_shared/utils.ts";
+import { callAI } from "../_shared/ai.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,6 +45,62 @@ serve(async (req) => {
     }).select("id").single();
 
     if (kbErr) throw kbErr;
+
+    // --- Structured Resource Extraction (Option 3 & 4) ---
+    // Use LLM to extract structured resources from the page text
+    const extractionPrompt = `
+      Extract structured resources from the following website text.
+      Identify: tenders, events, news, projects, jobs, and contact information.
+      Return a JSON array of objects with these fields:
+      - type: 'tender' | 'event' | 'news' | 'project' | 'job' | 'contact'
+      - title: string
+      - summary: string (optional)
+      - url: string (absolute URL if found, else null)
+      - status: string (e.g., 'open', 'closed', 'ongoing' - optional)
+      - date: ISO8601 string (optional)
+      - deadline: ISO8601 string (optional)
+      - email: string (optional)
+      - phone: string (optional)
+      - metadata: object (any other relevant structured data)
+
+      Only return the JSON array. If nothing is found, return [].
+      Source URL: ${url}
+
+      Text:
+      ${text.slice(0, 8000)}
+    `;
+
+    const aiResult = await callAI([
+      { role: "system", content: "You are a specialized web data extractor. Output JSON only." },
+      { role: "user", content: extractionPrompt }
+    ]);
+
+    if (aiResult?.choices?.[0]?.message?.content) {
+      try {
+        let content = aiResult.choices[0].message.content.trim();
+        // Handle markdown code blocks if present
+        if (content.includes("```json")) {
+          content = content.split("```json")[1].split("```")[0].trim();
+        } else if (content.includes("```")) {
+          content = content.split("```")[1].split("```")[0].trim();
+        }
+
+        const resources = JSON.parse(content);
+
+        if (Array.isArray(resources) && resources.length > 0) {
+          const toInsert = resources.map(r => ({
+            ...r,
+            user_id,
+            source_url: url,
+            captured_at: new Date().toISOString()
+          }));
+
+          await supabase.from("website_resources").insert(toInsert);
+        }
+      } catch (e) {
+        console.error("Failed to parse or insert structured resources:", e);
+      }
+    }
 
     // Trigger processing
     const internalUrl = Deno.env.get("SUPABASE_URL");
