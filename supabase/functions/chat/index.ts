@@ -508,6 +508,7 @@ serve(async (req: Request) => {
       ...truncatedMessages,
     ];
 
+    const providers = getProviderConfigs();
     const result = await callProviderWithFallbackStream(providers, requestMessages);
 
     // Background tasks - fire and forget but log errors
