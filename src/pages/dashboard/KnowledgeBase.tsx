@@ -5,10 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Save, Upload, Globe, Loader2 } from "lucide-react";
+import { Plus, Trash2, Save, Upload, Globe, Loader2, Link, Calendar, Briefcase, FileText, User, Mail, Phone, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 type KbItem = { id: string; title: string; content: string; created_at: string };
+type WebsiteResource = {
+  id: string;
+  type: 'tender' | 'event' | 'news' | 'project' | 'job' | 'contact' | 'page';
+  title: string;
+  summary?: string;
+  url?: string;
+  status?: string;
+  date?: string;
+  deadline?: string;
+  email?: string;
+  phone?: string;
+  captured_at: string;
+};
 const KnowledgeBase = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -158,9 +173,59 @@ const KnowledgeBase = () => {
     setEditingId(item.id);
   };
 
+  const [resources, setResources] = useState<WebsiteResource[]>([]);
+  const [isResourcesLoading, setIsResourcesLoading] = useState(false);
+
+  const fetchResources = useCallback(async () => {
+    if (!user) return;
+    setIsResourcesLoading(true);
+    const { data, error } = await supabase
+      .from("website_resources")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("captured_at", { ascending: false });
+    if (error) {
+      toast({ title: "Error fetching resources", description: error.message, variant: "destructive" });
+    } else {
+      setResources((data as WebsiteResource[]) ?? []);
+    }
+    setIsResourcesLoading(false);
+  }, [user, toast]);
+
+  useEffect(() => { fetchResources(); }, [fetchResources]);
+
+  const handleDeleteResource = async (id: string) => {
+    if (!user) return;
+    const { error } = await supabase.from("website_resources").delete().eq("id", id).eq("user_id", user.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Resource deleted" });
+      fetchResources();
+    }
+  };
+
+  const getResourceIcon = (type: string) => {
+    switch (type) {
+      case 'tender': return <FileText className="h-4 w-4" />;
+      case 'event': return <Calendar className="h-4 w-4" />;
+      case 'news': return <Globe className="h-4 w-4" />;
+      case 'project': return <Link className="h-4 w-4" />;
+      case 'job': return <Briefcase className="h-4 w-4" />;
+      case 'contact': return <User className="h-4 w-4" />;
+      default: return <FileText className="h-4 w-4" />;
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-2">
+    <Tabs defaultValue="knowledge" className="space-y-6">
+      <TabsList>
+        <TabsTrigger value="knowledge">Knowledge Base</TabsTrigger>
+        <TabsTrigger value="resources">Structured Resources</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="knowledge" className="space-y-6">
+        <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{editingId ? "Edit Entry" : "Add Knowledge"}</CardTitle>
@@ -213,23 +278,123 @@ const KnowledgeBase = () => {
         </Card>
       </div>
 
-      <div className="space-y-3">
-        {items.length === 0 && <p className="text-sm text-muted-foreground">No knowledge base entries yet. Add your FAQs and product info so your AI agent can answer accurately.</p>}
-        {items.map((item) => (
-          <Card key={item.id} className="cursor-pointer hover:border-accent/50 transition-colors" onClick={() => handleEdit(item)}>
-            <CardContent className="flex items-start justify-between p-4">
-              <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-sm">{item.title}</h3>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.content}</p>
-              </div>
-              <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+        <div className="space-y-3">
+          {items.length === 0 && <p className="text-sm text-muted-foreground">No knowledge base entries yet. Add your FAQs and product info so your AI agent can answer accurately.</p>}
+          {items.map((item) => (
+            <Card key={item.id} className="cursor-pointer hover:border-accent/50 transition-colors" onClick={() => handleEdit(item)}>
+              <CardContent className="flex items-start justify-between p-4">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-medium text-sm">{item.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.content}</p>
+                </div>
+                <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </TabsContent>
+
+      <TabsContent value="resources" className="space-y-6">
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-muted-foreground">
+            Extracted from your website for precise grounding (Tenders, Events, Jobs, etc.)
+          </p>
+          <Button variant="outline" size="sm" onClick={fetchResources} disabled={isResourcesLoading}>
+            {isResourcesLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            Refresh
+          </Button>
+        </div>
+
+        {resources.length === 0 && !isResourcesLoading && (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Link className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium">No structured resources yet</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto mt-2">
+                Structured resources are automatically extracted when you crawl your website.
+                They help the AI provide deterministic answers for lists like tenders or news.
+              </p>
             </CardContent>
           </Card>
-        ))}
-      </div>
-    </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {resources.map((resource) => (
+            <Card key={resource.id} className="relative group overflow-hidden">
+              <CardHeader className="p-4 pb-2">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-accent/10 text-accent rounded-md">
+                      {getResourceIcon(resource.type)}
+                    </div>
+                    <Badge variant="secondary" className="capitalize text-[10px]">
+                      {resource.type}
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => handleDeleteResource(resource.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <CardTitle className="text-sm mt-3 leading-tight">{resource.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3">
+                {resource.summary && (
+                  <p className="text-xs text-muted-foreground line-clamp-3">{resource.summary}</p>
+                )}
+
+                <div className="space-y-1.5 pt-2 border-t border-muted/50">
+                  {resource.deadline && (
+                    <div className="flex items-center gap-2 text-[11px] text-destructive">
+                      <Calendar className="h-3 w-3" />
+                      <span>Deadline: {new Date(resource.deadline).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {resource.date && (
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
+                      <span>Date: {new Date(resource.date).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {resource.email && (
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Mail className="h-3 w-3" />
+                      <span className="truncate">{resource.email}</span>
+                    </div>
+                  )}
+                  {resource.phone && (
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      <span>{resource.phone}</span>
+                    </div>
+                  )}
+                  {resource.url && (
+                    <a
+                      href={resource.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-[11px] text-accent hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span className="truncate">View Details</span>
+                    </a>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground/50 pt-1">
+                  Captured: {new Date(resource.captured_at).toLocaleDateString()}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </TabsContent>
+    </Tabs>
   );
 };
 

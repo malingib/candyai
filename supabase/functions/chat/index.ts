@@ -79,6 +79,17 @@ function isPricingIntent(text: string): boolean {
   return /\b(price|pricing|quote|cost|rate|rates|package|packages|sms)\b/.test(t);
 }
 
+function getResourceIntent(text: string): string | null {
+  const t = text.toLowerCase();
+  if (/\b(tender|tenders|procurement)\b/.test(t)) return "tender";
+  if (/\b(event|events|upcoming)\b/.test(t)) return "event";
+  if (/\b(news|latest|updates)\b/.test(t)) return "news";
+  if (/\b(project|projects|ongoing)\b/.test(t)) return "project";
+  if (/\b(job|jobs|career|careers|vacancy|vacancies|hiring)\b/.test(t)) return "job";
+  if (/\b(contact|contacts|phone|email|address|location)\b/.test(t)) return "contact";
+  return null;
+}
+
 function extractSmsPricingFacts(text: string): string[] {
   const lines = text
     .split(/\r?\n/)
@@ -446,6 +457,7 @@ serve(async (req: Request) => {
     let knowledgeContext = "";
     let businessContext = "";
     let websiteDataContext = "";
+    let resourcesContext = "";
 
     if (effectiveUserId && !safeDemo) {
       try {
@@ -476,6 +488,23 @@ serve(async (req: Request) => {
         const websiteData = sanitize(profile?.website_data ?? "", 8000);
         if (websiteData) {
           websiteDataContext = `\n\nWebsite data (fallback when knowledge base is empty):\n${websiteData}`;
+        }
+
+        const lastUserMessageForResource = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
+        const resourceType = getResourceIntent(lastUserMessageForResource);
+        if (resourceType) {
+          const { data: resources } = await supabase
+            .from("website_resources")
+            .select("*")
+            .eq("user_id", effectiveUserId)
+            .eq("type", resourceType)
+            .order("captured_at", { ascending: false })
+            .limit(10);
+
+          if (resources && resources.length > 0) {
+            resourcesContext = `\n\nRelevant ${resourceType}s from website:\n` +
+              resources.map(r => `- ${r.title}${r.summary ? ': ' + r.summary : ''}${r.url ? ' (' + r.url + ')' : ''}${r.deadline ? ' Deadline: ' + r.deadline : ''}`).join("\n");
+          }
         }
       } catch (e) {
         console.error("Failed to fetch profile context:", e);
@@ -570,7 +599,7 @@ serve(async (req: Request) => {
          Use light formatting only when useful: short bullet list (max 4 bullets) for multiple items, otherwise plain paragraphs.
          Never use stiff phrases like "As an AI assistant" or template wording.
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
-         ${fallbackWebsiteInstruction}${pricingGuardInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
+         ${fallbackWebsiteInstruction}${pricingGuardInstruction}${businessContext}${knowledgeContext}${websiteDataContext}${resourcesContext}`;
 
     const requestMessages = [
       { role: "system", content: systemPrompt },
@@ -582,6 +611,26 @@ serve(async (req: Request) => {
 
     // Background tasks - fire and forget but log errors
     if (!safeDemo && safeConversationId) {
+      const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
+
+      // Automatic Lead Extraction (Option 3 extension)
+      const emailMatch = lastUserMessage.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+      const phoneMatch = lastUserMessage.match(/\b(?:\+?(\d{1,3}))?[-. (]*(\d{3})[-. )]*(\d{3})[-. ]*(\d{4,})\b/);
+
+      if (emailMatch || phoneMatch) {
+        const updateData: any = {};
+        if (emailMatch) updateData.email = emailMatch[0];
+        if (phoneMatch) updateData.phone = phoneMatch[0];
+
+        supabase.from("leads").upsert({
+          conversation_id: safeConversationId,
+          user_id: effectiveUserId,
+          ...updateData
+        }, { onConflict: "conversation_id" }).then(({ error }) => {
+          if (error) console.error("Lead extraction upsert failed:", error);
+        });
+      }
+
       const lastMsg = truncatedMessages[truncatedMessages.length - 1];
       const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       const internalUrl = Deno.env.get("SUPABASE_URL");
