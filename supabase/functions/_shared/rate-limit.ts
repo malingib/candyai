@@ -31,10 +31,24 @@ export function getUserIdFromAuth(req: Request): string | null {
 function check(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now();
   const b = buckets.get(key);
+
+  // Occasional background cleanup (approx 2% of requests)
+  if (Math.random() < 0.02 && buckets.size > 1000) {
+    for (const [k, v] of buckets) {
+      if (v.resetAt < now) buckets.delete(k);
+    }
+  }
+
   if (!b || b.resetAt < now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
+    // Aggressive cleanup if memory limit reached
     if (buckets.size > 5000) {
-      for (const [k, v] of buckets) if (v.resetAt < now) buckets.delete(k);
+      const keysToDelete: string[] = [];
+      for (const [k, v] of buckets) {
+        if (v.resetAt < now) keysToDelete.push(k);
+        if (keysToDelete.length > 500) break;
+      }
+      keysToDelete.forEach(k => buckets.delete(k));
     }
     return true;
   }

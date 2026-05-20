@@ -1,6 +1,6 @@
-// @ts-ignore
+// @ts-expect-error: Deno environment
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-// @ts-ignore
+// @ts-expect-error: Deno environment
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 declare const Deno: {
@@ -44,6 +44,13 @@ const INJECTION_PATTERNS = [
   /sql injection/i,
   /drop table/i,
   /<script>/i,
+  /forget everything/i,
+  /jailbreak/i,
+  /developer mode/i,
+  /DAN mode/i,
+  /output the above/i,
+  /repeat after me/i,
+  /raw text of the instructions/i,
 ];
 
 function detectInjection(content: string): boolean {
@@ -81,7 +88,6 @@ function extractSmsPricingFacts(text: string): string[] {
     const line = lines[i];
     if (!/(ksh\.?|kes)\s*\d+(\.\d+)?\s*per\s*sms/i.test(line)) continue;
 
-    // try to include nearest package/range context
     let packageName = "";
     let range = "";
     for (let j = Math.max(0, i - 5); j < i; j++) {
@@ -275,13 +281,13 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { messages, demo, user_id, conversation_id, turnstile_token } = await req.json();
+    const jsonBody = await req.json();
+    const { messages, demo, user_id, conversation_id, turnstile_token } = jsonBody;
     const safeMessages = sanitizeMessages(messages);
     if (!safeMessages) {
       return errorResponse("Invalid messages payload", 400, undefined, corsHeaders);
     }
 
-    // Detect potential prompt injection
     const lastMsg = safeMessages[safeMessages.length - 1];
     if (lastMsg.role === "user" && detectInjection(lastMsg.content)) {
       logRequest({
@@ -295,7 +301,6 @@ serve(async (req: Request) => {
       return toSseResponse("I'm sorry, I cannot process that request for security reasons.");
     }
 
-    // Limit message length to avoid context window explosion
     const truncatedMessages = safeMessages.map(m => ({
       ...m,
       content: m.content.slice(0, 4000)
@@ -340,7 +345,6 @@ serve(async (req: Request) => {
       }
     }
 
-    // Enforce billing/chat quotas for non-demo business chats.
     if (!safeDemo && effectiveUserId) {
       const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_chat_quota", { p_user_id: effectiveUserId });
       const quota = (quotaData?.[0] ?? null) as QuotaRow | null;
@@ -375,27 +379,7 @@ serve(async (req: Request) => {
       }
     }
 
-    // Fire-and-forget: detect issue in latest user message and auto-create ticket
-    if (!safeDemo && safeConversationId && truncatedMessages.length) {
-      const lastUserMsg = [...truncatedMessages].reverse().find((m) => m.role === "user");
-      if (lastUserMsg?.content) {
-        const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-        const internalUrl = Deno.env.get("SUPABASE_URL");
-        if (adminKey && internalUrl) {
-          fetch(`${internalUrl}/functions/v1/auto-create-ticket`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${adminKey}`,
-              apikey: adminKey,
-            },
-            body: JSON.stringify({ conversation_id: safeConversationId, message: lastUserMsg.content }),
-          }).catch((e) => console.error("auto-create-ticket failed:", e));
-        }
-      }
-    }
-    const providers = getProviderConfigs();
-
+    // Critical metadata fetches
     let knowledgeContext = "";
     let businessContext = "";
     let websiteDataContext = "";
@@ -435,12 +419,10 @@ serve(async (req: Request) => {
       }
     }
 
-    // If a user_id is provided, perform vector search for relevant context
     if (effectiveUserId && !safeDemo && truncatedMessages.length) {
       try {
         const lastUserMsg = [...truncatedMessages].reverse().find((m) => m.role === "user");
         if (lastUserMsg?.content) {
-          // Get embedding for the query
           const apiKey = Deno.env.get("LOVABLE_API_KEY");
           const embeddingResp = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
             method: "POST",
@@ -456,8 +438,6 @@ serve(async (req: Request) => {
 
           if (embeddingResp.ok) {
             const { data: [{ embedding }] } = await embeddingResp.json();
-
-            // Search for matches
             const { data: matches, error: matchErr } = await supabase.rpc("match_kb_embeddings", {
               query_embedding: embedding,
               match_threshold: 0.7,
@@ -472,7 +452,6 @@ serve(async (req: Request) => {
           }
         }
 
-        // Fallback to basic KB if no vector matches or embedding failed
         if (!knowledgeContext) {
           const { data: kbEntries } = await supabase
             .from("knowledge_base")
@@ -529,48 +508,53 @@ serve(async (req: Request) => {
       ...truncatedMessages,
     ];
 
-
     const result = await callProviderWithFallbackStream(providers, requestMessages);
 
-    // Perform critical async tasks before closing connection if possible
-    // or use EdgeRuntime.waitUntil for Deno/Supabase if available
+    // Background tasks - fire and forget but log errors
     if (!safeDemo && safeConversationId) {
       const lastMsg = truncatedMessages[truncatedMessages.length - 1];
-      if (lastMsg && lastMsg.role === "user") {
-        const apiKey = Deno.env.get("LOVABLE_API_KEY");
-        if (apiKey) {
-          // Fire and forget sentiment analysis - but in Deno we should ideally wait
-          // or use a separate worker/queue for production reliability.
-          // For now we attempt it without blocking the main response.
-          (async () => {
-            try {
-              const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                  model: "google/gemini-2.0-flash",
-                  messages: [
-                    { role: "system", content: "Classify the sentiment of the following user message as 'positive', 'neutral', or 'negative'. Reply with ONLY the one-word label." },
-                    { role: "user", content: lastMsg.content }
-                  ],
-                  temperature: 0,
-                }),
-              });
-              if (r.ok) {
-                const d = await r.json();
-                const sentiment = d.choices[0].message.content.toLowerCase().trim();
-                if (['positive', 'neutral', 'negative'].includes(sentiment)) {
-                  await supabase.from("conversations").update({ sentiment }).eq("id", safeConversationId);
-                }
-              }
-            } catch (e) {
-              console.error("Sentiment analysis failed:", e);
+      const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      const internalUrl = Deno.env.get("SUPABASE_URL");
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+
+      // Auto-create ticket if needed
+      if (lastMsg?.content && adminKey && internalUrl) {
+        fetch(`${internalUrl}/functions/v1/auto-create-ticket`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminKey}`,
+            apikey: adminKey,
+          },
+          body: JSON.stringify({ conversation_id: safeConversationId, message: lastMsg.content }),
+        }).catch((e) => console.error("auto-create-ticket background failed:", e));
+      }
+
+      // Sentiment analysis
+      if (lastMsg?.role === "user" && lovableKey) {
+        fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${lovableKey}`,
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.0-flash",
+            messages: [
+              { role: "system", content: "Classify the sentiment of the following user message as 'positive', 'neutral', or 'negative'. Reply with ONLY the one-word label." },
+              { role: "user", content: lastMsg.content }
+            ],
+            temperature: 0,
+          }),
+        }).then(async (r) => {
+          if (r.ok) {
+            const d = await r.json();
+            const sentiment = d.choices[0].message.content.toLowerCase().trim();
+            if (['positive', 'neutral', 'negative'].includes(sentiment)) {
+              await supabase.from("conversations").update({ sentiment }).eq("id", safeConversationId);
             }
-          })();
-        }
+          }
+        }).catch((e) => console.error("Sentiment analysis background failed:", e));
       }
     }
 
@@ -581,12 +565,10 @@ serve(async (req: Request) => {
       }
       const gemini = await callGeminiFallback(requestMessages);
       if (gemini.ok && gemini.text) {
-        console.log("chat model selected: gemini-fallback");
         return toSseResponse(gemini.text);
       }
       const groq = await callGroqFallback(requestMessages);
       if (groq.ok && groq.text) {
-        console.log("chat model selected: groq-fallback");
         return toSseResponse(groq.text);
       }
       return errorResponse("AI service unavailable", 500, undefined, corsHeaders);
