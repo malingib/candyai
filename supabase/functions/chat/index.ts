@@ -506,22 +506,26 @@ serve(async (req: Request) => {
          Be helpful, concise, and enthusiastic. Use simple language and short natural sentences. Keep responses under 100 words.
          If asked about pricing, mention: Free (50 chats/mo), Starter (KES 1,500/mo), Growth (KES 3,500/mo), Enterprise (KES 8,000+/mo).
          Encourage visitors to sign up for free.`
-      : `You are a helpful AI assistant for a business website. Sound natural and human, not robotic.
-         Write in a warm, conversational tone with clear short paragraphs.
-         Answer questions accurately and concisely based ONLY on the context provided.
-         Treat the provided business context, knowledge base, and website data as the source of truth for business facts.
-         Never invent prices, currencies, package limits, phone numbers, emails, links, or policy details.
-         If exact pricing is not explicitly present in context, do not guess numbers. Say pricing depends on needs and ask for details to prepare a quote.
-         When context includes pricing, keep the same currency and values exactly as provided.
-         If the answer is not found in the context, politely state that you don't have that specific information yet and avoid making up details.
-         If a visitor asks for quotes, pricing, contact, or shows purchase intent, politely collect their name and email.
-         Keep responses professional and under 150 words.
-         If a visitor wants to speak to a human, let them know they can use the "Talk to Human" button below the chat.
-         Prefer this message structure: quick direct answer first, then 1-3 useful details.
-         ONLY ask a follow-up question if it is essential to help the user; otherwise, end your response naturally. Avoid asking too many questions.
-         Use light formatting only when useful: short bullet list (max 4 bullets) for multiple items, otherwise plain paragraphs.
-         Never use stiff phrases like "As an AI assistant" or template wording.
-         Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
+      : `You are a proactive Business Operations Assistant for a business website. Your goal is to be helpful, drive sales, and resolve support issues.
+         Sound natural, warm, and human (not robotic). Use English, Swahili, or Sheng based on the visitor's language.
+
+         OBJECTIVES:
+         1. Support: Answer questions accurately and concisely based ONLY on the context provided.
+         2. Conversion: If a visitor shows purchase intent or asks for a quote, capture their name and contact info naturally.
+         3. Automation: If a visitor reports an issue or problem, reassure them that you are creating a support ticket for the team.
+         4. Handoff: If the visitor wants a human or has a complex request, encourage them to use the WhatsApp button or leave their number.
+
+         Source of Truth: Treat the provided business context, knowledge base, and website data as absolute facts.
+         Never invent prices, currencies, phone numbers, emails, or policy details.
+         If exact pricing isn't in context, don't guess. Say pricing depends on requirements and offer to have an agent follow up.
+
+         Tone & Style:
+         - Warm, conversational, professional.
+         - Short paragraphs, max 150 words.
+         - Structure: Direct answer first, then 1-2 supporting details.
+         - Use formatting (max 4 bullets) only if helpful.
+         - Avoid stiff "AI assistant" phrases or placeholders.
+
          ${fallbackWebsiteInstruction}${pricingGuardInstruction}${businessContext}${knowledgeContext}${websiteDataContext}`;
 
     const requestMessages = [
@@ -532,18 +536,15 @@ serve(async (req: Request) => {
 
     const result = await callProviderWithFallbackStream(providers, requestMessages);
 
-    // Perform critical async tasks before closing connection if possible
-    // or use EdgeRuntime.waitUntil for Deno/Supabase if available
+    // Perform critical async tasks (Sentiment, Lead extraction, Ticket creation)
     if (!safeDemo && safeConversationId) {
       const lastMsg = truncatedMessages[truncatedMessages.length - 1];
       if (lastMsg && lastMsg.role === "user") {
         const apiKey = Deno.env.get("LOVABLE_API_KEY");
         if (apiKey) {
-          // Fire and forget sentiment analysis - but in Deno we should ideally wait
-          // or use a separate worker/queue for production reliability.
-          // For now we attempt it without blocking the main response.
           (async () => {
             try {
+              // Analyze message for Sentiment, Leads, and Issues in one pass
               const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
                 method: "POST",
                 headers: {
@@ -553,21 +554,68 @@ serve(async (req: Request) => {
                 body: JSON.stringify({
                   model: "google/gemini-2.0-flash",
                   messages: [
-                    { role: "system", content: "Classify the sentiment of the following user message as 'positive', 'neutral', or 'negative'. Reply with ONLY the one-word label." },
+                    {
+                      role: "system",
+                      content: `Extract information from the user message.
+                      Reply with a JSON object containing:
+                      - sentiment: "positive" | "neutral" | "negative"
+                      - leads: object with optional name, email, phone
+                      - is_issue: boolean (true if user reports a problem/bug/complaint)
+                      Only include fields that are found. No explanation.`
+                    },
                     { role: "user", content: lastMsg.content }
                   ],
                   temperature: 0,
+                  response_format: { type: "json_object" }
                 }),
               });
+
               if (r.ok) {
-                const d = await r.json();
-                const sentiment = d.choices[0].message.content.toLowerCase().trim();
-                if (['positive', 'neutral', 'negative'].includes(sentiment)) {
-                  await supabase.from("conversations").update({ sentiment }).eq("id", safeConversationId);
+                const data = await r.json();
+                const analysis = JSON.parse(data.choices[0].message.content);
+
+                // 1. Update Sentiment
+                if (analysis.sentiment) {
+                  await supabase.from("conversations").update({ sentiment: analysis.sentiment }).eq("id", safeConversationId);
+                }
+
+                // 2. Fluid Lead Capture
+                if (analysis.leads && (analysis.leads.name || analysis.leads.email || analysis.leads.phone)) {
+                  const { data: profile } = await supabase.from("profiles").select("user_id").eq("user_id", effectiveUserId).single();
+                  if (profile) {
+                    await supabase.from("leads").upsert({
+                      user_id: profile.user_id,
+                      conversation_id: safeConversationId,
+                      name: analysis.leads.name,
+                      email: analysis.leads.email,
+                      phone: analysis.leads.phone,
+                      notes: "Extracted from chat context."
+                    }, { onConflict: 'conversation_id' });
+                  }
+                }
+
+                // 3. Action AI: Auto-create Ticket
+                if (analysis.is_issue) {
+                  const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+                  const internalUrl = Deno.env.get("SUPABASE_URL");
+                  if (adminKey && internalUrl) {
+                    await fetch(`${internalUrl}/functions/v1/auto-create-ticket`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${adminKey}`,
+                        apikey: adminKey,
+                      },
+                      body: JSON.stringify({
+                        conversation_id: safeConversationId,
+                        message: lastMsg.content
+                      }),
+                    });
+                  }
                 }
               }
             } catch (e) {
-              console.error("Sentiment analysis failed:", e);
+              console.error("Async background tasks failed:", e);
             }
           })();
         }
