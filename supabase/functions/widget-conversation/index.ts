@@ -9,6 +9,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+const WEBSITE_DATA_MAX_CHARS = 12000;
+const AUTO_CRAWL_MAX_PAGES = 8;
 
 function extractOriginFromHeaders(req: Request): string | null {
   const ref = req.headers.get("referer");
@@ -37,6 +39,147 @@ async function conversationBelongsToBusiness(
     .maybeSingle();
   if (error) return false;
   return !!data;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gim, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gim, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractMeta(html: string, name: string): string {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = [
+    new RegExp(`<meta[^>]+name=["']${escaped}["'][^>]+content=["']([^"']+)["']`, "i"),
+    new RegExp(`<meta[^>]+property=["']${escaped}["'][^>]+content=["']([^"']+)["']`, "i"),
+  ];
+  for (const pattern of patterns) {
+    const hit = html.match(pattern)?.[1];
+    if (hit) return stripHtml(hit);
+  }
+  return "";
+}
+
+function extractTitle(html: string): string {
+  const hit = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+  return hit ? stripHtml(hit) : "";
+}
+
+async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { "User-Agent": "MobiwaveAI-WidgetCrawler/1.0" },
+    });
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!/text\/html|application\/xml|text\/xml|text\/plain|javascript/i.test(contentType)) return null;
+    return await response.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function pageLabel(url: string): string {
+  try {
+    const path = new URL(url).pathname.replace(/^\/|\/$/g, "") || "home";
+    return path.replace(/[-_/]+/g, " ");
+  } catch {
+    return url;
+  }
+}
+
+async function discoverPages(origin: string): Promise<string[]> {
+  const urls = new Set<string>([`${origin}/`]);
+  const sitemap = await fetchText(`${origin}/sitemap.xml`, 6000);
+  if (sitemap) {
+    const locs = Array.from(sitemap.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi))
+      .map((m) => m[1]?.trim())
+      .filter(Boolean) as string[];
+    for (const loc of locs) {
+      try {
+        const parsed = new URL(loc);
+        if (`${parsed.protocol}//${parsed.host}`.toLowerCase() === origin) {
+          urls.add(parsed.toString());
+        }
+      } catch {
+        // Ignore invalid sitemap entries.
+      }
+      if (urls.size >= AUTO_CRAWL_MAX_PAGES) break;
+    }
+  }
+
+  for (const path of ["/about", "/services", "/departments", "/projects", "/resource-centre", "/contact"]) {
+    if (urls.size >= AUTO_CRAWL_MAX_PAGES) break;
+    urls.add(`${origin}${path}`);
+  }
+  return [...urls].slice(0, AUTO_CRAWL_MAX_PAGES);
+}
+
+async function buildWebsiteData(origin: string): Promise<string> {
+  const pages = await discoverPages(origin);
+  const capturedAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const sections: string[] = [
+    `Website source: ${origin}`,
+    `Captured at: ${capturedAt}`,
+  ];
+
+  for (const page of pages) {
+    const html = await fetchText(page);
+    if (!html) continue;
+
+    const title = extractTitle(html);
+    const description = extractMeta(html, "description");
+    const ogDescription = extractMeta(html, "og:description");
+    const visible = stripHtml(html).slice(0, 1800);
+    const facts = [
+      `=== PAGE: ${page} ===`,
+      `Section: ${pageLabel(page)}`,
+      title ? `Title: ${title}` : "",
+      description ? `Description: ${description}` : "",
+      ogDescription && ogDescription !== description ? `OG Description: ${ogDescription}` : "",
+      visible ? `Visible content: ${visible}` : "",
+    ].filter(Boolean);
+    sections.push(facts.join("\n"));
+    if (sections.join("\n\n").length >= WEBSITE_DATA_MAX_CHARS) break;
+  }
+
+  return sections.join("\n\n").slice(0, WEBSITE_DATA_MAX_CHARS);
+}
+
+async function ensureWebsiteData(
+  supabase: ReturnType<typeof createClient>,
+  businessId: string,
+  origin: string,
+): Promise<void> {
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("website_data")
+    .eq("user_id", businessId)
+    .maybeSingle();
+  if (error || String(profile?.website_data || "").trim().length > 200) return;
+
+  const websiteData = await buildWebsiteData(origin);
+  if (websiteData.length <= 200) return;
+
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ website_data: websiteData, updated_at: new Date().toISOString() })
+    .eq("user_id", businessId);
+  if (updateError) console.error("auto website_data update failed:", updateError);
 }
 
 serve(async (req) => {
@@ -103,6 +246,7 @@ serve(async (req) => {
           .from("widget_domains")
           .update({ last_seen_at: new Date().toISOString() })
           .eq("id", existingDomain.id);
+        await ensureWebsiteData(supabase, business_id, embedOrigin);
       } else {
         const { count: activeCount } = await supabase
           .from("widget_domains")

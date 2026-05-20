@@ -53,17 +53,23 @@ async function reactivateUserAccess(
 
   const plan = String(profile?.plan || "free").toLowerCase();
   const now = new Date();
+  const limits = validPlan(plan) ? await fetchBillingPlan(supabaseAdmin, plan) : null;
   const update: Record<string, unknown> = {
-    status: "active",
+    chats_period_started_at: now.toISOString(),
     updated_at: now.toISOString(),
   };
+  if (limits) {
+    update.chats_limit = limits.chats_limit;
+    update.leads_limit = limits.leads_limit;
+    update.widget_sites_limit = limits.widget_sites_limit;
+  }
 
   if (plan !== "free" && validPlan(plan)) {
     update.subscription_started_at = now.toISOString();
-    update.chats_period_started_at = now.toISOString();
     update.billing_expires_at = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
     update.grace_expires_at = new Date(now.getTime() + 33 * 24 * 60 * 60 * 1000).toISOString();
   } else {
+    update.trial_expires_at = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
     update.billing_expires_at = null;
     update.grace_expires_at = null;
   }

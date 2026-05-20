@@ -20,13 +20,21 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 const CHAT_UNAVAILABLE_MESSAGE = "Demo AI is temporarily unavailable. Please contact support or try again later.";
-const DEMO_PRICING_RESPONSE =
-  "Mobiwave AI pricing is in KES only. Free includes 50 chats per month. Starter is KES 1,500 per month. Growth is KES 3,500 per month. Enterprise starts from KES 8,000 per month. You can start free, then upgrade when your chat volume grows.";
+const DEMO_PRICING_FALLBACK =
+  "Mobiwave AI pricing is in KES only. Starter is a free trial with 20 chats per month. Growth is KES 5,000 per month with 2,000 chats per month. Premium is KES 10,000 per month with 10,000 chats per month. Enterprise is custom pricing for large teams and agencies.";
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
 type ModelAttempt = { provider: string; model: string; status: number; body: string };
 type StreamResult = { response: Response; model: string; attempts: ModelAttempt[] } | { response: null; model: null; attempts: ModelAttempt[] };
+type BillingPlanRow = {
+  plan: string;
+  display_name: string;
+  amount_kes: number;
+  currency: string;
+  chats_limit: number;
+  is_public: boolean;
+};
 type QuotaRow = {
   allowed: boolean;
   reason: string;
@@ -77,6 +85,66 @@ function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): Ch
 function isPricingIntent(text: string): boolean {
   const t = text.toLowerCase();
   return /\b(price|pricing|quote|cost|rate|rates|package|packages|sms)\b/.test(t);
+}
+
+function isWebsiteOverviewIntent(text: string): boolean {
+  const t = text.toLowerCase();
+  return (
+    /\b(what|which|list|show|tell)\b/.test(t) &&
+    /\b(services?|access|website|site|portal|resources?|departments?|projects?|tenders?|events?)\b/.test(t)
+  );
+}
+
+function extractWebsiteSections(text: string): string[] {
+  const sections = Array.from(text.matchAll(/^Section:\s*(.+)$/gim))
+    .map((m) => String(m[1] || "").trim())
+    .filter(Boolean)
+    .filter((section) => section !== "home");
+  return Array.from(new Set(sections)).slice(0, 10);
+}
+
+function buildWebsiteOverviewResponse(
+  businessName: string,
+  websiteOrigin: string,
+  websiteData: string,
+): string {
+  const name = businessName || "This business";
+  const origin = websiteOrigin || "the website";
+  const sections = extractWebsiteSections(websiteData);
+  const lower = websiteData.toLowerCase();
+  const capabilityMap: Array<{ key: string; labels: string[] }> = [
+    { key: "bulk sms", labels: ["bulk SMS"] },
+    { key: "bulk email", labels: ["bulk email"] },
+    { key: "whatsapp", labels: ["WhatsApp messaging"] },
+    { key: "ussd", labels: ["USSD"] },
+    { key: "m-pesa", labels: ["M-Pesa integration"] },
+    { key: "departments", labels: ["departments"] },
+    { key: "projects", labels: ["projects"] },
+    { key: "events", labels: ["events"] },
+    { key: "tenders", labels: ["tenders"] },
+    { key: "resource centre", labels: ["resource centre"] },
+    { key: "services", labels: ["services"] },
+  ];
+
+  const capabilities = Array.from(
+    new Set(
+      capabilityMap
+        .filter((entry) => entry.key && lower.includes(entry.key))
+        .flatMap((entry) => entry.labels),
+    ),
+  ).slice(0, 8);
+
+  const detailsLine = sections.length
+    ? `Main website areas include ${sections.join(", ")}.`
+    : capabilities.length
+    ? `Key areas include ${capabilities.join(", ")}.`
+    : "You can browse the main pages for services, updates, and contact details.";
+
+  const capabilitiesLine = capabilities.length
+    ? `You can use it for ${capabilities.join(", ")}. `
+    : "";
+
+  return `${name}'s website at ${origin} is the official website. ${capabilitiesLine}${detailsLine} For exact details, open the relevant page directly.`;
 }
 
 function extractSmsPricingFacts(text: string): string[] {
@@ -212,6 +280,42 @@ function sanitizeSseLine(line: string): string {
   } catch {
     return line;
   }
+}
+
+async function getDemoPricingResponse(supabase: { from: (table: string) => any }): Promise<string> {
+  const { data, error } = await supabase
+    .from("billing_plans")
+    .select("plan, display_name, amount_kes, currency, chats_limit, is_public")
+    .eq("is_public", true);
+
+  if (error || !Array.isArray(data) || data.length === 0) {
+    if (error) console.error("Failed to fetch demo pricing:", error);
+    return DEMO_PRICING_FALLBACK;
+  }
+
+  const order = new Map([
+    ["free", 0],
+    ["growth", 1],
+    ["premium", 2],
+    ["enterprise", 3],
+  ]);
+
+  const plans = (data as BillingPlanRow[])
+    .sort((a, b) => (order.get(a.plan) ?? 99) - (order.get(b.plan) ?? 99))
+    .map((plan) => {
+      const name = plan.display_name || plan.plan;
+      const chats = Number(plan.chats_limit || 0).toLocaleString();
+      if (plan.plan === "free") {
+        return `${name} is a free trial with ${chats} chats per month`;
+      }
+      if (plan.plan === "enterprise" && Number(plan.amount_kes || 0) === 0) {
+        return `${name} is custom pricing with ${chats} chats per month`;
+      }
+      const amount = Number(plan.amount_kes || 0).toLocaleString();
+      return `${name} is ${plan.currency || "KES"} ${amount} per month with ${chats} chats per month`;
+    });
+
+  return `Mobiwave AI pricing is in KES only. ${plans.join(". ")}.`;
 }
 
 async function callGeminiFallback(messages: Array<{ role: string; content: string }>): Promise<{ ok: boolean; text?: string; status: number; body?: string }> {
@@ -446,6 +550,9 @@ serve(async (req: Request) => {
     let knowledgeContext = "";
     let businessContext = "";
     let websiteDataContext = "";
+    let websiteDataText = "";
+    let businessName = "";
+    let websiteOrigin = "";
 
     if (effectiveUserId && !safeDemo) {
       try {
@@ -467,14 +574,17 @@ serve(async (req: Request) => {
         ]);
 
         const lines: string[] = [];
-        if (profile?.business_name) lines.push(`Business name: ${profile.business_name}`);
-        if (domain?.origin) lines.push(`Website: ${domain.origin}`);
+        businessName = sanitize(profile?.business_name ?? "", 200);
+        websiteOrigin = sanitize(domain?.origin ?? "", 500);
+        if (businessName) lines.push(`Business name: ${businessName}`);
+        if (websiteOrigin) lines.push(`Website: ${websiteOrigin}`);
         if (profile?.welcome_message) lines.push(`Welcome message: ${profile.welcome_message}`);
         if (lines.length) {
           businessContext = `\n\nBusiness profile:\n${lines.map((l) => `- ${l}`).join("\n")}`;
         }
         const websiteData = sanitize(profile?.website_data ?? "", 8000);
         if (websiteData) {
+          websiteDataText = websiteData;
           websiteDataContext = `\n\nWebsite data (fallback when knowledge base is empty):\n${websiteData}`;
         }
       } catch (e) {
@@ -534,7 +644,10 @@ serve(async (req: Request) => {
 
     const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
     if (safeDemo && isPricingIntent(lastUserMessage)) {
-      return toSseResponse(DEMO_PRICING_RESPONSE);
+      return toSseResponse(await getDemoPricingResponse(supabase));
+    }
+    if (!safeDemo && websiteDataText && isWebsiteOverviewIntent(lastUserMessage)) {
+      return toSseResponse(buildWebsiteOverviewResponse(businessName, websiteOrigin, websiteDataText));
     }
 
     const pricingFacts = websiteDataContext ? extractSmsPricingFacts(websiteDataContext) : [];
