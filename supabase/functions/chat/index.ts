@@ -20,6 +20,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 const CHAT_UNAVAILABLE_MESSAGE = "Demo AI is temporarily unavailable. Please contact support or try again later.";
+const DEMO_PRICING_RESPONSE =
+  "Mobiwave AI pricing is in KES only. Free includes 50 chats per month. Starter is KES 1,500 per month. Growth is KES 3,500 per month. Enterprise starts from KES 8,000 per month. You can start free, then upgrade when your chat volume grows.";
 
 type ChatRole = "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
@@ -138,8 +140,9 @@ function getProviderConfigs(): Array<{ name: string; url: string; token: string 
 }
 
 function toSseResponse(content: string): Response {
+  const safeContent = sanitizeAssistantContent(content);
   const payload =
-    `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n` +
+    `data: ${JSON.stringify({ choices: [{ delta: { content: safeContent } }] })}\n\n` +
     "data: [DONE]\n\n";
   return new Response(payload, {
     headers: {
@@ -149,6 +152,66 @@ function toSseResponse(content: string): Response {
       Connection: "keep-alive",
     },
   });
+}
+
+function sanitizeAssistantContent(content: string, trimContent = true): string {
+  const cleaned = content
+    .replace(/\*\*/g, "")
+    .replace(/__/g, "")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "")
+    .replace(/\b(?:USD|US dollars?|dollars?)\b/gi, "KES")
+    .replace(/\$\s*(\d[\d,.]*)/g, "KES $1")
+    .replace(/\n{3,}/g, "\n\n");
+  return trimContent ? cleaned.trim() : cleaned;
+}
+
+function sanitizeSseResponse(response: Response): Response {
+  if (!response.body) return response;
+
+  let buffer = "";
+  const stream = response.body
+    .pipeThrough(new TextDecoderStream())
+    .pipeThrough(new TransformStream<string, string>({
+      transform(chunk, controller) {
+        buffer += chunk;
+        let lineEnd: number;
+        while ((lineEnd = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, lineEnd + 1);
+          buffer = buffer.slice(lineEnd + 1);
+          controller.enqueue(sanitizeSseLine(line));
+        }
+      },
+      flush(controller) {
+        if (buffer) controller.enqueue(sanitizeSseLine(buffer));
+      },
+    }))
+    .pipeThrough(new TextEncoderStream());
+
+  return new Response(stream, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+  });
+}
+
+function sanitizeSseLine(line: string): string {
+  if (!line.startsWith("data: ")) return line;
+  const payload = line.slice(6).trim();
+  if (!payload || payload === "[DONE]") return line;
+
+  try {
+    const parsed = JSON.parse(payload);
+    const choice = parsed?.choices?.[0];
+    if (typeof choice?.delta?.content === "string") {
+      choice.delta.content = sanitizeAssistantContent(choice.delta.content, false);
+    }
+    if (typeof choice?.message?.content === "string") {
+      choice.message.content = sanitizeAssistantContent(choice.message.content);
+    }
+    const ending = line.endsWith("\n") ? "\n" : "";
+    return `data: ${JSON.stringify(parsed)}${ending}`;
+  } catch {
+    return line;
+  }
 }
 
 async function callGeminiFallback(messages: Array<{ role: string; content: string }>): Promise<{ ok: boolean; text?: string; status: number; body?: string }> {
@@ -470,6 +533,10 @@ serve(async (req: Request) => {
     }
 
     const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
+    if (safeDemo && isPricingIntent(lastUserMessage)) {
+      return toSseResponse(DEMO_PRICING_RESPONSE);
+    }
+
     const pricingFacts = websiteDataContext ? extractSmsPricingFacts(websiteDataContext) : [];
     const pricingGuardInstruction = isPricingIntent(lastUserMessage) && pricingFacts.length
       ? `\n\nPricing facts from this business context (use exactly these values, no conversions):\n${pricingFacts.map((f) => `- ${f}`).join("\n")}\nDo not output cents-based pricing unless cents are explicitly present in these facts.`
@@ -482,9 +549,11 @@ serve(async (req: Request) => {
     const systemPrompt = safeDemo
       ? `You are a friendly demo AI agent for Mobiwave AI, a platform that lets Kenyan businesses add AI chat agents to their websites.
          Answer questions about the product's features: lead capture, email integration, 24/7 AI support, analytics, easy embed.
-         Be helpful, concise, and enthusiastic. Use simple language and short natural sentences. Keep responses under 100 words.
-         If asked about pricing, mention: Free (50 chats/mo), Starter (KES 1,500/mo), Growth (KES 3,500/mo), Enterprise (KES 8,000+/mo).
-         Encourage visitors to sign up for free.`
+         Sound natural and human, not robotic. Use simple language and short sentences. Keep responses under 90 words.
+         Plain text only. Do not use markdown, asterisks, bold text, headings, numbered lists, or long bullet lists.
+         Pricing is handled by the server. Never invent prices, currencies, limits, discounts, phone numbers, emails, or links.
+         Never mention USD, dollars, $, cents, or converted prices. Mobiwave AI prices are in KES only.
+         Encourage visitors to sign up for free when it fits naturally.`
       : `You are a helpful AI assistant for a business website. Sound natural and human, not robotic.
          Write in a warm, conversational tone with clear short paragraphs.
          Answer questions accurately and concisely based ONLY on the context provided.
@@ -508,6 +577,7 @@ serve(async (req: Request) => {
       ...truncatedMessages,
     ];
 
+    const providers = getProviderConfigs();
     const result = await callProviderWithFallbackStream(providers, requestMessages);
 
     // Background tasks - fire and forget but log errors
@@ -575,9 +645,11 @@ serve(async (req: Request) => {
     }
 
     console.log("chat model selected:", result.model);
-    return new Response(result.response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    return safeDemo
+      ? sanitizeSseResponse(result.response)
+      : new Response(result.response.body, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        });
   } catch (e) {
     console.error("Chat error:", e);
     const message = e instanceof Error && /(LOVABLE_API_KEY|LOVABLE_PROXY_URL)/.test(e.message)

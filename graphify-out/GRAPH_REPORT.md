@@ -1,7 +1,7 @@
-# Graph Report - candyai  (2026-05-20)
+# Graph Report - candyai  (2026-05-21)
 
 ## Corpus Check
-- 137 files · ~116,976 words
+- 137 files · ~116,980 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -44,8 +44,8 @@
   src/hooks/use-toast.ts → src/pages/Auth.tsx
 - `toast()` --calls--> `handleSave()`  [INFERRED]
   src/hooks/use-toast.ts → src/pages/dashboard/KnowledgeBase.tsx
-- `handleCrawl()` --calls--> `toast()`  [INFERRED]
-  src/pages/dashboard/KnowledgeBase.tsx → src/hooks/use-toast.ts
+- `toast()` --calls--> `handleCrawl()`  [INFERRED]
+  src/hooks/use-toast.ts → src/pages/dashboard/KnowledgeBase.tsx
 
 ## Communities
 

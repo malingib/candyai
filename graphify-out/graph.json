@@ -3981,8 +3981,8 @@
       "source_file": "supabase/functions/chat/index.ts",
       "source_location": "L68",
       "weight": 1.0,
-      "_src": "chat_index_sanitizemessages",
-      "_tgt": "shared_utils_sanitize",
+      "_src": "shared_utils_sanitize",
+      "_tgt": "chat_index_sanitizemessages",
       "source": "shared_utils_sanitize",
       "target": "chat_index_sanitizemessages"
     },
@@ -5493,8 +5493,8 @@
       "source_file": "src/pages/dashboard/KnowledgeBase.tsx",
       "source_location": "L90",
       "weight": 1.0,
-      "_src": "dashboard_knowledgebase_handlecrawl",
-      "_tgt": "hooks_use_toast_toast",
+      "_src": "hooks_use_toast_toast",
+      "_tgt": "dashboard_knowledgebase_handlecrawl",
       "source": "hooks_use_toast_toast",
       "target": "dashboard_knowledgebase_handlecrawl"
     },
@@ -5505,8 +5505,8 @@
       "source_file": "src/pages/dashboard/KnowledgeBase.tsx",
       "source_location": "L106",
       "weight": 1.0,
-      "_src": "dashboard_knowledgebase_handlefileupload",
-      "_tgt": "hooks_use_toast_toast",
+      "_src": "hooks_use_toast_toast",
+      "_tgt": "dashboard_knowledgebase_handlefileupload",
       "source": "hooks_use_toast_toast",
       "target": "dashboard_knowledgebase_handlefileupload"
     },
