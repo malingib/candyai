@@ -30,10 +30,26 @@ const isSafeAttachmentUrl = (value: string) => {
   }
 };
 
-const DEFAULT_MODEL_CONFIG: ModelConfig = {
-  model: "google/gemini-3-flash-preview",
-  temperature: 0.7,
-};
+const STORAGE_KEY = "candyai-chat-config";
+
+function loadModelConfig(): ModelConfig {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed.model === "string" && typeof parsed.temperature === "number") {
+        return parsed;
+      }
+    }
+  } catch { /* ignore */ }
+  return { model: "google/gemini-3-flash-preview", temperature: 0.7 };
+}
+
+function saveModelConfig(config: ModelConfig) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  } catch { /* ignore */ }
+}
 
 const AiChat = () => {
   const { user, loading: authLoading } = useAuth();
@@ -43,10 +59,12 @@ const AiChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showControls, setShowControls] = useState(false);
-  const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_MODEL_CONFIG);
+  const [modelConfig, setModelConfig] = useState<ModelConfig>(loadModelConfig);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastSendAtRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => { saveModelConfig(modelConfig); }, [modelConfig]);
 
   useEffect(() => {
     if (!user) return;

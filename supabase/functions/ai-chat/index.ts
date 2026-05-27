@@ -4,6 +4,8 @@ import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
 import { buildKnowledgeContext } from "../_shared/vector-search.ts";
+import { TOOL_DEFINITIONS, executeToolCall, type ToolContext } from "../_shared/tools.ts";
+import { getPlanLimits, type PlanLimits } from "../_shared/rate-limit-plan.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,7 +46,6 @@ function getProviderConfig(): { url: string; token: string | null } | null {
       token: String(Deno.env.get("LOVABLE_PROXY_TOKEN") ?? "").trim() || null,
     };
   }
-
   const apiKey = String(Deno.env.get("LOVABLE_API_KEY") ?? "").trim();
   if (!apiKey) return null;
   return {
@@ -58,6 +59,7 @@ async function callGatewayWithFallback(
   providerToken: string | null,
   messages: Array<{ role: string; content: string }>,
   temperature?: number,
+  tools?: unknown[],
 ) {
   const models = getPreferredModels();
   const attempts: ModelAttempt[] = [];
@@ -69,14 +71,19 @@ async function callGatewayWithFallback(
     };
     if (providerToken) headers.Authorization = `Bearer ${providerToken}`;
 
+    const body: Record<string, unknown> = { model, messages, temperature: temp, stream: true };
+    if (tools && tools.length > 0) {
+      body.tools = tools;
+    }
+
     const resp = await fetch(providerUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, messages, temperature: temp, stream: true }),
+      body: JSON.stringify(body),
     });
     if (resp.ok) return { response: resp, model, attempts };
-    const body = await resp.text().catch(() => "");
-    attempts.push({ model, status: resp.status, body: body.slice(0, 600) });
+    const bodyText = await resp.text().catch(() => "");
+    attempts.push({ model, status: resp.status, body: bodyText.slice(0, 600) });
   }
   return { response: null, model: null, attempts };
 }
@@ -139,24 +146,29 @@ serve(async (req) => {
 
     const lastUserMsg = [...safeMessages].reverse().find((m) => m.role === "user");
     const knowledgeContext = lastUserMsg?.content
-      ? await buildKnowledgeContext(lastUserMsg.content, safeUserId)
+      ? await buildKnowledgeContext(lastUserMsg.content, safeUserId, { rerank: true })
       : "";
 
     const systemContent = `You are Mobiwave AI, a powerful and helpful AI assistant. You can help with coding, writing, analysis, math, brainstorming, and more.
 Format your responses using markdown for readability. Use code blocks with language tags for code. Be concise but thorough.
-${knowledgeContext ? `\n\nUse the following business information to answer the user's question when relevant:\n${knowledgeContext}` : ""}`;
+${knowledgeContext ? `\n\nUse the following business information to answer the user's question when relevant:\n${knowledgeContext}` : ""}
+
+You have access to tools for fetching real-time data. Use them when the user asks about analytics, tickets, contacts, or billing.`;
 
     const provider = getProviderConfig();
     if (!provider?.url) throw new Error("No AI provider configured: set LOVABLE_PROXY_URL or LOVABLE_API_KEY");
 
+    const requestMessages: Array<{ role: string; content: string }> = [
+      { role: "system", content: systemContent },
+      ...safeMessages,
+    ];
+
     const { response, model, attempts } = await callGatewayWithFallback(
       provider.url,
       provider.token,
-      [
-        { role: "system", content: systemContent },
-        ...safeMessages,
-      ],
+      requestMessages,
       temperature,
+      TOOL_DEFINITIONS,
     );
 
     if (!response || !response.ok) {
