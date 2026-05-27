@@ -1,12 +1,12 @@
-# Graph Report - candyai  (2026-05-21)
+# Graph Report - candyai  (2026-05-27)
 
 ## Corpus Check
-- 137 files · ~118,372 words
+- 140 files · ~119,534 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 367 nodes · 385 edges · 13 communities detected
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 25 edges (avg confidence: 0.8)
+- 377 nodes · 400 edges · 14 communities detected
+- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 26 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -22,7 +22,8 @@
 - [[_COMMUNITY_Community 9|Community 9]]
 - [[_COMMUNITY_Community 10|Community 10]]
 - [[_COMMUNITY_Community 11|Community 11]]
-- [[_COMMUNITY_Community 21|Community 21]]
+- [[_COMMUNITY_Community 12|Community 12]]
+- [[_COMMUNITY_Community 22|Community 22]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `toast()` - 19 edges
@@ -33,8 +34,8 @@
 6. `subscribeRealtime()` - 5 edges
 7. `toggle()` - 5 edges
 8. `ErrorBoundary` - 5 edges
-9. `reactivateUserAccess()` - 4 edges
-10. `stripHtml()` - 4 edges
+9. `buildKnowledgeContext()` - 4 edges
+10. `reactivateUserAccess()` - 4 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `toast()` --calls--> `handleDelete()`  [INFERRED]
@@ -59,16 +60,16 @@ Cohesion: 0.07
 Nodes (24): openCreate(), remove(), reset(), save(), handleConvertToTicket(), handleReplyChange(), handleSendReply(), sendTyping() (+16 more)
 
 ### Community 2 - "Community 2"
+Cohesion: 0.1
+Nodes (10): buildTenderAvailabilityResponse(), buildWebsiteOverviewResponse(), callGatewayStream(), callProviderWithFallbackStream(), extractTenderLines(), extractWebsiteSections(), getPreferredModels(), sanitizeAssistantContent() (+2 more)
+
+### Community 3 - "Community 3"
 Cohesion: 0.17
 Nodes (19): closeLeadForm(), ensureConversation(), escapeHtml(), init(), launcherMarkup(), persistMessage(), postWidget(), render() (+11 more)
 
-### Community 3 - "Community 3"
-Cohesion: 0.11
-Nodes (10): buildTenderAvailabilityResponse(), buildWebsiteOverviewResponse(), callGatewayStream(), callProviderWithFallbackStream(), extractTenderLines(), extractWebsiteSections(), getPreferredModels(), sanitizeAssistantContent() (+2 more)
-
 ### Community 4 - "Community 4"
-Cohesion: 0.13
-Nodes (10): ensureAdmin(), fetchBillingPlan(), processUser(), reactivateUserAccess(), validPlan(), sanitizeMessages(), errorResponse(), isUuid() (+2 more)
+Cohesion: 0.14
+Nodes (12): ensureAdmin(), fetchBillingPlan(), processUser(), reactivateUserAccess(), validPlan(), sanitizeMessages(), getOverlap(), smartChunk() (+4 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.17
@@ -87,41 +88,45 @@ Cohesion: 0.22
 Nodes (2): runAction(), runBulkAction()
 
 ### Community 9 - "Community 9"
+Cohesion: 0.39
+Nodes (5): getEmbedding(), buildKnowledgeContext(), formatSearchContext(), searchKnowledgeBase(), searchKnowledgeBaseFallback()
+
+### Community 10 - "Community 10"
 Cohesion: 0.48
 Nodes (5): handleCreate(), handleDelete(), handleUpdate(), notifyEmail(), resetForm()
 
-### Community 10 - "Community 10"
+### Community 11 - "Community 11"
 Cohesion: 0.43
 Nodes (5): computeSla(), formatDuration(), minutesBetween(), iconFor(), SlaBadge()
 
-### Community 11 - "Community 11"
+### Community 12 - "Community 12"
 Cohesion: 0.33
 Nodes (1): ErrorBoundary
 
-### Community 21 - "Community 21"
+### Community 22 - "Community 22"
 Cohesion: 1.0
 Nodes (2): formatCycleResetDate(), getCycleResetAt()
 
 ## Knowledge Gaps
 - **Thin community `Community 8`** (10 nodes): `accountStatus()`, `callAdminControl()`, `clearSelection()`, `csvEscape()`, `exportCsv()`, `runAction()`, `runBulkAction()`, `selectVisibleUsers()`, `toggleUserSelection()`, `Admin.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 11`** (6 nodes): `ErrorBoundary`, `.componentDidCatch()`, `.constructor()`, `.getDerivedStateFromError()`, `.render()`, `ErrorBoundary.tsx`
+- **Thin community `Community 12`** (6 nodes): `ErrorBoundary`, `.componentDidCatch()`, `.constructor()`, `.getDerivedStateFromError()`, `.render()`, `ErrorBoundary.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 21`** (3 nodes): `formatCycleResetDate()`, `getCycleResetAt()`, `billing-cycle.ts`
+- **Thin community `Community 22`** (3 nodes): `formatCycleResetDate()`, `getCycleResetAt()`, `billing-cycle.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `toast()` connect `Community 1` to `Community 9`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
+- **Why does `toast()` connect `Community 1` to `Community 10`?**
+  _High betweenness centrality (0.012) - this node is a cross-community bridge._
 - **Are the 16 inferred relationships involving `toast()` (e.g. with `handleAuth()` and `handleSave()`) actually correct?**
   _`toast()` has 16 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._
-- **Should `Community 3` be split into smaller, more focused modules?**
-  _Cohesion score 0.11 - nodes in this community are weakly interconnected._
+- **Should `Community 2` be split into smaller, more focused modules?**
+  _Cohesion score 0.1 - nodes in this community are weakly interconnected._
 - **Should `Community 4` be split into smaller, more focused modules?**
-  _Cohesion score 0.13 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.14 - nodes in this community are weakly interconnected._
