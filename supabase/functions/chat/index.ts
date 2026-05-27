@@ -89,6 +89,11 @@ function isPricingIntent(text: string): boolean {
 
 function isWebsiteOverviewIntent(text: string): boolean {
   const t = text.toLowerCase();
+  const tenderSpecificIntent =
+    /\b(open|available|current|active|latest|list)\b/.test(t) &&
+    /\b(tender|tenders|opportunit(?:y|ies)|procurement|bid|bids)\b/.test(t);
+  if (tenderSpecificIntent) return false;
+
   return (
     /\b(what|which|list|show|tell)\b/.test(t) &&
     /\b(services?|access|website|site|portal|resources?|departments?|projects?|tenders?|events?)\b/.test(t)
@@ -177,6 +182,37 @@ function extractSmsPricingFacts(text: string): string[] {
     if (facts.length >= 6) break;
   }
   return Array.from(new Set(facts));
+}
+
+function isTenderAvailabilityIntent(text: string): boolean {
+  const t = text.toLowerCase();
+  return (
+    /\b(tender|tenders|procurement|bid|bids|opportunit(?:y|ies))\b/.test(t) &&
+    /\b(open|available|current|active|latest|list|show|tell|which|what)\b/.test(t)
+  );
+}
+
+function extractTenderLines(text: string): string[] {
+  return Array.from(
+    new Set(
+      text
+        .split(/\r?\n/)
+        .map((line) => sanitize(line, 300))
+        .filter(Boolean)
+        .filter((line) => /\b(tender|procurement|bid)\b/i.test(line)),
+    ),
+  ).slice(0, 8);
+}
+
+function buildTenderAvailabilityResponse(websiteData: string, websiteOrigin: string): string {
+  const origin = websiteOrigin || "the website";
+  const tenderLines = extractTenderLines(websiteData);
+
+  if (tenderLines.length === 0) {
+    return `I don't have specific open tender listings in my current context. For the latest open tenders, please check the tenders/procurement section on ${origin} or contact the procurement office directly.`;
+  }
+
+  return `Here are tender-related items currently found in the website context:\n- ${tenderLines.join("\n- ")}\n\nFor the latest status, open the tenders/procurement page on ${origin}.`;
 }
 
 function getPreferredModels(): string[] {
@@ -645,6 +681,9 @@ serve(async (req: Request) => {
     const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
     if (safeDemo && isPricingIntent(lastUserMessage)) {
       return toSseResponse(await getDemoPricingResponse(supabase));
+    }
+    if (!safeDemo && websiteDataText && isTenderAvailabilityIntent(lastUserMessage)) {
+      return toSseResponse(buildTenderAvailabilityResponse(websiteDataText, websiteOrigin));
     }
     if (!safeDemo && websiteDataText && isWebsiteOverviewIntent(lastUserMessage)) {
       return toSseResponse(buildWebsiteOverviewResponse(businessName, websiteOrigin, websiteDataText));

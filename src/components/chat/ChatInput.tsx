@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Paperclip, X, Image, FileText } from "lucide-react";
+import { Send, Paperclip, X, Image, FileText, Square } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -9,6 +9,7 @@ interface ChatInputProps {
   onSend: (message: string, attachments: string[]) => void;
   isLoading: boolean;
   userId: string;
+  onStop?: () => void;
 }
 
 const MAX_FILES = 10;
@@ -28,7 +29,7 @@ const isAllowedMime = (mime: string) =>
 const sanitizeFileSegment = (value: string) =>
   value.toLowerCase().replace(/[^a-z0-9._-]/g, "-").slice(0, 80);
 
-const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
+const ChatInput = ({ onSend, isLoading, userId, onStop }: ChatInputProps) => {
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -97,7 +98,6 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
     setFiles([]);
   };
 
-  // Cleanup blob URLs on unmount
   useEffect(() => {
     return () => {
       blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -113,7 +113,6 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
       onDrop={handleDrop}
     >
       <div className="max-w-3xl mx-auto space-y-2">
-        {/* File previews */}
         {files.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {files.map((f, i) => {
@@ -140,7 +139,6 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
           </div>
         )}
 
-        {/* Input row */}
         <div className="flex gap-2">
           <input
             ref={fileInputRef}
@@ -162,19 +160,30 @@ const ChatInput = ({ onSend, isLoading, userId }: ChatInputProps) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder={isDragOver ? "Drop files here…" : "Type your message…"}
+            placeholder={isDragOver ? "Drop files here\u2026" : "Type your message\u2026"}
             disabled={isLoading || uploading}
             className="flex-1"
             maxLength={MAX_MESSAGE_LENGTH}
           />
-          <Button
-            onClick={handleSend}
-            disabled={isLoading || uploading || (!input.trim() && files.length === 0)}
-            size="icon"
-            className="bg-accent text-accent-foreground hover:bg-accent/90"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+          {isLoading || uploading ? (
+            <Button
+              onClick={onStop}
+              size="icon"
+              variant="destructive"
+              className="shrink-0"
+            >
+              <Square className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSend}
+              disabled={!input.trim() && files.length === 0}
+              size="icon"
+              className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {isDragOver && (

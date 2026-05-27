@@ -3,6 +3,7 @@ import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
+import { buildKnowledgeContext } from "../_shared/vector-search.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,9 +53,16 @@ function getProviderConfig(): { url: string; token: string | null } | null {
   };
 }
 
-async function callGatewayWithFallback(providerUrl: string, providerToken: string | null, messages: Array<{ role: string; content: string }>) {
+async function callGatewayWithFallback(
+  providerUrl: string,
+  providerToken: string | null,
+  messages: Array<{ role: string; content: string }>,
+  temperature?: number,
+) {
   const models = getPreferredModels();
   const attempts: ModelAttempt[] = [];
+  const temp = temperature ?? 0.7;
+
   for (const model of models) {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -64,7 +72,7 @@ async function callGatewayWithFallback(providerUrl: string, providerToken: strin
     const resp = await fetch(providerUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model, messages, stream: true }),
+      body: JSON.stringify({ model, messages, temperature: temp, stream: true }),
     });
     if (resp.ok) return { response: resp, model, attempts };
     const body = await resp.text().catch(() => "");
@@ -95,14 +103,15 @@ serve(async (req) => {
   }
 
   try {
-    const { messages } = await req.json();
+    const { messages, user_id, temperature } = await req.json();
     const safeMessages = sanitizeMessages(messages);
     if (!safeMessages) {
       return new Response(
         JSON.stringify({ error: "Invalid messages payload" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
     const authHeader = req.headers.get("Authorization")!;
     const token = authHeader.replace("Bearer ", "");
     const auth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!);
@@ -114,6 +123,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data: profile } = await supabase.from("profiles").select("plan").eq("user_id", userId).single();
     const plan = String(profile?.plan || "free");
@@ -125,36 +135,48 @@ serve(async (req) => {
       });
     }
 
+    const safeUserId = typeof user_id === "string" && user_id.length > 0 ? user_id : userId;
+
+    const lastUserMsg = [...safeMessages].reverse().find((m) => m.role === "user");
+    const knowledgeContext = lastUserMsg?.content
+      ? await buildKnowledgeContext(lastUserMsg.content, safeUserId)
+      : "";
+
+    const systemContent = `You are Mobiwave AI, a powerful and helpful AI assistant. You can help with coding, writing, analysis, math, brainstorming, and more.
+Format your responses using markdown for readability. Use code blocks with language tags for code. Be concise but thorough.
+${knowledgeContext ? `\n\nUse the following business information to answer the user's question when relevant:\n${knowledgeContext}` : ""}`;
+
     const provider = getProviderConfig();
     if (!provider?.url) throw new Error("No AI provider configured: set LOVABLE_PROXY_URL or LOVABLE_API_KEY");
 
-    const { response, model, attempts } = await callGatewayWithFallback(provider.url, provider.token, [
-      {
-        role: "system",
-        content: `You are Mobiwave AI, a powerful and helpful AI assistant. You can help with coding, writing, analysis, math, brainstorming, and more.
-Format your responses using markdown for readability. Use code blocks with language tags for code. Be concise but thorough.`,
-      },
-      ...safeMessages,
-    ]);
+    const { response, model, attempts } = await callGatewayWithFallback(
+      provider.url,
+      provider.token,
+      [
+        { role: "system", content: systemContent },
+        ...safeMessages,
+      ],
+      temperature,
+    );
 
     if (!response || !response.ok) {
       const last = attempts[attempts.length - 1];
       if (last?.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       if (last?.status === 402) {
         return new Response(
           JSON.stringify({ error: "AI credits exhausted." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       console.error("AI gateway fallback failed:", attempts);
       return new Response(
         JSON.stringify({ error: "AI service unavailable" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -166,7 +188,7 @@ Format your responses using markdown for readability. Use code blocks with langu
     console.error("AI chat error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

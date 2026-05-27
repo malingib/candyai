@@ -1,6 +1,6 @@
 import { forwardRef, useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Loader2, MessageSquare, Plus, Copy, Check } from "lucide-react";
+import { Loader2, MessageSquare, Plus, Copy, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Msg = { role: "user" | "assistant"; content: string; attachments?: string[] };
@@ -10,6 +10,7 @@ interface ChatMessagesProps {
   messages: Msg[];
   isLoading: boolean;
   onCreateChat: () => void;
+  onRegenerate?: () => void;
 }
 
 const CopyButton = ({ text }: { text: string }) => {
@@ -17,7 +18,7 @@ const CopyButton = ({ text }: { text: string }) => {
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-      className="absolute top-2 right-2 p-1.5 rounded-md bg-muted/80 hover:bg-muted text-muted-foreground opacity-0 group-hover/code:opacity-100 transition-opacity"
+      className="p-1.5 rounded-md bg-muted/80 hover:bg-muted text-muted-foreground opacity-0 group-hover/message:opacity-100 transition-opacity"
     >
       {copied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
@@ -61,7 +62,7 @@ const CodeBlock = ({ code, language }: CodeBlockProps) => {
 };
 
 const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
-  ({ activeChatId, messages, isLoading, onCreateChat }, ref) => {
+  ({ activeChatId, messages, isLoading, onCreateChat, onRegenerate }, ref) => {
     if (!activeChatId) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -86,7 +87,7 @@ const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
             </div>
           )}
           {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div key={i} className={`group/message flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                   msg.role === "user"
@@ -109,26 +110,40 @@ const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
                   </div>
                 )}
                 {msg.role === "assistant" ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>p:last-child]:mb-0">
-                    <ReactMarkdown
-                      components={{
-                        code({ className, children, ...props }) {
-                          const match = /language-(\w+)/.exec(className || "");
-                          const codeString = String(children).replace(/\n$/, "");
-                          if (match) {
-                            return <CodeBlock code={codeString} language={match[1]} />;
-                          }
-                          return (
-                            <code className="bg-card/80 text-foreground px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
-                    >
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
+                  <>
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>p:last-child]:mb-0">
+                      <ReactMarkdown
+                        components={{
+                          code({ className, children, ...props }) {
+                            const match = /language-(\w+)/.exec(className || "");
+                            const codeString = String(children).replace(/\n$/, "");
+                            if (match) {
+                              return <CodeBlock code={codeString} language={match[1]} />;
+                            }
+                            return (
+                              <code className="bg-card/80 text-foreground px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+                                {children}
+                              </code>
+                            );
+                          },
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                    {!isLoading && i === messages.length - 1 && onRegenerate && (
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={onRegenerate}
+                          className="h-6 gap-1 text-xs text-muted-foreground opacity-0 group-hover/message:opacity-100 transition-opacity"
+                        >
+                          <RefreshCw className="h-3 w-3" /> Regenerate
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   msg.content
                 )}
@@ -145,7 +160,7 @@ const ChatMessages = forwardRef<HTMLDivElement, ChatMessagesProps>(
         </div>
       </div>
     );
-  }
+  },
 );
 
 ChatMessages.displayName = "ChatMessages";

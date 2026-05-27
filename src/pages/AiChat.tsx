@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ChatMessages from "@/components/chat/ChatMessages";
 import ChatInput from "@/components/chat/ChatInput";
+import ChatControls, { type ModelConfig } from "@/components/chat/ChatControls";
 
 type Msg = { role: "user" | "assistant"; content: string; attachments?: string[] };
 type Chat = { id: string; title: string; created_at: string };
@@ -29,6 +30,11 @@ const isSafeAttachmentUrl = (value: string) => {
   }
 };
 
+const DEFAULT_MODEL_CONFIG: ModelConfig = {
+  model: "google/gemini-3-flash-preview",
+  temperature: 0.7,
+};
+
 const AiChat = () => {
   const { user, loading: authLoading } = useAuth();
   const [chats, setChats] = useState<Chat[]>([]);
@@ -36,8 +42,11 @@ const AiChat = () => {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showControls, setShowControls] = useState(false);
+  const [modelConfig, setModelConfig] = useState<ModelConfig>(DEFAULT_MODEL_CONFIG);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastSendAtRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -97,34 +106,18 @@ const AiChat = () => {
     if (activeChatId === id) { setActiveChatId(null); setMessages([]); }
   };
 
-  const sendMessage = useCallback(async (text: string, attachments: string[]) => {
-    const now = Date.now();
-    if (now - lastSendAtRef.current < MIN_SEND_INTERVAL_MS) return;
-    const cleanText = sanitizeText(text);
-    const cleanAttachments = attachments.filter(isSafeAttachmentUrl).slice(0, MAX_ATTACHMENTS);
-    if ((!cleanText && cleanAttachments.length === 0) || isLoading || !activeChatId || !user) return;
-    lastSendAtRef.current = now;
+  const stopGeneration = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+  }, []);
 
-    const content = cleanAttachments.length > 0
-      ? `${cleanText}\n\n${cleanAttachments.map((u) => `![attachment](${u})`).join("\n")}`.trim()
-      : cleanText;
-
-    const userMsg: Msg = { role: "user", content, attachments: cleanAttachments };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setIsLoading(true);
-
-    await supabase.from("ai_chat_messages").insert({
-      chat_id: activeChatId,
-      role: "user",
-      content,
-    });
-
-    if (messages.length === 0) {
-      const title = cleanText.slice(0, 50) + (cleanText.length > 50 ? "…" : "") || "File upload";
-      await supabase.from("ai_chats").update({ title }).eq("id", activeChatId);
-      setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, title } : c)));
-    }
+  const streamResponse = useCallback(async (
+    payloadMessages: Msg[],
+    chatId: string,
+  ) => {
+    const abortController = new AbortController();
+    abortRef.current = abortController;
 
     let assistantContent = "";
     try {
@@ -134,11 +127,17 @@ const AiChat = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: newMessages.map((m) => ({ role: m.role, content: m.content })) }),
+        body: JSON.stringify({
+          messages: payloadMessages.map((m) => ({ role: m.role, content: m.content })),
+          user_id: user?.id,
+          model: modelConfig.model,
+          temperature: modelConfig.temperature,
+        }),
+        signal: abortController.signal,
       });
 
-      if (resp.status === 429) { toast.error("Rate limit exceeded. Try again later."); setIsLoading(false); return; }
-      if (resp.status === 402) { toast.error("AI credits exhausted."); setIsLoading(false); return; }
+      if (resp.status === 429) { toast.error("Rate limit exceeded. Try again later."); return; }
+      if (resp.status === 402) { toast.error("AI credits exhausted."); return; }
       if (!resp.ok || !resp.body) throw new Error("Stream failed");
 
       const reader = resp.body.getReader();
@@ -163,7 +162,12 @@ const AiChat = () => {
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               assistantContent += delta;
-              setMessages([...newMessages, { role: "assistant", content: assistantContent }]);
+              setMessages((prev) => {
+                const withoutLast = prev[prev.length - 1]?.role === "assistant"
+                  ? prev.slice(0, -1)
+                  : prev;
+                return [...withoutLast, { role: "assistant", content: assistantContent }];
+              });
             }
           } catch { /* partial */ }
         }
@@ -171,25 +175,80 @@ const AiChat = () => {
 
       if (assistantContent) {
         await supabase.from("ai_chat_messages").insert({
-          chat_id: activeChatId,
+          chat_id: chatId,
           role: "assistant",
           content: assistantContent,
         });
       }
-    } catch (e) {
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") {
+        if (assistantContent) {
+          await supabase.from("ai_chat_messages").insert({
+            chat_id: chatId,
+            role: "assistant",
+            content: assistantContent,
+          }).catch(() => {});
+        }
+        return;
+      }
       console.error(e);
       toast.error("Failed to get response");
     } finally {
+      abortRef.current = null;
       setIsLoading(false);
     }
-  }, [isLoading, activeChatId, user, messages]);
+  }, [user, modelConfig]);
+
+  const sendMessage = useCallback(async (text: string, attachments: string[]) => {
+    const now = Date.now();
+    if (now - lastSendAtRef.current < MIN_SEND_INTERVAL_MS) return;
+    const cleanText = sanitizeText(text);
+    const cleanAttachments = attachments.filter(isSafeAttachmentUrl).slice(0, MAX_ATTACHMENTS);
+    if ((!cleanText && cleanAttachments.length === 0) || isLoading || !activeChatId || !user) return;
+    lastSendAtRef.current = now;
+
+    const content = cleanAttachments.length > 0
+      ? `${cleanText}\n\n${cleanAttachments.map((u) => `![attachment](${u})`).join("\n")}`.trim()
+      : cleanText;
+
+    const userMsg: Msg = { role: "user", content, attachments: cleanAttachments };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setIsLoading(true);
+
+    await supabase.from("ai_chat_messages").insert({
+      chat_id: activeChatId,
+      role: "user",
+      content,
+    });
+
+    if (messages.length === 0) {
+      const title = cleanText.slice(0, 50) + (cleanText.length > 50 ? "\u2026" : "") || "File upload";
+      await supabase.from("ai_chats").update({ title }).eq("id", activeChatId);
+      setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, title } : c)));
+    }
+
+    await streamResponse(newMessages, activeChatId);
+  }, [isLoading, activeChatId, user, messages, streamResponse]);
+
+  const regenerate = useCallback(async () => {
+    if (isLoading || !activeChatId || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    const lastIsAssistant = lastMsg?.role === "assistant";
+    const payloadMessages = lastIsAssistant ? messages.slice(0, -1) : messages;
+
+    setIsLoading(true);
+    if (lastIsAssistant) {
+      setMessages(payloadMessages);
+    }
+    await streamResponse(payloadMessages, activeChatId);
+  }, [isLoading, activeChatId, messages, streamResponse]);
 
   if (authLoading) return <div className="flex h-screen items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   if (!user) return <Navigate to="/auth" />;
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
       <div className={`${sidebarOpen ? "w-72" : "w-0"} transition-all duration-200 overflow-hidden border-r bg-muted/30 flex flex-col`}>
         <ChatSidebar
           chats={chats}
@@ -201,7 +260,6 @@ const AiChat = () => {
         />
       </div>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="h-14 border-b flex items-center px-4 gap-3">
           {!sidebarOpen && (
@@ -209,10 +267,17 @@ const AiChat = () => {
               <Menu className="h-4 w-4" />
             </Button>
           )}
-          <h2 className="text-sm font-medium text-foreground truncate">
+          <h2 className="text-sm font-medium text-foreground truncate flex-1">
             {activeChatId ? chats.find((c) => c.id === activeChatId)?.title : "Select or create a chat"}
           </h2>
         </div>
+
+        <ChatControls
+          config={modelConfig}
+          onChange={setModelConfig}
+          open={showControls}
+          onToggle={() => setShowControls((v) => !v)}
+        />
 
         {!activeChatId ? (
           <ChatMessages activeChatId={null} messages={[]} isLoading={false} onCreateChat={createChat} />
@@ -224,8 +289,9 @@ const AiChat = () => {
               messages={messages}
               isLoading={isLoading}
               onCreateChat={createChat}
+              onRegenerate={regenerate}
             />
-            <ChatInput onSend={sendMessage} isLoading={isLoading} userId={user.id} />
+            <ChatInput onSend={sendMessage} isLoading={isLoading} userId={user.id} onStop={stopGeneration} />
           </>
         )}
       </div>

@@ -1,12 +1,12 @@
 # Graph Report - candyai  (2026-05-21)
 
 ## Corpus Check
-- 137 files · ~118,149 words
+- 137 files · ~118,372 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 364 nodes · 381 edges · 13 communities detected
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 25 edges (avg confidence: 0.8)
+- 367 nodes · 385 edges · 13 communities detected
+- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 25 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -64,7 +64,7 @@ Nodes (19): closeLeadForm(), ensureConversation(), escapeHtml(), init(), launche
 
 ### Community 3 - "Community 3"
 Cohesion: 0.11
-Nodes (8): buildWebsiteOverviewResponse(), callGatewayStream(), callProviderWithFallbackStream(), extractWebsiteSections(), getPreferredModels(), sanitizeAssistantContent(), sanitizeSseLine(), toSseResponse()
+Nodes (10): buildTenderAvailabilityResponse(), buildWebsiteOverviewResponse(), callGatewayStream(), callProviderWithFallbackStream(), extractTenderLines(), extractWebsiteSections(), getPreferredModels(), sanitizeAssistantContent() (+2 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.13

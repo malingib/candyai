@@ -1,44 +1,77 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse, jsonResponse } from "../_shared/utils.ts";
+import { getEmbeddingsBatch } from "../_shared/embeddings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function getEmbedding(text: string): Promise<number[] | null> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) {
-    console.error("LOVABLE_API_KEY not found");
-    return null;
-  }
+const MIN_CHUNK_SIZE = 200;
+const MAX_CHUNK_SIZE = 1500;
+const OVERLAP_SIZE = 100;
 
-  try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "text-embedding-3-small",
-        input: text,
-      }),
-    });
+function smartChunk(text: string): string[] {
+  const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+  const chunks: string[] = [];
+  let buffer = "";
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("Embedding API error:", error);
-      return null;
+  for (const para of paragraphs) {
+    const trimmed = para.trim();
+    if (trimmed.length > MAX_CHUNK_SIZE) {
+      if (buffer.length >= MIN_CHUNK_SIZE) {
+        chunks.push(buffer.trim());
+        buffer = "";
+      }
+      const sentences = trimmed.match(/[^.!?\n]+[.!?]+\s*/g) ?? [trimmed];
+      let subBuffer = "";
+      for (const sent of sentences) {
+        if ((subBuffer + sent).length > MAX_CHUNK_SIZE) {
+          if (subBuffer.length >= MIN_CHUNK_SIZE) {
+            chunks.push(subBuffer.trim());
+            subBuffer = getOverlap(subBuffer, OVERLAP_SIZE);
+          }
+          subBuffer += sent;
+        } else {
+          subBuffer += sent;
+        }
+      }
+      if (subBuffer.length >= MIN_CHUNK_SIZE) {
+        chunks.push(subBuffer.trim());
+      }
+      continue;
     }
 
-    const data = await response.json();
-    return data.data[0].embedding;
-  } catch (e) {
-    console.error("Failed to get embedding:", e);
-    return null;
+    const candidate = buffer ? `${buffer}\n\n${trimmed}` : trimmed;
+    if (candidate.length > MAX_CHUNK_SIZE) {
+      if (buffer.length >= MIN_CHUNK_SIZE) {
+        chunks.push(buffer.trim());
+        buffer = getOverlap(buffer, OVERLAP_SIZE) + "\n\n" + trimmed;
+      } else {
+        buffer = trimmed;
+      }
+    } else {
+      buffer = candidate;
+    }
   }
+
+  if (buffer.trim().length >= MIN_CHUNK_SIZE) {
+    chunks.push(buffer.trim());
+  }
+
+  return chunks;
+}
+
+function getOverlap(text: string, overlapChars: number): string {
+  const words = text.split(/\s+/);
+  const overlap: string[] = [];
+  let charCount = 0;
+  for (let i = words.length - 1; i >= 0 && charCount < overlapChars; i--) {
+    overlap.unshift(words[i]);
+    charCount += words[i].length + 1;
+  }
+  return overlap.join(" ");
 }
 
 serve(async (req) => {
@@ -53,25 +86,35 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Split content into chunks (simple split by paragraph for now, roughly 1000 chars)
-    const chunks = content.split(/\n\s*\n/).filter((c: string) => c.trim().length > 0);
+    const chunks = smartChunk(String(content));
 
-    for (const chunk of chunks) {
-      const embedding = await getEmbedding(chunk);
-      if (embedding) {
-        await supabase.from("kb_embeddings").insert({
-          kb_id,
-          user_id,
-          content: chunk,
-          embedding,
-        });
-      }
+    if (chunks.length === 0) {
+      return jsonResponse({ success: true, chunks_processed: 0 }, 200, corsHeaders);
     }
 
-    return jsonResponse({ success: true }, 200, corsHeaders);
+    const embeddings = await getEmbeddingsBatch(chunks);
+    if (!embeddings || embeddings.length !== chunks.length) {
+      return errorResponse("Embedding generation failed", 500, undefined, corsHeaders);
+    }
+
+    const records = chunks.map((chunk, i) => ({
+      kb_id,
+      user_id,
+      content: chunk,
+      embedding: embeddings[i],
+    }));
+
+    const { error: insertError } = await supabase.from("kb_embeddings").insert(records);
+
+    if (insertError) {
+      console.error("Insert error:", insertError);
+      return errorResponse("Failed to store embeddings", 500, undefined, corsHeaders);
+    }
+
+    return jsonResponse({ success: true, chunks_processed: chunks.length }, 200, corsHeaders);
   } catch (e) {
     console.error("process-document error:", e);
     return errorResponse(e instanceof Error ? e.message : "Unknown error", 500, undefined, corsHeaders);
