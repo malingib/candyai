@@ -4,6 +4,8 @@ import { multiRateLimit, rateLimitedResponse } from "../_shared/rate-limit.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
 import { isUuid, sanitize, jsonResponse, errorResponse } from "../_shared/utils.ts";
 
+
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -423,6 +425,29 @@ serve(async (req) => {
           .update({ visitor_name: cleanName || null, visitor_email: cleanEmail || null })
           .eq("id", conversation_id);
       }
+      return jsonResponse({ ok: true }, 200, corsHeaders);
+    }
+
+    // ---- Record analytics event ----
+    if (action === "analytics") {
+      const { event, conversation_id, page_url, page_title, widget_version } = body;
+      if (!event || typeof event !== "string") {
+        return jsonResponse({ ok: true }, 200, corsHeaders);
+      }
+      const ALLOWED_EVENTS = ["page_viewed", "conversation_started", "widget_opened", "widget_closed", "message_sent"];
+      if (!ALLOWED_EVENTS.includes(event)) {
+        return jsonResponse({ ok: true }, 200, corsHeaders);
+      }
+      supabase.from("widget_analytics").insert({
+        business_id,
+        event,
+        conversation_id: isUuid(conversation_id) ? conversation_id : null,
+        page_url: sanitize(String(page_url || ""), 1000),
+        page_title: sanitize(String(page_title || ""), 500),
+        widget_version: sanitize(String(widget_version || ""), 20),
+      }).then(({ error }) => {
+        if (error) console.error("analytics insert error:", error);
+      }).catch(() => {});
       return jsonResponse({ ok: true }, 200, corsHeaders);
     }
 

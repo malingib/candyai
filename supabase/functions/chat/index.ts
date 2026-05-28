@@ -8,7 +8,8 @@ declare const Deno: {
     get(key: string): string | undefined;
   };
 };
-import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { getPlanLimits } from "../_shared/rate-limit-plan.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
 import { verifyTurnstileToken } from "../_shared/turnstile.ts";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
@@ -475,9 +476,9 @@ serve(async (req: Request) => {
   }
 
   const rl = multiRateLimit(req, "chat", {
-    ip: { limit: 20, windowMs: 60_000 },
-    user: { limit: 40, windowMs: 60_000 },
-    session: { limit: 30, windowMs: 60_000 },
+    ip: { limit: 60, windowMs: 60_000 },
+    user: { limit: 120, windowMs: 60_000 },
+    session: { limit: 90, windowMs: 60_000 },
   });
   if (!rl.allowed) return rateLimitedResponse("chat", rl.scope!, rl.ctx, corsHeaders);
 
@@ -497,7 +498,7 @@ serve(async (req: Request) => {
 
   try {
     const jsonBody = await req.json();
-    const { messages, demo, user_id, conversation_id, turnstile_token } = jsonBody;
+    const { messages, demo, user_id, conversation_id, turnstile_token, page_url, page_title } = jsonBody;
     const safeMessages = sanitizeMessages(messages);
     if (!safeMessages) {
       return errorResponse("Invalid messages payload", 400, undefined, corsHeaders);
@@ -524,14 +525,12 @@ serve(async (req: Request) => {
     const safeUserId = isUuid(user_id) ? user_id : null;
     const safeConversationId = isUuid(conversation_id) ? conversation_id : null;
 
-    if (safeDemo) {
-      const captcha = await verifyTurnstileToken({
-        token: String(turnstile_token || ""),
-        remoteip: req.headers.get("cf-connecting-ip") ?? undefined,
-      });
-      if (!captcha.ok) {
-        return errorResponse(captcha.error || "Captcha validation failed", 400, undefined, corsHeaders);
-      }
+    const captcha = await verifyTurnstileToken({
+      token: String(turnstile_token || ""),
+      remoteip: req.headers.get("cf-connecting-ip") ?? undefined,
+    });
+    if (!captcha.ok) {
+      return errorResponse(captcha.error || "Captcha validation failed", 400, undefined, corsHeaders);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -560,6 +559,8 @@ serve(async (req: Request) => {
       }
     }
 
+    let userPlan: string | null = null;
+
     if (!safeDemo && effectiveUserId) {
       const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_chat_quota", { p_user_id: effectiveUserId });
       const quota = (quotaData?.[0] ?? null) as QuotaRow | null;
@@ -567,6 +568,7 @@ serve(async (req: Request) => {
         console.error("quota check failed:", quotaErr);
         return errorResponse("Unable to validate usage limits. Try again shortly.", 500, undefined, corsHeaders);
       }
+      userPlan = quota.plan;
       if (!quota.allowed) {
         const reason = quota.reason;
         const errorMessage =
@@ -686,6 +688,25 @@ serve(async (req: Request) => {
       }
     }
 
+    const pageUrl = sanitize(page_url ?? "", 500);
+    const pageTitle = sanitize(page_title ?? "", 200);
+    const pageContext = pageUrl ? `\n\nVisitor's current page: ${pageTitle ? `${pageTitle} (${pageUrl})` : pageUrl}` : "";
+
+    if (effectiveUserId && userPlan) {
+      try {
+        const planLimits = await getPlanLimits(userPlan);
+        const planCheck = rateLimit(
+          `chat:plan:${userPlan}:${effectiveUserId}`,
+          planLimits.user.limit,
+          planLimits.user.windowMs,
+          corsHeaders,
+        );
+        if (planCheck) return planCheck;
+      } catch (e) {
+        console.error("Plan rate limit check failed:", e);
+      }
+    }
+
     const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
     if (safeDemo && isPricingIntent(lastUserMessage)) {
       return toSseResponse(await getDemoPricingResponse(supabase));
@@ -730,7 +751,7 @@ serve(async (req: Request) => {
          Use light formatting only when useful: short bullet list (max 4 bullets) for multiple items, otherwise plain paragraphs.
          Never use stiff phrases like "As an AI assistant" or template wording.
          Never use placeholders or template text like "[insert business name]" or "[briefly describe...]".
-         ${fallbackWebsiteInstruction}${pricingGuardInstruction}${businessContext}${knowledgeContext}${websiteDataContext}${resourcesContext}`;
+         ${fallbackWebsiteInstruction}${pricingGuardInstruction}${businessContext}${knowledgeContext}${websiteDataContext}${resourcesContext}${pageContext}`;
 
     const requestMessages = [
       { role: "system", content: systemPrompt },

@@ -23,6 +23,7 @@ import {
   BarChart3,
   Search,
   FileSpreadsheet,
+  LineChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +59,15 @@ type ProfileRow = {
   widget_sites_limit: number;
   billing_expires_at: string | null;
   trial_expires_at: string | null;
+};
+
+type WidgetAnalyticsRow = {
+  id: string;
+  business_id: string;
+  event: string;
+  page_url: string | null;
+  page_title: string | null;
+  created_at: string;
 };
 
 type BillingEventRow = {
@@ -124,6 +134,7 @@ export default function Admin() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [billingEvents, setBillingEvents] = useState<BillingEventRow[]>([]);
   const [widgetDomainCountByUser, setWidgetDomainCountByUser] = useState<Record<string, number>>({});
+  const [widgetAnalytics, setWidgetAnalytics] = useState<WidgetAnalyticsRow[]>([]);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [eventFilter, setEventFilter] = useState<"all" | "rate_limited" | "error" | "unauthorized">("all");
@@ -146,7 +157,7 @@ export default function Admin() {
     if (!isAdmin) return;
     setIsRefreshing(true);
     try {
-      const [{ data: roles }, { data: logsData }, { data: profileData }, { data: billingData }, { data: widgetDomains }] = await Promise.all([
+      const [{ data: roles }, { data: logsData }, { data: profileData }, { data: billingData }, { data: widgetDomains }, { data: analyticsData }] = await Promise.all([
         supabase.from("user_roles").select("id, user_id, role, created_at").order("created_at", { ascending: false }).limit(1000),
         (eventFilter === "all"
           ? supabase.from("request_logs").select("*")
@@ -168,12 +179,18 @@ export default function Admin() {
           .select("user_id, is_active")
           .eq("is_active", true)
           .limit(5000),
+        supabase
+          .from("widget_analytics")
+          .select("id, business_id, event, page_url, page_title, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500),
       ]);
 
       setRoleRows((roles ?? []) as UserRoleRow[]);
       setLogs((logsData ?? []) as LogRow[]);
       setProfiles((profileData ?? []) as ProfileRow[]);
       setBillingEvents((billingData ?? []) as BillingEventRow[]);
+      setWidgetAnalytics((analyticsData ?? []) as WidgetAnalyticsRow[]);
       const counts: Record<string, number> = {};
       (widgetDomains ?? []).forEach((d: { user_id?: string | null }) => {
         if (!d.user_id) return;
@@ -377,6 +394,7 @@ export default function Admin() {
           <TabsTrigger value="bulk"><Shield className="mr-2 h-4 w-4" />Bulk Actions</TabsTrigger>
           <TabsTrigger value="billing"><CreditCard className="mr-2 h-4 w-4" />Billing</TabsTrigger>
           <TabsTrigger value="reports"><FileSpreadsheet className="mr-2 h-4 w-4" />Reports</TabsTrigger>
+          <TabsTrigger value="analytics"><LineChart className="mr-2 h-4 w-4" />Widget Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -718,6 +736,51 @@ export default function Admin() {
               >
                 <Download className="mr-2 h-4 w-4" />Export Profiles CSV
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard icon={Activity} label="Total Events" value={widgetAnalytics.length} accent="blue" />
+            <StatCard icon={Users} label="Unique Businesses" value={new Set(widgetAnalytics.map(a => a.business_id)).size} accent="violet" />
+            <StatCard icon={BarChart3} label="Page Views" value={widgetAnalytics.filter(a => a.event === "page_viewed").length} accent="cyan" />
+            <StatCard icon={Sparkles} label="Messages Sent" value={widgetAnalytics.filter(a => a.event === "message_sent").length} accent="amber" />
+          </div>
+
+          <Card>
+            <CardHeader className="pb-0"><CardTitle>Event Breakdown</CardTitle></CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-2">
+                {["page_viewed", "conversation_started", "widget_opened", "widget_closed", "message_sent"].map((evt) => {
+                  const count = widgetAnalytics.filter(a => a.event === evt).length;
+                  const total = widgetAnalytics.length || 1;
+                  return (
+                    <div key={evt} className="flex items-center gap-3">
+                      <span className="w-40 text-sm capitalize">{evt.replace(/_/g, " ")}</span>
+                      <div className="flex-1 h-4 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${(count / total) * 100}%` }} />
+                      </div>
+                      <span className="w-16 text-right text-sm text-muted-foreground">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-0"><CardTitle>Recent Events</CardTitle></CardHeader>
+            <CardContent className="pt-4">
+              <SimpleTable
+                columns={["Time", "Business", "Event", "Page"]}
+                rows={widgetAnalytics.slice(0, 50).map((a) => [
+                  new Date(a.created_at).toLocaleString(),
+                  a.business_id.slice(0, 8) + "\u2026",
+                  a.event,
+                  a.page_title || a.page_url || "\u2014",
+                ])}
+              />
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { verifyTokenInRequest } from "../_shared/jwt-verify.ts";
-import { multiRateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
+import { multiRateLimit, rateLimit, rateLimitedResponse, logRequest } from "../_shared/rate-limit.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkBodyLimit } from "../_shared/body-limit.ts";
 import { buildKnowledgeContext } from "../_shared/vector-search.ts";
@@ -140,6 +140,19 @@ serve(async (req) => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    try {
+      const planLimits = await getPlanLimits(plan);
+      const planCheck = rateLimit(
+        `ai-chat:plan:${plan}:${userId}`,
+        planLimits.user.limit,
+        planLimits.user.windowMs,
+        corsHeaders,
+      );
+      if (planCheck) return planCheck;
+    } catch (e) {
+      console.error("Plan rate limit check failed:", e);
     }
 
     const safeUserId = typeof user_id === "string" && user_id.length > 0 ? user_id : userId;
