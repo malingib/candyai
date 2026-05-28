@@ -11,4 +11,5 @@ fi
 : "${CLOUDFLARE_ACCOUNT_ID:?Missing CLOUDFLARE_ACCOUNT_ID (set it in .env or export it before deploy)}"
 
 npm run build
-npx wrangler pages deploy dist --project-name candyai
+unset CLOUDFLARE_API_TOKEN WRANGLER_API_TOKEN
+npx wrangler pages deploy "$PWD/dist" --project-name candyai --cwd /tmp

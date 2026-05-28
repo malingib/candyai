@@ -24,6 +24,7 @@ const Overview = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [conversationCount, setConversationCount] = useState(0);
   const [leadCount, setLeadCount] = useState(0);
+  const [widgetSitesCount, setWidgetSitesCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -36,6 +37,16 @@ const Overview = () => {
       setLeadCount(lc ?? 0);
     };
     fetchData();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("widget_domains")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .then(({ count }) => setWidgetSitesCount(count ?? 0));
   }, [user]);
 
   if (roleLoading) {
@@ -88,17 +99,6 @@ const Overview = () => {
       capitalize: true,
     },
   ];
-
-  const [widgetSitesCount, setWidgetSitesCount] = useState(0);
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("widget_domains")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .then(({ count }) => setWidgetSitesCount(count ?? 0));
-  }, [user]);
 
   const remainingWidgetSites = profile ? Math.max((profile.widget_sites_limit ?? 0) - widgetSitesCount, 0) : 0;
 

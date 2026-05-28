@@ -26,7 +26,7 @@ otp_length = 8
 otp_expiry = 3600
 
 [functions.chat]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-chat]
 verify_jwt = true
@@ -47,7 +47,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.widget-conversation]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-checkout-session]
 verify_jwt = true
