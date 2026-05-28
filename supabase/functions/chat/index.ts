@@ -488,7 +488,11 @@ serve(async (req: Request) => {
   const url = new URL(req.url);
   const isDemoRoute = url.pathname.endsWith('/chat/demo') || url.pathname.endsWith('/chat/demo/');
 
-  if (!isDemoRoute) {
+  const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+  const authHeader = req.headers.get("Authorization");
+  const isWidgetRequest = ANON_KEY && authHeader === `Bearer ${ANON_KEY}`;
+
+  if (!isDemoRoute && !isWidgetRequest) {
     const tokenError = await verifyTokenInRequest(req, corsHeaders);
     if (tokenError) {
       logRequest({ function_name: "chat", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
