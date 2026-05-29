@@ -16,6 +16,17 @@ import { checkBodyLimit } from "../_shared/body-limit.ts";
 import { isUuid, sanitize, errorResponse } from "../_shared/utils.ts";
 import { buildKnowledgeContext } from "../_shared/vector-search.ts";
 
+function isAnonKeyToken(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload.role === "anon" && payload.iss === "supabase";
+  } catch {
+    return false;
+  }
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -65,6 +76,25 @@ const INJECTION_PATTERNS = [
   /raw text of the instructions/i,
 ];
 
+const ISSUE_KEYWORDS = [
+  "issue", "problem", "broken", "bug", "error", "not working",
+  "doesn't work", "doesnt work", "complaint", "refund", "cancel",
+  "urgent", "help me", "stuck", "failed", "can't", "cannot",
+  "wrong", "missing", "lost", "support", "fix", "human",
+  "agent", "representative", "sales", "escalate", "escalation",
+];
+const URGENT_KEYWORDS = ["urgent", "asap", "emergency", "immediately", "critical"];
+const HIGH_KEYWORDS = ["broken", "down", "lost money", "refund", "can't access"];
+
+function detectIssue(text: string): { isIssue: boolean; priority: "low" | "medium" | "high" | "urgent" } {
+  const lower = text.toLowerCase();
+  const isIssue = ISSUE_KEYWORDS.some((k) => lower.includes(k));
+  let priority: "low" | "medium" | "high" | "urgent" = "medium";
+  if (URGENT_KEYWORDS.some((k) => lower.includes(k))) priority = "urgent";
+  else if (HIGH_KEYWORDS.some((k) => lower.includes(k))) priority = "high";
+  return { isIssue, priority };
+}
+
 function detectInjection(content: string): boolean {
   return INJECTION_PATTERNS.some(pattern => pattern.test(content));
 }
@@ -87,6 +117,20 @@ function sanitizeMessages(input: unknown, maxMessages = 30, maxChars = 4000): Ch
 function isPricingIntent(text: string): boolean {
   const t = text.toLowerCase();
   return /\b(price|pricing|quote|cost|rate|rates|package|packages|sms)\b/.test(t);
+}
+
+function getPricingSubject(text: string): string | null {
+  const t = text.toLowerCase();
+  if (/\bussd\b/.test(t)) return "ussd";
+  if (/\b(shortcode|shortcodes|short-code|short-codes)\b/.test(t)) return "shortcode";
+  if (/\b(sms|bulk sms)\b/.test(t)) return "sms";
+  if (/\b(email|bulk email)\b/.test(t)) return "bulk email";
+  if (/\bwhatsapp|whats\s*app\b/.test(t)) return "bulk whatsapp";
+  if (/\bm-?pesa|mpesa\b/.test(t)) return "m-pesa integration";
+  if (/\bsurvey|surveys\b/.test(t)) return "sms surveys";
+  if (/\bairtime|data rewards?\b/.test(t)) return "airtime & data rewards";
+  if (/\bservice desk|support desk\b/.test(t)) return "service desk";
+  return null;
 }
 
 function isWebsiteOverviewIntent(text: string): boolean {
@@ -195,6 +239,97 @@ function extractSmsPricingFacts(text: string): string[] {
     if (facts.length >= 6) break;
   }
   return Array.from(new Set(facts));
+}
+
+function extractSectionBetween(text: string, startPatterns: RegExp[], endPatterns: RegExp[]): string {
+  const lines = text.split(/\r?\n/);
+  const startIndex = lines.findIndex((line) => startPatterns.some((pattern) => pattern.test(line.trim())));
+  if (startIndex < 0) return "";
+  let endIndex = lines.length;
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (endPatterns.some((pattern) => pattern.test(lines[i].trim()))) {
+      endIndex = i;
+      break;
+    }
+  }
+  return lines.slice(startIndex, endIndex).join("\n").trim();
+}
+
+function compactPricingSection(section: string, maxLines = 28): string[] {
+  return section
+    .split(/\r?\n/)
+    .map((line) => sanitize(line, 220))
+    .filter(Boolean)
+    .filter((line) => !/^requirements:?$/i.test(line))
+    .slice(0, maxLines);
+}
+
+function extractSubjectPricingFacts(text: string, subject: string | null): string[] {
+  if (!text.trim()) return [];
+  if (!subject) return [];
+  if (subject === "ussd") {
+    return compactPricingSection(extractSectionBetween(text, [/^ussd services$/i, /^ussd code options$/i], [/^shortcodes$/i]), 45);
+  }
+  if (subject === "shortcode") {
+    return compactPricingSection(extractSectionBetween(text, [/^shortcodes$/i, /^sms shortcode options$/i], [/^more services$/i]));
+  }
+  if (subject === "sms") {
+    return extractSmsPricingFacts(text);
+  }
+
+  const customSubjects = [
+    "bulk email",
+    "bulk whatsapp",
+    "m-pesa integration",
+    "sms surveys",
+    "airtime & data rewards",
+    "service desk",
+  ];
+  if (subject && customSubjects.includes(subject)) {
+    const escaped = subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const section = extractSectionBetween(text, [new RegExp(`^${escaped}$`, "i")], [/^(bulk email|bulk whatsapp|m-pesa integration|sms surveys|airtime & data rewards|service desk|need a custom package\\?)$/i]);
+    return compactPricingSection(section || `${subject}\nCustom pricing`, 8);
+  }
+
+  return [];
+}
+
+function buildPricingResponse(subject: string | null, pricingText: string, websiteOrigin: string): string | null {
+  const facts = extractSubjectPricingFacts(pricingText, subject);
+  if (!facts.length) return null;
+
+  const origin = websiteOrigin || "the website";
+  const subjectLabels: Record<string, string> = {
+    ussd: "USSD",
+    sms: "Bulk SMS",
+    shortcode: "SMS Shortcode",
+    "bulk email": "Bulk Email",
+    "bulk whatsapp": "Bulk WhatsApp",
+    "m-pesa integration": "M-Pesa Integration",
+    "sms surveys": "SMS Surveys",
+    "airtime & data rewards": "Airtime & Data Rewards",
+    "service desk": "Service Desk",
+  };
+  const label = subject ? (subjectLabels[subject] ?? subject.replace(/\b\w/g, (c) => c.toUpperCase())) : "available";
+
+  if (subject === "sms") {
+    return `Here is the Bulk SMS pricing I have in the current context:\n- ${facts.join("\n- ")}\n\nFor a custom package, contact the team through ${origin}.`;
+  }
+
+  if (subject && facts.some((fact) => /custom\s+pricing/i.test(fact))) {
+    return `${label} is listed as custom pricing in the current context. Please share your expected volume or use case so the team can prepare an exact quote.`;
+  }
+
+  return `Here is the ${label} pricing I have in the current context:\n- ${facts.join("\n- ")}\n\nPrices marked +VAT exclude VAT. Approval from the relevant operators or regulator may also apply where noted.`;
+}
+
+function buildMissingPricingResponse(subject: string | null, websiteOrigin: string): string {
+  const label = subject ? `${subject} pricing` : "that pricing";
+  const origin = websiteOrigin || "the website";
+  if (!subject) {
+    return `I don't have exact pricing for that service in my current context, so I don't want to guess. Please ask for a specific service such as Bulk SMS, USSD, Shortcodes, WhatsApp, or M-Pesa, or use the Talk to Human button for an accurate quote.`;
+  }
+  return `I don't have exact ${label} in my current context, so I don't want to guess. Please use the Talk to Human button or contact the team through ${origin} for an accurate quote.`;
 }
 
 function isTenderAvailabilityIntent(text: string): boolean {
@@ -488,9 +623,9 @@ serve(async (req: Request) => {
   const url = new URL(req.url);
   const isDemoRoute = url.pathname.endsWith('/chat/demo') || url.pathname.endsWith('/chat/demo/');
 
-  const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
   const authHeader = req.headers.get("Authorization");
-  const isWidgetRequest = ANON_KEY && authHeader === `Bearer ${ANON_KEY}`;
+  const rawToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : "";
+  const isWidgetRequest = rawToken.length > 0 && isAnonKeyToken(rawToken);
 
   if (!isDemoRoute && !isWidgetRequest) {
     const tokenError = await verifyTokenInRequest(req, corsHeaders);
@@ -608,6 +743,7 @@ serve(async (req: Request) => {
     let businessName = "";
     let websiteOrigin = "";
     let resourcesContext = "";
+    let pricingKnowledgeText = "";
 
     if (effectiveUserId && !safeDemo) {
       try {
@@ -692,6 +828,33 @@ serve(async (req: Request) => {
       }
     }
 
+    const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const pricingSubject = getPricingSubject(lastUserMessage);
+
+    if (effectiveUserId && !safeDemo && isPricingIntent(lastUserMessage)) {
+      try {
+        const { data: pricingEntries } = await supabase
+          .from("knowledge_base")
+          .select("title, content")
+          .eq("user_id", effectiveUserId)
+          .ilike("title", "%pricing%")
+          .limit(5);
+
+        if (pricingEntries && pricingEntries.length > 0) {
+          pricingKnowledgeText = pricingEntries
+            .map((e: { title?: string; content?: string }) => `### ${sanitize(e.title, 200)}\n${sanitize(e.content, 5000)}`)
+            .join("\n\n");
+
+          const pricingContext = "\n\nBusiness pricing knowledge:\n\n" + pricingKnowledgeText;
+          if (!knowledgeContext.includes("Business pricing knowledge:")) {
+            knowledgeContext += pricingContext;
+          }
+        }
+      } catch (e) {
+        console.error("Pricing knowledge lookup failed:", e);
+      }
+    }
+
     const pageUrl = sanitize(page_url ?? "", 500);
     const pageTitle = sanitize(page_title ?? "", 200);
     const pageContext = pageUrl ? `\n\nVisitor's current page: ${pageTitle ? `${pageTitle} (${pageUrl})` : pageUrl}` : "";
@@ -711,9 +874,15 @@ serve(async (req: Request) => {
       }
     }
 
-    const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
     if (safeDemo && isPricingIntent(lastUserMessage)) {
       return toSseResponse(await getDemoPricingResponse(supabase));
+    }
+    if (!safeDemo && isPricingIntent(lastUserMessage)) {
+      const pricingSourceText = [pricingKnowledgeText, knowledgeContext, websiteDataText, resourcesContext]
+        .filter(Boolean)
+        .join("\n\n");
+      const pricingResponse = buildPricingResponse(pricingSubject, pricingSourceText, websiteOrigin);
+      return toSseResponse(pricingResponse || buildMissingPricingResponse(pricingSubject, websiteOrigin));
     }
     if (!safeDemo && websiteDataText && isTenderAvailabilityIntent(lastUserMessage)) {
       return toSseResponse(buildTenderAvailabilityResponse(websiteDataText, websiteOrigin));
@@ -768,41 +937,88 @@ serve(async (req: Request) => {
     // Background tasks - fire and forget but log errors
     if (!safeDemo && safeConversationId) {
       const lastUserMessage = [...truncatedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
+      const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      const internalUrl = Deno.env.get("SUPABASE_URL");
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
 
       // Automatic Lead Extraction (Option 3 extension)
       const emailMatch = lastUserMessage.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
       const phoneMatch = lastUserMessage.match(/\b(?:\+?(\d{1,3}))?[-. (]*(\d{3})[-. )]*(\d{3})[-. ]*(\d{4,})\b/);
 
-      if (emailMatch || phoneMatch) {
-        const updateData: any = {};
-        if (emailMatch) updateData.email = emailMatch[0];
-        if (phoneMatch) updateData.phone = phoneMatch[0];
-
-        supabase.from("leads").upsert({
-          conversation_id: safeConversationId,
-          user_id: effectiveUserId,
-          ...updateData
-        }, { onConflict: "conversation_id" }).then(({ error }) => {
-          if (error) console.error("Lead extraction upsert failed:", error);
-        });
-      }
-
-      const lastMsg = truncatedMessages[truncatedMessages.length - 1];
-      const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      const internalUrl = Deno.env.get("SUPABASE_URL");
-      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-
-      // Auto-create ticket if needed
-      if (lastMsg?.content && adminKey && internalUrl) {
-        fetch(`${internalUrl}/functions/v1/auto-create-ticket`, {
+      if ((emailMatch || phoneMatch) && effectiveUserId && adminKey && internalUrl) {
+        fetch(`${internalUrl}/functions/v1/widget-conversation`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${adminKey}`,
             apikey: adminKey,
           },
-          body: JSON.stringify({ conversation_id: safeConversationId, message: lastMsg.content }),
-        }).catch((e) => console.error("auto-create-ticket background failed:", e));
+          body: JSON.stringify({
+            action: "lead",
+            business_id: effectiveUserId,
+            conversation_id: safeConversationId,
+            email: emailMatch?.[0] || "",
+            phone: phoneMatch?.[0] || "",
+          }),
+        }).catch((e) => console.error("Lead extraction failed:", e));
+      }
+
+      const lastMsg = truncatedMessages[truncatedMessages.length - 1];
+
+      // Auto-create ticket if needed
+      if (lastMsg?.content && effectiveUserId) {
+        const detection = detectIssue(lastMsg.content);
+        if (detection.isIssue) {
+          supabase
+            .from("tickets")
+            .select("id")
+            .eq("conversation_id", safeConversationId)
+            .limit(1)
+            .maybeSingle()
+            .then(async ({ data: existingTicket }) => {
+              if (existingTicket?.id) return;
+
+              const { data: conv } = await supabase
+                .from("conversations")
+                .select("visitor_name, visitor_email")
+                .eq("id", safeConversationId)
+                .maybeSingle();
+
+              const subject = lastMsg.content.length > 80 ? lastMsg.content.slice(0, 77) + "..." : lastMsg.content;
+              const { data: ticket, error: ticketError } = await supabase
+                .from("tickets")
+                .insert({
+                  user_id: effectiveUserId,
+                  conversation_id: safeConversationId,
+                  subject,
+                  description: lastMsg.content,
+                  priority: detection.priority,
+                  status: "open",
+                  customer_name: conv?.visitor_name || "",
+                  customer_email: conv?.visitor_email || "",
+                  tags: ["auto-created", "from-chat"],
+                })
+                .select("id")
+                .single();
+              if (ticketError) {
+                console.error("auto ticket insert failed:", ticketError);
+                return;
+              }
+
+              if (ticket?.id && adminKey && internalUrl) {
+                fetch(`${internalUrl}/functions/v1/send-ticket-email`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${adminKey}`,
+                    apikey: adminKey,
+                  },
+                  body: JSON.stringify({ ticket_id: ticket.id, event: "created" }),
+                }).catch((e) => console.error("Email notify failed:", e));
+              }
+            })
+            .catch((e) => console.error("auto-create-ticket background failed:", e));
+        }
       }
 
       // Sentiment analysis

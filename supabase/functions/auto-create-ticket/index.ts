@@ -14,11 +14,19 @@ const ISSUE_KEYWORDS = [
   "issue", "problem", "broken", "bug", "error", "not working",
   "doesn't work", "doesnt work", "complaint", "refund", "cancel",
   "urgent", "help me", "stuck", "failed", "can't", "cannot",
-  "wrong", "missing", "lost", "support", "fix",
+  "wrong", "missing", "lost", "support", "fix", "human",
+  "agent", "representative", "sales", "escalate", "escalation",
 ];
 
 const URGENT_KEYWORDS = ["urgent", "asap", "emergency", "immediately", "critical"];
 const HIGH_KEYWORDS = ["broken", "down", "lost money", "refund", "can't access"];
+
+function isServiceRoleRequest(req: Request): boolean {
+  const authHeader = req.headers.get("Authorization") || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  return !!serviceRoleKey && token === serviceRoleKey;
+}
 
 function detectIssue(text: string): { isIssue: boolean; priority: "low" | "medium" | "high" | "urgent" } {
   const lower = text.toLowerCase();
@@ -42,7 +50,7 @@ serve(async (req) => {
   const bodyLimitError = checkBodyLimit(req);
   if (bodyLimitError) return bodyLimitError;
 
-  const tokenError = await verifyTokenInRequest(req, corsHeaders);
+  const tokenError = isServiceRoleRequest(req) ? null : await verifyTokenInRequest(req, corsHeaders);
   if (tokenError) {
     logRequest({ function_name: "auto-create-ticket", event_type: "unauthorized", status_code: 401, ctx: rl.ctx });
     return tokenError;

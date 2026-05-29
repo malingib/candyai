@@ -49,6 +49,7 @@
   var isOpen = false;
   var isLoading = false;
   var conversationId = null;
+  var conversationReady = false;
   var conversationStarting = false;
   var leadFormOpen = false;
   var leadCaptured = false;
@@ -120,6 +121,33 @@
   function getTimestamp() {
     return new Date().toISOString();
   }
+
+  function safeStorageGet(key) {
+    try { return window.localStorage ? window.localStorage.getItem(key) : null; } catch (e) { return null; }
+  }
+
+  function safeStorageSet(key, value) {
+    try { if (window.localStorage) window.localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+  }
+
+  function safeStorageRemove(key) {
+    try { if (window.localStorage) window.localStorage.removeItem(key); } catch (e) { /* ignore */ }
+  }
+
+  var storagePrefix = "mw-widget:" + (businessId || "unknown") + ":" + window.location.origin;
+  var visitorIdKey = storagePrefix + ":visitor-id";
+  var conversationIdKey = storagePrefix + ":conversation-id";
+  var leadCapturedKey = storagePrefix + ":lead-captured";
+  var visitorId = safeStorageGet(visitorIdKey);
+  if (!/^[a-f0-9]{32}$/i.test(visitorId || "")) {
+    visitorId = (window.crypto && window.crypto.getRandomValues)
+      ? Array.from(window.crypto.getRandomValues(new Uint8Array(16))).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("")
+      : String(Date.now()) + String(Math.random()).replace(/\D/g, "").slice(0, 16);
+    safeStorageSet(visitorIdKey, visitorId);
+  }
+  var savedConversationId = safeStorageGet(conversationIdKey);
+  if (sanitizeUuid(savedConversationId)) conversationId = savedConversationId;
+  if (safeStorageGet(leadCapturedKey) === "1") leadCaptured = true;
 
   function loadTurnstile() {
     if (!turnstileSiteKey || turnstileLoaded) return;
@@ -201,6 +229,7 @@
     if (payload.analytics_event) p.analytics_event = payload.analytics_event;
     if (payload.page_url) p.page_url = payload.page_url;
     if (payload.page_title) p.page_title = payload.page_title;
+    if (visitorId) p.visitor_id = visitorId;
 
     return fetch(SUPABASE_URL + "/functions/v1/widget-conversation", {
       method: "POST",
@@ -242,9 +271,13 @@
   // SECTION 5: Conversation
   // ============================================================
   function ensureConversation() {
-    if (conversationId || conversationStarting || !businessId) return Promise.resolve(conversationId);
+    if (conversationId && conversationReady) {
+      subscribeRealtime(conversationId);
+      return Promise.resolve(conversationId);
+    }
+    if (conversationStarting || !businessId) return Promise.resolve(conversationId);
     conversationStarting = true;
-    return postWidget({ action: "start", conversation_id: null, role: null, content: null })
+    return postWidget({ action: "start", conversation_id: sanitizeUuid(safeStorageGet(conversationIdKey)), page_url: currentPageUrl, page_title: currentPageTitle })
       .then(function (data) {
         if (data && (data.code === "embed_limit_reached" || data.code === "domain_unverified")) {
           widgetBlocked = true;
@@ -265,14 +298,21 @@
         }
         if (data && data.conversation_id) {
           conversationId = data.conversation_id;
+          conversationReady = true;
+          safeStorageSet(conversationIdKey, conversationId);
+          if (data.lead_captured) {
+            leadCaptured = true;
+            safeStorageSet(leadCapturedKey, "1");
+          }
           subscribeRealtime(conversationId);
-          pingAnalytics("conversation_started");
+          pingAnalytics(data.returning ? "conversation_returned" : "conversation_started");
         }
         conversationStarting = false;
         return conversationId;
       })
       .catch(function () {
         conversationStarting = false;
+        safeStorageRemove(conversationIdKey);
         showOfflineError();
         return null;
       });
@@ -423,6 +463,7 @@
     }).then(function (resp) {
       if (resp && resp.error) { leadErrorEl.textContent = resp.error; leadErrorEl.style.display = "block"; return; }
       leadCaptured = true;
+      safeStorageSet(leadCapturedKey, "1");
       messages.push({ role: "assistant", content: "Thanks! We've got your details and will be in touch shortly. 🙌" });
       persistMessage("assistant", messages[messages.length - 1].content);
       closeLeadForm();

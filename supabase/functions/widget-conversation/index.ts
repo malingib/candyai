@@ -28,6 +28,26 @@ function extractOriginFromHeaders(req: Request): string | null {
   }
 }
 
+function cleanVisitorId(input: unknown): string {
+  const value = sanitize(input, 80).toLowerCase().replace(/[^a-f0-9]/g, "");
+  return /^[a-f0-9]{24,64}$/.test(value) ? value.slice(0, 64) : "";
+}
+
+async function getLeadForConversation(
+  supabase: ReturnType<typeof createClient>,
+  businessId: string,
+  conversationId: string,
+): Promise<{ id: string } | null> {
+  const { data } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("user_id", businessId)
+    .eq("conversation_id", conversationId)
+    .limit(1)
+    .maybeSingle();
+  return data ?? null;
+}
+
 async function conversationBelongsToBusiness(
   supabase: ReturnType<typeof createClient>,
   conversationId: string,
@@ -218,6 +238,8 @@ serve(async (req) => {
 
     // ---- Create or reuse conversation ----
     if (action === "start") {
+      const requestedConversationId = isUuid(body.conversation_id) ? body.conversation_id : "";
+      const visitorId = cleanVisitorId(body.visitor_id);
       const embedOrigin = extractOriginFromHeaders(req);
       if (!embedOrigin) {
         return errorResponse("Unable to identify website origin for widget session.", 400, undefined, corsHeaders);
@@ -280,11 +302,92 @@ serve(async (req) => {
       const meta = {
         user_agent: sanitize(req.headers.get("user-agent"), 500),
         referer: sanitize(req.headers.get("referer"), 500),
+        page_url: sanitize(body.page_url, 1000),
+        page_title: sanitize(body.page_title, 500),
+        visitor_id: visitorId || null,
         started_at: new Date().toISOString(),
       };
+
+      if (requestedConversationId) {
+        const { data: existingConversation } = await supabase
+          .from("conversations")
+          .select("id, visitor_metadata, status")
+          .eq("id", requestedConversationId)
+          .eq("user_id", business_id)
+          .maybeSingle();
+
+        if (existingConversation?.id && existingConversation.status !== "closed") {
+          const existingMeta = (existingConversation.visitor_metadata && typeof existingConversation.visitor_metadata === "object")
+            ? existingConversation.visitor_metadata as Record<string, unknown>
+            : {};
+          const visitCount = Number(existingMeta.visit_count || 0) + 1;
+          await supabase
+            .from("conversations")
+            .update({
+              visitor_metadata: {
+                ...existingMeta,
+                ...meta,
+                first_started_at: existingMeta.first_started_at || existingMeta.started_at || meta.started_at,
+                last_seen_at: meta.started_at,
+                visit_count: visitCount,
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingConversation.id);
+
+          const existingLead = await getLeadForConversation(supabase, business_id, existingConversation.id);
+          return jsonResponse({
+            conversation_id: existingConversation.id,
+            returning: true,
+            lead_captured: !!existingLead,
+            visit_count: visitCount,
+          }, 200, corsHeaders);
+        }
+      }
+
+      if (visitorId) {
+        const { data: visitorConversation } = await supabase
+          .from("conversations")
+          .select("id, visitor_metadata, status")
+          .eq("user_id", business_id)
+          .eq("status", "active")
+          .eq("visitor_metadata->>visitor_id", visitorId)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (visitorConversation?.id) {
+          const existingMeta = (visitorConversation.visitor_metadata && typeof visitorConversation.visitor_metadata === "object")
+            ? visitorConversation.visitor_metadata as Record<string, unknown>
+            : {};
+          const visitCount = Number(existingMeta.visit_count || 0) + 1;
+          await supabase
+            .from("conversations")
+            .update({
+              visitor_metadata: {
+                ...existingMeta,
+                ...meta,
+                first_started_at: existingMeta.first_started_at || existingMeta.started_at || meta.started_at,
+                last_seen_at: meta.started_at,
+                visit_count: visitCount,
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", visitorConversation.id);
+
+          const existingLead = await getLeadForConversation(supabase, business_id, visitorConversation.id);
+          return jsonResponse({
+            conversation_id: visitorConversation.id,
+            returning: true,
+            lead_captured: !!existingLead,
+            visit_count: visitCount,
+          }, 200, corsHeaders);
+        }
+      }
+
       const { data, error } = await supabase
         .from("conversations")
-        .insert({ user_id: business_id, status: "active", visitor_metadata: meta })
+        .insert({ user_id: business_id, status: "active", visitor_metadata: { ...meta, visit_count: 1 } })
         .select("id").single();
       if (error) {
         const errMsg = String((error as { message?: string })?.message || "");
@@ -292,7 +395,7 @@ serve(async (req) => {
           throw error;
         }
       }
-      return jsonResponse({ conversation_id: data.id }, 200, corsHeaders);
+      return jsonResponse({ conversation_id: data.id, returning: false, lead_captured: false, visit_count: 1 }, 200, corsHeaders);
     }
 
     // ---- Persist a message ----
@@ -362,48 +465,62 @@ serve(async (req) => {
       };
 
       let error: unknown = null;
-      let shouldInsert = true;
+      let existingLead: { id: string; conversation_id?: string | null; name?: string | null; email?: string | null; phone?: string | null; notes?: string | null } | null = null;
+      let wasDuplicate = false;
       if (isUuid(conversation_id)) {
         const { data: existingForConversation } = await supabase
           .from("leads")
-          .select("id")
+          .select("id, conversation_id, name, email, phone, notes")
           .eq("user_id", business_id)
           .eq("conversation_id", conversation_id)
           .limit(1)
           .maybeSingle();
-        shouldInsert = !existingForConversation;
-      } else {
-        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        let hasRecentDuplicate = false;
-
-        if (cleanEmail) {
-          const { data: byEmail } = await supabase
-            .from("leads")
-            .select("id")
-            .eq("user_id", business_id)
-            .eq("email", cleanEmail)
-            .gte("created_at", cutoff)
-            .limit(1)
-            .maybeSingle();
-          hasRecentDuplicate = !!byEmail;
-        }
-
-        if (!hasRecentDuplicate && cleanPhone) {
-          const { data: byPhone } = await supabase
-            .from("leads")
-            .select("id")
-            .eq("user_id", business_id)
-            .eq("phone", cleanPhone)
-            .gte("created_at", cutoff)
-            .limit(1)
-            .maybeSingle();
-          hasRecentDuplicate = !!byPhone;
-        }
-
-        shouldInsert = !hasRecentDuplicate;
+        existingLead = existingForConversation ?? null;
       }
 
-      if (shouldInsert) {
+      if (!existingLead && cleanEmail) {
+        const { data: byEmail } = await supabase
+          .from("leads")
+          .select("id, conversation_id, name, email, phone, notes")
+          .eq("user_id", business_id)
+          .eq("email", cleanEmail)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existingLead = byEmail ?? null;
+      }
+
+      if (!existingLead && cleanPhone) {
+        const { data: byPhone } = await supabase
+          .from("leads")
+          .select("id, conversation_id, name, email, phone, notes")
+          .eq("user_id", business_id)
+          .eq("phone", cleanPhone)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existingLead = byPhone ?? null;
+      }
+
+      if (existingLead?.id) {
+        wasDuplicate = true;
+        const note = existingLead.notes || "Captured from embedded widget";
+        const returningNote = isUuid(conversation_id) && existingLead.conversation_id !== conversation_id
+          ? `${note}\nReturning visitor also engaged in conversation ${conversation_id}`.slice(0, 1000)
+          : note;
+        ({ error } = await supabase
+          .from("leads")
+          .update({
+            name: cleanName || existingLead.name || null,
+            email: cleanEmail || existingLead.email || null,
+            phone: cleanPhone || existingLead.phone || null,
+            notes: returningNote,
+          })
+          .eq("id", existingLead.id)
+          .eq("user_id", business_id));
+      }
+
+      if (!existingLead?.id) {
         const { data: quotaData, error: quotaErr } = await supabase.rpc("consume_lead_quota", { p_user_id: business_id });
         const quota = quotaData?.[0] as { allowed?: boolean; reason?: string; remaining?: number; resets_at?: string } | undefined;
         if (quotaErr || !quota?.allowed) {
@@ -415,17 +532,42 @@ serve(async (req) => {
           }, 402, corsHeaders);
         }
 
-        ({ error } = await supabase.from("leads").insert(leadPayload));
+        const { data: insertedLead, error: insertError } = await supabase
+          .from("leads")
+          .insert(leadPayload)
+          .select("id")
+          .single();
+        error = insertError;
+        if (insertedLead?.id) existingLead = insertedLead;
       }
       if (error) throw error;
 
       // Also save visitor info on conversation
       if (isUuid(conversation_id)) {
+        const { data: currentConversation } = await supabase
+          .from("conversations")
+          .select("visitor_metadata")
+          .eq("id", conversation_id)
+          .maybeSingle();
+        const existingMeta = (currentConversation?.visitor_metadata && typeof currentConversation.visitor_metadata === "object")
+          ? currentConversation.visitor_metadata as Record<string, unknown>
+          : {};
         await supabase.from("conversations")
-          .update({ visitor_name: cleanName || null, visitor_email: cleanEmail || null })
+          .update({
+            visitor_name: cleanName || null,
+            visitor_email: cleanEmail || null,
+            visitor_metadata: {
+              ...existingMeta,
+              visitor_id: cleanVisitorId(body.visitor_id) || existingMeta.visitor_id || null,
+              visitor_phone: cleanPhone || existingMeta.visitor_phone || null,
+              lead_captured: true,
+              lead_id: existingLead?.id || existingMeta.lead_id || null,
+              lead_updated_at: new Date().toISOString(),
+            },
+          })
           .eq("id", conversation_id);
       }
-      return jsonResponse({ ok: true }, 200, corsHeaders);
+      return jsonResponse({ ok: true, duplicate: wasDuplicate }, 200, corsHeaders);
     }
 
     // ---- Record analytics event ----
@@ -434,7 +576,7 @@ serve(async (req) => {
       if (!event || typeof event !== "string") {
         return jsonResponse({ ok: true }, 200, corsHeaders);
       }
-      const ALLOWED_EVENTS = ["page_viewed", "conversation_started", "widget_opened", "widget_closed", "message_sent"];
+      const ALLOWED_EVENTS = ["page_viewed", "conversation_started", "conversation_returned", "widget_opened", "widget_closed", "message_sent"];
       if (!ALLOWED_EVENTS.includes(event)) {
         return jsonResponse({ ok: true }, 200, corsHeaders);
       }
