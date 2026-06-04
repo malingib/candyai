@@ -2,6 +2,7 @@
   "name": "vite_react_shadcn_ts",
   "private": true,
   "version": "0.0.0",
+  "sideEffects": ["**/*.css"],
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +14,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "playwright:install": "npx playwright install --with-deps",
+    "playwright:test": "npx playwright test",
+    "playwright:test:headed": "npx playwright test --headed"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -95,6 +99,7 @@
     "typescript-eslint": "^8.38.0",
     "vite": "^6.4.2",
     "vitest": "^3.2.4",
-    "wrangler": "^4.90.0"
+    "wrangler": "^4.90.0",
+    "@playwright/test": "^1.44.0"
   }
 }

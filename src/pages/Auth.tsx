@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Sparkles, Shield, Zap, Globe } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import TurnstileWidget from "@/components/security/TurnstileWidget";
+import { motion } from "framer-motion";
 
 const benefits = [
   "Deploy AI support in 5 minutes",
@@ -92,9 +93,16 @@ const Auth = () => {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left panel - branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-hero flex-col justify-between p-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-grid opacity-[0.03]" />
+      <motion.div
+        initial={{ opacity: 0, x: -30 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6 }}
+        className="hidden lg:flex lg:w-1/2 bg-hero flex-col justify-between p-12 relative overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-grid-white opacity-[0.03]" />
+        <div className="absolute top-0 -left-32 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-purple-500/5 rounded-full blur-[100px]" />
+
         <div className="relative z-10">
           <Link to="/" className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Mobiwave" className="h-8 w-8" />
@@ -103,14 +111,14 @@ const Auth = () => {
         </div>
 
         <div className="relative z-10">
-          <h1 className="text-3xl font-bold text-hero-foreground mb-6 leading-tight">
+          <h1 className="text-4xl font-bold text-hero-foreground mb-6 leading-tight">
             AI customer support<br />
-            <span className="text-primary">that converts.</span>
+            <span className="text-gradient">that converts.</span>
           </h1>
           <ul className="space-y-4">
             {benefits.map((b) => (
               <li key={b} className="flex items-center gap-3 text-hero-muted">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 shrink-0">
                   <Check className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <span className="text-sm font-medium">{b}</span>
@@ -121,16 +129,20 @@ const Auth = () => {
 
         <div className="relative z-10">
           <p className="text-xs text-hero-muted/40">
-            © {new Date().getFullYear()} Mobiwave Innovations. Nairobi, Kenya.
+            &copy; {new Date().getFullYear()} Mobiwave Innovations. Nairobi, Kenya.
           </p>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Right panel - form */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12 bg-background">
+      <motion.div
+        initial={{ opacity: 0, x: 30 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6 }}
+        className="flex-1 flex items-center justify-center px-4 py-12 bg-background"
+      >
         <div className="w-full max-w-md">
           <div className="mb-8">
-            <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 lg:hidden">
+            <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 lg:hidden transition-colors">
               <ArrowLeft className="h-4 w-4" />
               Back to home
             </Link>
@@ -161,7 +173,7 @@ const Auth = () => {
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   required
-                  className="h-11 rounded-xl"
+                  className="h-11 rounded-xl border-border/60 focus:border-primary/50"
                 />
               </div>
             )}
@@ -174,7 +186,7 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="h-11 rounded-xl"
+                className="h-11 rounded-xl border-border/60 focus:border-primary/50"
               />
             </div>
             {!isForgot && (
@@ -188,44 +200,62 @@ const Auth = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="h-11 rounded-xl"
+                  className="h-11 rounded-xl border-border/60 focus:border-primary/50"
                 />
               </div>
             )}
             {!isLogin && !isForgot && (
-              <div className="space-y-2">
-                <label className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <input type="checkbox" checked={acceptPolicy} onChange={(e) => setAcceptPolicy(e.target.checked)} />
-                  <span>I agree to the <a className="underline" href="/legal/privacy">Privacy Notice</a> and data processing needed to provide this service.</span>
+              <div className="space-y-3 bg-muted/30 rounded-xl p-4 border border-border/40">
+                <label className="flex items-start gap-3 text-xs text-muted-foreground cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={acceptPolicy}
+                    onChange={(e) => setAcceptPolicy(e.target.checked)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <span className="group-hover:text-foreground transition-colors">
+                    I agree to the <a className="underline text-primary hover:text-primary/80" href="/legal/privacy">Privacy Notice</a> and data processing needed to provide this service.
+                  </span>
                 </label>
-                <label className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} />
-                  <span>Send me product updates and offers (optional).</span>
+                <label className="flex items-start gap-3 text-xs text-muted-foreground cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={marketingConsent}
+                    onChange={(e) => setMarketingConsent(e.target.checked)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <span className="group-hover:text-foreground transition-colors">
+                    Send me product updates and offers (optional).
+                  </span>
                 </label>
               </div>
             )}
 
-            <Button type="submit" className="w-full h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300"
+              disabled={loading}
+            >
               {loading ? "Please wait..." : isForgot ? "Send Reset Link" : isLogin ? "Sign In" : "Create Account"}
             </Button>
             <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
           </form>
 
-          <div className="mt-6 text-center text-sm space-y-2">
+          <div className="mt-6 text-center text-sm space-y-3">
             {!isForgot && (
-              <button onClick={() => setIsForgot(true)} className="text-primary hover:underline block w-full">
+              <button onClick={() => setIsForgot(true)} className="text-primary hover:underline block w-full transition-colors">
                 Forgot password?
               </button>
             )}
             <button
               onClick={() => { setIsLogin(!isLogin); setIsForgot(false); }}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground transition-colors font-medium"
             >
               {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

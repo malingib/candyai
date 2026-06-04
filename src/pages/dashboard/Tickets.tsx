@@ -14,22 +14,17 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Search, Ticket as TicketIcon, Trash2, Filter } from "lucide-react";
+import { Plus, Search, Ticket as TicketIcon, Trash2, Filter, Clock, AlertTriangle, CheckCircle2, Inbox } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { TicketTimeline } from "@/components/tickets/TicketTimeline";
 import { SlaBadge } from "@/components/tickets/SlaBadge";
 import { SourceBadge } from "@/components/tickets/SourceBadge";
+import { motion } from "framer-motion";
 
 const notifyEmail = async (ticket_id: string, event: "created" | "assigned" | "resolved", extra?: string) => {
-  try {
-    await supabase.functions.invoke("send-ticket-email", {
-      body: { ticket_id, event, extra },
-    });
-  } catch (e) {
-    console.error("Email notification failed:", e);
-  }
+  try { await supabase.functions.invoke("send-ticket-email", { body: { ticket_id, event, extra } }); } catch (e) { console.error("Email notification failed:", e); }
 };
 
 type TicketStatus = "open" | "in_progress" | "waiting" | "resolved" | "closed";
@@ -53,10 +48,10 @@ interface Ticket {
 }
 
 const statusConfig: Record<TicketStatus, { label: string; className: string }> = {
-  open: { label: "Open", className: "bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-900" },
-  in_progress: { label: "In Progress", className: "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-900" },
-  waiting: { label: "Waiting", className: "bg-purple-500/10 text-purple-600 border-purple-200 dark:border-purple-900" },
-  resolved: { label: "Resolved", className: "bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-900" },
+  open: { label: "Open", className: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+  in_progress: { label: "In Progress", className: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  waiting: { label: "Waiting", className: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
+  resolved: { label: "Resolved", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
   closed: { label: "Closed", className: "bg-muted text-muted-foreground border-border" },
 };
 
@@ -64,7 +59,7 @@ const priorityConfig: Record<TicketPriority, { label: string; className: string 
   low: { label: "Low", className: "bg-slate-500/10 text-slate-600 border-slate-200" },
   medium: { label: "Medium", className: "bg-blue-500/10 text-blue-600 border-blue-200" },
   high: { label: "High", className: "bg-orange-500/10 text-orange-600 border-orange-200" },
-  urgent: { label: "Urgent", className: "bg-red-500/10 text-red-600 border-red-200" },
+  urgent: { label: "Urgent", className: "bg-red-500/10 text-red-600 border-red-200 shadow-[0_0_6px_rgba(239,68,68,0.3)]" },
 };
 
 const Tickets = () => {
@@ -88,61 +83,27 @@ const Tickets = () => {
   });
 
   const loadTickets = useCallback(async () => {
-    if (!user) {
-      setTickets([]);
-      setLoading(false);
-      return;
-    }
+    if (!user) { setTickets([]); setLoading(false); return; }
     setLoading(true);
-    const { data, error } = await supabase
-      .from("tickets")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-    if (error) {
-      toast({ title: "Error loading tickets", description: error.message, variant: "destructive" });
-    } else {
-      setTickets((data ?? []) as Ticket[]);
-    }
+    const { data, error } = await supabase.from("tickets").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    if (error) toast({ title: "Error loading tickets", description: error.message, variant: "destructive" });
+    else setTickets((data ?? []) as Ticket[]);
     setLoading(false);
   }, [user]);
 
-  useEffect(() => {
-    loadTickets();
-  }, [loadTickets]);
+  useEffect(() => { loadTickets(); }, [loadTickets]);
 
   const resetForm = () => {
-    setForm({
-      subject: "",
-      description: "",
-      priority: "medium",
-      status: "open",
-      assigned_to: "",
-      customer_name: "",
-      customer_email: "",
-      resolution: "",
-    });
+    setForm({ subject: "", description: "", priority: "medium", status: "open", assigned_to: "", customer_name: "", customer_email: "", resolution: "" });
   };
 
   const handleCreate = async () => {
-    if (!user || !form.subject.trim()) {
-      toast({ title: "Subject required", variant: "destructive" });
-      return;
-    }
+    if (!user || !form.subject.trim()) { toast({ title: "Subject required", variant: "destructive" }); return; }
     const { data, error } = await supabase.from("tickets").insert({
-      user_id: user.id,
-      subject: form.subject,
-      description: form.description,
-      priority: form.priority,
-      status: form.status,
-      assigned_to: form.assigned_to,
-      customer_name: form.customer_name,
-      customer_email: form.customer_email,
+      user_id: user.id, subject: form.subject, description: form.description, priority: form.priority,
+      status: form.status, assigned_to: form.assigned_to, customer_name: form.customer_name, customer_email: form.customer_email,
     }).select("id").single();
-    if (error) {
-      toast({ title: "Failed to create", description: error.message, variant: "destructive" });
-      return;
-    }
+    if (error) { toast({ title: "Failed to create", description: error.message, variant: "destructive" }); return; }
     if (data) notifyEmail(data.id, "created");
     if (data && form.assigned_to) notifyEmail(data.id, "assigned", form.assigned_to);
     toast({ title: "Ticket created" });
@@ -154,50 +115,24 @@ const Tickets = () => {
   const openEdit = (t: Ticket) => {
     setEditTicket(t);
     setForm({
-      subject: t.subject,
-      description: t.description ?? "",
-      priority: t.priority,
-      status: t.status,
-      assigned_to: t.assigned_to ?? "",
-      customer_name: t.customer_name ?? "",
-      customer_email: t.customer_email ?? "",
-      resolution: t.resolution ?? "",
+      subject: t.subject, description: t.description ?? "", priority: t.priority, status: t.status,
+      assigned_to: t.assigned_to ?? "", customer_name: t.customer_name ?? "", customer_email: t.customer_email ?? "", resolution: t.resolution ?? "",
     });
   };
 
   const handleUpdate = async () => {
     if (!editTicket || !user) return;
     const updates: Record<string, unknown> = {
-      subject: form.subject,
-      description: form.description,
-      priority: form.priority,
-      status: form.status,
-      assigned_to: form.assigned_to,
-      customer_name: form.customer_name,
-      customer_email: form.customer_email,
-      resolution: form.resolution,
+      subject: form.subject, description: form.description, priority: form.priority, status: form.status,
+      assigned_to: form.assigned_to, customer_name: form.customer_name, customer_email: form.customer_email, resolution: form.resolution,
     };
-    const becomingResolved = (form.status === "resolved" || form.status === "closed") &&
-      editTicket.status !== "resolved" && editTicket.status !== "closed";
-    if (becomingResolved) {
-      updates.resolved_at = new Date().toISOString();
-    }
+    const becomingResolved = (form.status === "resolved" || form.status === "closed") && editTicket.status !== "resolved" && editTicket.status !== "closed";
+    if (becomingResolved) updates.resolved_at = new Date().toISOString();
     const assigneeChanged = (form.assigned_to || "") !== (editTicket.assigned_to || "");
-    const { error } = await supabase
-      .from("tickets")
-      .update(updates)
-      .eq("id", editTicket.id)
-      .eq("user_id", user.id);
-    if (error) {
-      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
-      return;
-    }
-    if (assigneeChanged && form.assigned_to) {
-      notifyEmail(editTicket.id, "assigned", form.assigned_to);
-    }
-    if (becomingResolved) {
-      notifyEmail(editTicket.id, "resolved");
-    }
+    const { error } = await supabase.from("tickets").update(updates).eq("id", editTicket.id).eq("user_id", user.id);
+    if (error) { toast({ title: "Failed to update", description: error.message, variant: "destructive" }); return; }
+    if (assigneeChanged && form.assigned_to) notifyEmail(editTicket.id, "assigned", form.assigned_to);
+    if (becomingResolved) notifyEmail(editTicket.id, "resolved");
     toast({ title: "Ticket updated" });
     setEditTicket(null);
     resetForm();
@@ -207,15 +142,8 @@ const Tickets = () => {
   const handleDelete = async (id: string) => {
     if (!user) return;
     if (!confirm("Delete this ticket?")) return;
-    const { error } = await supabase
-      .from("tickets")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
-    if (error) {
-      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
-      return;
-    }
+    const { error } = await supabase.from("tickets").delete().eq("id", id).eq("user_id", user.id);
+    if (error) { toast({ title: "Failed to delete", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Ticket deleted" });
     loadTickets();
   };
@@ -225,37 +153,33 @@ const Tickets = () => {
     if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return (
-        t.subject.toLowerCase().includes(q) ||
-        (t.customer_name ?? "").toLowerCase().includes(q) ||
-        (t.assigned_to ?? "").toLowerCase().includes(q)
-      );
+      return t.subject.toLowerCase().includes(q) || (t.customer_name ?? "").toLowerCase().includes(q) || (t.assigned_to ?? "").toLowerCase().includes(q);
     }
     return true;
   });
 
-  const stats = {
-    open: tickets.filter((t) => t.status === "open").length,
-    in_progress: tickets.filter((t) => t.status === "in_progress").length,
-    urgent: tickets.filter((t) => t.priority === "urgent" && t.status !== "closed" && t.status !== "resolved").length,
-    resolved: tickets.filter((t) => t.status === "resolved").length,
-  };
+  const stats = [
+    { label: "Open", value: tickets.filter((t) => t.status === "open").length, icon: Inbox, gradient: "from-blue-500 to-blue-600" },
+    { label: "In Progress", value: tickets.filter((t) => t.status === "in_progress").length, icon: Clock, gradient: "from-amber-500 to-orange-600" },
+    { label: "Urgent", value: tickets.filter((t) => t.priority === "urgent" && t.status !== "closed" && t.status !== "resolved").length, icon: AlertTriangle, gradient: "from-red-500 to-rose-600" },
+    { label: "Resolved", value: tickets.filter((t) => t.status === "resolved").length, icon: CheckCircle2, gradient: "from-emerald-500 to-teal-600" },
+  ];
 
   const TicketForm = (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>Subject *</Label>
-        <Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Brief summary of the issue" />
+        <Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Brief summary of the issue" className="border-border/50 focus:border-primary/50" />
       </div>
       <div className="space-y-2">
         <Label>Description</Label>
-        <Textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Detailed description..." />
+        <Textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Detailed description..." className="border-border/50 focus:border-primary/50 resize-none" />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Priority</Label>
           <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as TicketPriority })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="border-border/50"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
@@ -267,7 +191,7 @@ const Tickets = () => {
         <div className="space-y-2">
           <Label>Status</Label>
           <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as TicketStatus })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger className="border-border/50"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="open">Open</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
@@ -281,29 +205,32 @@ const Tickets = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Assigned to</Label>
-          <Input value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} placeholder="Team member name" />
+          <Input value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} placeholder="Team member name" className="border-border/50 focus:border-primary/50" />
         </div>
         <div className="space-y-2">
           <Label>Customer name</Label>
-          <Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} placeholder="Jane Doe" />
+          <Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} placeholder="Jane Doe" className="border-border/50 focus:border-primary/50" />
         </div>
       </div>
       <div className="space-y-2">
         <Label>Customer email</Label>
-        <Input type="email" value={form.customer_email} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} placeholder="jane@example.com" />
+        <Input type="email" value={form.customer_email} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} placeholder="jane@example.com" className="border-border/50 focus:border-primary/50" />
       </div>
       {editTicket && (
         <div className="space-y-2">
           <Label>Resolution notes</Label>
-          <Textarea rows={3} value={form.resolution} onChange={(e) => setForm({ ...form, resolution: e.target.value })} placeholder="How was this resolved?" />
+          <Textarea rows={3} value={form.resolution} onChange={(e) => setForm({ ...form, resolution: e.target.value })} placeholder="How was this resolved?" className="border-border/50 focus:border-primary/50 resize-none" />
         </div>
       )}
     </div>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Support Tickets</h2>
@@ -311,12 +238,12 @@ const Tickets = () => {
         </div>
         <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" /> New Ticket</Button>
+            <Button className="gap-2 shadow-sm"><Plus className="h-4 w-4" /> New Ticket</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Create ticket</DialogTitle></DialogHeader>
             {TicketForm}
-            <DialogFooter>
+            <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
               <Button onClick={handleCreate}>Create ticket</Button>
             </DialogFooter>
@@ -324,32 +251,38 @@ const Tickets = () => {
         </Dialog>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Open", value: stats.open, color: "text-blue-600" },
-          { label: "In Progress", value: stats.in_progress, color: "text-amber-600" },
-          { label: "Urgent", value: stats.urgent, color: "text-red-600" },
-          { label: "Resolved", value: stats.resolved, color: "text-emerald-600" },
-        ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4">
-              <p className="text-xs font-medium text-muted-foreground">{s.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-            </CardContent>
-          </Card>
+        {stats.map((s) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card className="border-border/50 group hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${s.gradient} text-white shadow-md group-hover:scale-110 transition-all duration-300`}>
+                    <s.icon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{s.value}</p>
+                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4 flex flex-col sm:flex-row gap-3">
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <CardContent className="p-3 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Search tickets..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9 border-border/50 focus:border-primary/50 transition-colors" placeholder="Search tickets..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[160px]"><Filter className="h-4 w-4 mr-2" /><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[160px] border-border/50"><Filter className="h-4 w-4 mr-2" /><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="open">Open</SelectItem>
@@ -360,7 +293,7 @@ const Tickets = () => {
             </SelectContent>
           </Select>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-full sm:w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[160px] border-border/50"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All priorities</SelectItem>
               <SelectItem value="urgent">Urgent</SelectItem>
@@ -372,9 +305,8 @@ const Tickets = () => {
         </CardContent>
       </Card>
 
-      {/* List */}
-      <Card>
-        <CardHeader className="pb-3">
+      <Card className="border-border/50 shadow-sm overflow-hidden">
+        <CardHeader className="pb-3 border-b border-border/30">
           <CardTitle className="text-base">All tickets ({filtered.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -382,36 +314,37 @@ const Tickets = () => {
             <div className="p-12 text-center text-muted-foreground text-sm">Loading...</div>
           ) : filtered.length === 0 ? (
             <div className="p-12 text-center">
-              <TicketIcon className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/50 border border-border/50 mx-auto mb-4">
+                <TicketIcon className="h-8 w-8 text-muted-foreground/40" />
+              </div>
               <p className="text-sm text-muted-foreground">No tickets yet. Create your first one.</p>
             </div>
           ) : (
             <>
-              {/* Desktop table */}
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>SLA</TableHead>
-                      <TableHead>Assignee</TableHead>
-                      <TableHead>Created</TableHead>
+                    <TableRow className="bg-muted/20 hover:bg-muted/20">
+                      <TableHead className="font-semibold">Subject</TableHead>
+                      <TableHead className="font-semibold">Customer</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">Priority</TableHead>
+                      <TableHead className="font-semibold">SLA</TableHead>
+                      <TableHead className="font-semibold">Assignee</TableHead>
+                      <TableHead className="font-semibold">Created</TableHead>
                       <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filtered.map((t) => (
-                      <TableRow key={t.id} className="cursor-pointer" onClick={() => openEdit(t)}>
+                      <TableRow key={t.id} className="cursor-pointer transition-colors hover:bg-muted/30" onClick={() => openEdit(t)}>
                         <TableCell className="font-medium max-w-xs">
                           <div className="flex items-center gap-2">
                             <span className="truncate">{t.subject}</span>
                             {t.conversation_id && <SourceBadge conversationId={t.conversation_id} />}
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{t.customer_name || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{t.customer_name || <span className="italic">—</span>}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className={statusConfig[t.status].className}>
                             {statusConfig[t.status].label}
@@ -423,17 +356,13 @@ const Tickets = () => {
                           </Badge>
                         </TableCell>
                         <TableCell><SlaBadge ticket={t} /></TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{t.assigned_to || "Unassigned"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-sm text-muted-foreground">{t.assigned_to || <span className="italic">Unassigned</span>}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(t.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
-                          >
-                            <Trash2 className="h-4 w-4 text-muted-foreground" />
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }} className="hover:bg-destructive/10 hover:text-destructive">
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -442,14 +371,9 @@ const Tickets = () => {
                 </Table>
               </div>
 
-              {/* Mobile cards */}
-              <div className="md:hidden divide-y">
+              <div className="md:hidden divide-y divide-border/30">
                 {filtered.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => openEdit(t)}
-                    className="w-full text-left p-4 hover:bg-muted/40 transition-colors"
-                  >
+                  <button key={t.id} onClick={() => openEdit(t)} className="w-full text-left p-4 hover:bg-muted/20 transition-colors">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <p className="font-medium text-sm flex-1 line-clamp-2">{t.subject}</p>
                       <Badge variant="outline" className={`${priorityConfig[t.priority].className} shrink-0`}>
@@ -462,7 +386,7 @@ const Tickets = () => {
                       </Badge>
                       <SlaBadge ticket={t} compact />
                       {t.conversation_id && <SourceBadge conversationId={t.conversation_id} />}
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground ml-auto">
                         {t.customer_name || "No customer"} · {new Date(t.created_at).toLocaleDateString()}
                       </span>
                     </div>
@@ -474,14 +398,16 @@ const Tickets = () => {
         </CardContent>
       </Card>
 
-      {/* Edit dialog */}
       <Dialog open={!!editTicket} onOpenChange={(o) => { if (!o) { setEditTicket(null); resetForm(); } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit ticket</DialogTitle></DialogHeader>
           <div className="grid md:grid-cols-2 gap-6">
             <div>{TicketForm}</div>
-            <div className="md:border-l md:pl-6">
-              <h3 className="text-sm font-semibold mb-3">Activity Timeline</h3>
+            <div className="md:border-l md:pl-6 md:border-border/50">
+              <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                Activity Timeline
+              </h3>
               {editTicket && <TicketTimeline ticketId={editTicket.id} />}
             </div>
           </div>
@@ -491,7 +417,7 @@ const Tickets = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   );
 };
 

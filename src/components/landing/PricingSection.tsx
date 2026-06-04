@@ -67,15 +67,35 @@ const tiers = [
   },
 ];
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" },
+  },
+};
+
 const PricingSection = () => {
   return (
-    <section id="pricing" className="py-24 md:py-32 bg-background">
-      <div className="container mx-auto px-4">
+    <section id="pricing" className="py-24 md:py-32 bg-background relative overflow-hidden">
+      <div className="absolute inset-0 bg-dot-grid opacity-30" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/2 rounded-full blur-[150px]" />
+
+      <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-2xl mx-auto text-center mb-16">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            viewport={{ once: true, margin: "-100px" }}
           >
             <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
               Pricing
@@ -89,51 +109,72 @@ const PricingSection = () => {
           </motion.div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto items-start">
-          {tiers.map((tier, i) => (
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-100px" }}
+          className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto items-start"
+        >
+          {tiers.map((tier) => (
             <motion.div
               key={tier.name}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.08 }}
+              variants={cardVariants}
               className={`relative rounded-2xl border p-7 flex flex-col ${
                 tier.highlighted
-                  ? "border-primary bg-card shadow-xl shadow-primary/10 ring-2 ring-primary/20 scale-[1.02]"
-                  : "bg-card border-border hover:border-primary/20 hover:shadow-lg transition-all"
+                  ? "border-primary/40 bg-card shadow-2xl shadow-primary/15 ring-1 ring-primary/20 scale-[1.02] lg:scale-[1.05]"
+                  : "bg-card/50 backdrop-blur-sm border-border/60 hover:border-primary/30 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
               }`}
             >
               {tier.highlighted && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-xs font-bold text-primary-foreground tracking-wide uppercase">
-                  Recommended
-                </div>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  whileInView={{ scale: 1 }}
+                  viewport={{ once: true }}
+                  className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-primary to-blue-600 px-4 py-1 text-xs font-bold text-primary-foreground tracking-wide uppercase shadow-lg shadow-primary/30"
+                >
+                  <span className="relative z-10">Recommended</span>
+                  <span className="absolute inset-0 rounded-full bg-primary blur-md opacity-50 animate-pulse" />
+                </motion.div>
               )}
 
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{tier.name}</h3>
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  {tier.name}
+                </h3>
                 <div className="mt-3 flex items-baseline gap-1">
-                  {tier.price !== "Custom" && <span className="text-sm text-muted-foreground">KES</span>}
-                  <span className="text-4xl font-black text-card-foreground">{tier.price}</span>
-                  {tier.period && tier.price !== "0" && <span className="text-sm text-muted-foreground ml-1">/{tier.period.replace("KES/", "")}</span>}
+                  {tier.price !== "Custom" && (
+                    <span className="text-sm text-muted-foreground font-medium">KES</span>
+                  )}
+                  <span className="text-4xl font-black text-card-foreground tracking-tight">
+                    {tier.price}
+                  </span>
+                  {tier.period && tier.price !== "0" && (
+                    <span className="text-sm text-muted-foreground ml-1">
+                      /{tier.period.replace("KES/", "")}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{tier.description}</p>
               </div>
 
               <ul className="mb-8 flex-1 space-y-3">
                 {tier.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2.5 text-sm text-card-foreground">
-                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                    {feature}
+                  <li key={feature} className="flex items-start gap-3 text-sm">
+                    <span className="flex h-5 w-5 mt-0.5 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                      <Check className="h-3 w-3 text-primary" />
+                    </span>
+                    <span className="text-card-foreground">{feature}</span>
                   </li>
                 ))}
               </ul>
 
               <Link to="/auth">
                 <Button
-                  className={`w-full rounded-xl font-medium ${
+                  className={`w-full rounded-xl font-medium h-11 transition-all duration-300 ${
                     tier.highlighted
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20"
-                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:shadow-md"
                   }`}
                 >
                   {tier.cta}
@@ -141,7 +182,7 @@ const PricingSection = () => {
               </Link>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

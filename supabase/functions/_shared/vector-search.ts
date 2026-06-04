@@ -16,6 +16,17 @@ export interface SearchResult {
   score?: number;
 }
 
+export interface IndexChunk {
+  id: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface VectorProvider {
+  search(query: string, userId: string, config: SearchConfig): Promise<SearchResult[]>;
+  index?(chunks: IndexChunk[]): Promise<void>;
+}
+
 function simpleBM25(query: string, text: string): number {
   const qTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
   if (qTerms.length === 0) return 0;
@@ -128,6 +139,208 @@ export function formatSearchContext(results: SearchResult[]): string {
   );
 }
 
+export class SupabaseProvider implements VectorProvider {
+  async search(query: string, userId: string, config: SearchConfig): Promise<SearchResult[]> {
+    return searchKnowledgeBase(query, userId, config);
+  }
+
+  async index(chunks: IndexChunk[]): Promise<void> {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    for (const chunk of chunks) {
+      const embedding = await getEmbedding(chunk.content);
+      if (!embedding) continue;
+      const { error } = await supabase.from("knowledge_base").upsert({
+        id: chunk.id,
+        content: chunk.content,
+        embedding,
+        ...(chunk.metadata ?? {}),
+      });
+      if (error) console.error("SupabaseProvider index error:", error);
+    }
+  }
+}
+
+export class PineconeProvider implements VectorProvider {
+  private apiKey: string;
+  private indexHost: string;
+  private namespace: string;
+
+  constructor() {
+    this.apiKey = Deno.env.get("PINECONE_API_KEY") ?? "";
+    this.indexHost = Deno.env.get("PINECONE_INDEX_HOST") ?? "";
+    this.namespace = Deno.env.get("PINECONE_NAMESPACE") ?? "";
+    if (!this.apiKey || !this.indexHost) {
+      console.warn("PineconeProvider missing PINECONE_API_KEY or PINECONE_INDEX_HOST");
+    }
+  }
+
+  async search(query: string, _userId: string, config: SearchConfig): Promise<SearchResult[]> {
+    const embedding = await getEmbedding(query);
+    if (!embedding) return [];
+
+    const count = config?.rerank ? 20 : (config?.matchCount ?? 5);
+
+    const response = await fetch(
+      `https://${this.indexHost}/query`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Api-Key": this.apiKey,
+        },
+        body: JSON.stringify({
+          vector: embedding,
+          topK: count,
+          namespace: this.namespace,
+          includeMetadata: true,
+          includeValues: false,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      console.error("Pinecone search error:", await response.text().catch(() => ""));
+      return [];
+    }
+
+    const data = await response.json();
+    const matches: { id: string; score?: number; metadata?: Record<string, unknown> }[] =
+      data.matches ?? [];
+
+    let results = matches.map((m) => ({
+      content: ((m.metadata?.content as string) ?? m.id).slice(0, MAX_CHARS_PER_CHUNK),
+      kb_id: m.id,
+      score: m.score,
+    }));
+
+    if (config?.rerank) {
+      results = rerankResults(query, results, config?.matchCount ?? 5);
+    }
+
+    return results;
+  }
+
+  async index(chunks: IndexChunk[]): Promise<void> {
+    const vectors = [];
+    for (const chunk of chunks) {
+      const embedding = await getEmbedding(chunk.content);
+      if (!embedding) continue;
+      vectors.push({
+        id: chunk.id,
+        values: embedding,
+        metadata: {
+          content: chunk.content,
+          ...(chunk.metadata ?? {}),
+        },
+      });
+    }
+    if (vectors.length === 0) return;
+
+    const response = await fetch(
+      `https://${this.indexHost}/vectors/upsert`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Api-Key": this.apiKey,
+        },
+        body: JSON.stringify({
+          vectors,
+          namespace: this.namespace,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      console.error("Pinecone index error:", await response.text().catch(() => ""));
+    }
+  }
+}
+
+export class MemoryProvider implements VectorProvider {
+  private chunks: IndexChunk[] = [];
+
+  async search(query: string, _userId: string, config: SearchConfig): Promise<SearchResult[]> {
+    if (this.chunks.length === 0) return [];
+
+    const qLower = query.toLowerCase();
+    const qTerms = qLower.split(/\s+/).filter((t) => t.length > 2);
+    if (qTerms.length === 0) return [];
+
+    const scored = this.chunks.map((chunk) => {
+      const contentLower = chunk.content.toLowerCase();
+      const matchCount = qTerms.filter((t) => contentLower.includes(t)).length;
+      const score = matchCount / qTerms.length;
+      return {
+        content: chunk.content.slice(0, MAX_CHARS_PER_CHUNK),
+        kb_id: chunk.id,
+        score,
+      };
+    });
+
+    const threshold = config?.matchThreshold ?? 0.3;
+    let results = scored
+      .filter((r) => (r.score ?? 0) >= threshold)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+    const count = config?.rerank ? 20 : (config?.matchCount ?? 5);
+    results = results.slice(0, count);
+
+    if (config?.rerank) {
+      results = rerankResults(query, results, config?.matchCount ?? 5);
+    }
+
+    return results;
+  }
+
+  async index(chunks: IndexChunk[]): Promise<void> {
+    this.chunks.push(...chunks);
+  }
+
+  clear(): void {
+    this.chunks = [];
+  }
+}
+
+const providerRegistry = new Map<string, () => VectorProvider>();
+
+export function registerProvider(name: string, factory: () => VectorProvider): void {
+  providerRegistry.set(name, factory);
+}
+
+export function getVectorProvider(): VectorProvider {
+  const providerName = Deno.env.get("VECTOR_PROVIDER") ?? "supabase";
+
+  const factory = providerRegistry.get(providerName);
+  if (factory) return factory();
+
+  switch (providerName) {
+    case "pinecone":
+      return new PineconeProvider();
+    case "memory":
+      return new MemoryProvider();
+    case "supabase":
+    default:
+      return new SupabaseProvider();
+  }
+}
+
+export async function searchKnowledgeBaseWithProvider(
+  query: string,
+  userId: string,
+  config?: SearchConfig,
+): Promise<SearchResult[]> {
+  const provider = getVectorProvider();
+  return provider.search(query, userId, config ?? {});
+}
+
+registerProvider("supabase", () => new SupabaseProvider());
+registerProvider("pinecone", () => new PineconeProvider());
+registerProvider("memory", () => new MemoryProvider());
+
 export async function buildKnowledgeContext(
   query: string | undefined,
   userId: string,
@@ -135,7 +348,8 @@ export async function buildKnowledgeContext(
 ): Promise<string> {
   if (!query) return "";
 
-  const vectorResults = await searchKnowledgeBase(query, userId, config);
+  const provider = getVectorProvider();
+  const vectorResults = await provider.search(query, userId, config ?? {});
   if (vectorResults.length > 0) {
     return formatSearchContext(vectorResults);
   }

@@ -66,3 +66,6 @@ verify_jwt = false
 
 [functions.client-telemetry]
 verify_jwt = true
+
+[functions.widget-config]
+verify_jwt = false

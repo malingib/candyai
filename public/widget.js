@@ -23,13 +23,13 @@
     businessId = currentScript.dataset.businessId;
   }
 
-  var WIDGET_VERSION = "2.0.0";
-  var SUPABASE_URL = "https://pjplcsuyhybwoinlwnnb.supabase.co";
-  var SUPABASE_ANON_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqcGxjc3V5aHlid29pbmx3bm5iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzODUxNTMsImV4cCI6MjA5Mzk2MTE1M30.FqjADIBJDirltaF2xrubf-7IVxugRf_V2VhvMt8u4gM";
+  var WIDGET_VERSION = "2.1.0";
   var ORIGIN = (currentScript && currentScript.src ? new URL(currentScript.src).origin : "https://candyai.lovable.app");
   var turnstileSiteKey = (currentScript && currentScript.dataset.turnstileSiteKey) || "";
   var DEFAULT_LOGO = ORIGIN + "/logo.png";
+  var guestToken = "";
+  var supabaseUrl = "";
+  var configFetched = false;
 
   var MOBIWAVE_AI_SITE = "https://mobiwaveai.co.ke";
   var MOBIWAVE_INNOVATIONS_SITE = "https://mobiwave.co.ke";
@@ -42,6 +42,27 @@
     website: MOBIWAVE_AI_SITE,
     whatsapp: "",
     call: "",
+  };
+
+  var widgetConfig = {
+    border_radius: 16,
+    font_family: "system",
+    dark_mode: false,
+    width: 380,
+    height: 580,
+    button_radius: 8,
+    animations: true,
+    show_branding: true,
+    show_avatar: true,
+    position_x: 24,
+    position_y: 24,
+  };
+
+  var FONT_MAP = {
+    system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    inter: "'Inter', sans-serif",
+    roboto: "'Roboto', sans-serif",
+    "open-sans": "'Open Sans', sans-serif",
   };
 
   // State
@@ -202,7 +223,7 @@
           if (extra.hasOwnProperty(k)) payload[k] = extra[k];
         }
       }
-      navigator.sendBeacon(SUPABASE_URL + "/functions/v1/widget-conversation", JSON.stringify(payload));
+      navigator.sendBeacon(ORIGIN + "/functions/v1/widget-conversation", JSON.stringify(payload));
     } catch (e) { /* analytics are best-effort */ }
   }
 
@@ -216,6 +237,7 @@
   // SECTION 4: API
   // ============================================================
   function postWidget(payload) {
+    if (!guestToken) return Promise.reject(new Error("Config not loaded"));
     var p = {
       action: payload.action,
       business_id: businessId,
@@ -231,11 +253,11 @@
     if (payload.page_title) p.page_title = payload.page_title;
     if (visitorId) p.visitor_id = visitorId;
 
-    return fetch(SUPABASE_URL + "/functions/v1/widget-conversation", {
+    return fetch(ORIGIN + "/functions/v1/widget-conversation", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + guestToken,
       },
       body: JSON.stringify(p),
     }).then(function (r) { return r.json(); });
@@ -337,7 +359,8 @@
   function subscribeRealtime(convId) {
     if (!convId || realtimeChannel) return;
     try {
-      var wsUrl = SUPABASE_URL.replace(/^http/, "ws") + "/realtime/v1/websocket?apikey=" + encodeURIComponent(SUPABASE_ANON_KEY) + "&vsn=1.0.0";
+      var realtimeBase = supabaseUrl || ORIGIN;
+      var wsUrl = realtimeBase.replace(/^http/, "ws") + "/realtime/v1/websocket?apikey=" + encodeURIComponent(guestToken) + "&vsn=1.0.0";
       var ws = new WebSocket(wsUrl);
       realtimeChannel = ws;
       var msgTopic = "realtime:public:messages:conversation_id=eq." + convId;
@@ -560,12 +583,12 @@
     function attemptSend() {
       var pageContext = "Page URL: " + currentPageUrl + "\nPage title: " + currentPageTitle;
 
-      return fetchWithTimeout(SUPABASE_URL + "/functions/v1/chat", {
+      return fetchWithTimeout(ORIGIN + "/functions/v1/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: "Bearer " + SUPABASE_ANON_KEY,
+          apikey: guestToken,
+          Authorization: "Bearer " + guestToken,
         },
         body: JSON.stringify({
           messages: messages,
@@ -608,13 +631,13 @@
   // ============================================================
   // SECTION 9: Styles
   // ============================================================
-  var css = ".mw-launcher{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:68px !important;height:68px !important;border-radius:9999px !important;background:linear-gradient(140deg,var(--mw-primary),#1d4ed8);color:#fff;border:none;cursor:pointer;box-shadow:0 14px 34px -12px rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;z-index:2147483646 !important;transition:transform .2s, box-shadow .2s;margin:0 !important;padding:0 !important;float:none !important;transform:none !important;animation:mw-float 2.8s ease-in-out infinite}" +
-    ".mw-launcher::before{content:\"\";position:absolute;inset:-4px;border-radius:9999px;background:conic-gradient(from 180deg at 50% 50%, rgba(37,99,235,.45), rgba(37,99,235,.1), rgba(37,99,235,.45));z-index:-1;animation:mw-spin 3s linear infinite}" +
+  var css = ".mw-launcher{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:68px !important;height:68px !important;border-radius:9999px !important;background:linear-gradient(140deg,var(--mw-primary),#1d4ed8);color:#fff;border:none;cursor:pointer;box-shadow:0 14px 34px -12px rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;z-index:2147483646 !important;transition:transform .2s, box-shadow .2s;margin:0 !important;padding:0 !important;float:none !important;transform:none !important}" +
+    ".mw-launcher::before{content:\"\";position:absolute;inset:-4px;border-radius:9999px;background:conic-gradient(from 180deg at 50% 50%, rgba(37,99,235,.45), rgba(37,99,235,.1), rgba(37,99,235,.45));z-index:-1}" +
     ".mw-launcher:hover{transform:translateY(-2px) scale(1.03) !important;box-shadow:0 18px 40px -12px rgba(0,0,0,.5)}" +
     ".mw-launcher:active{transform:scale(.98) !important}" +
     ".mw-launcher img{width:34px;height:34px;object-fit:contain}" +
     ".mw-launcher-logo-wrap{width:48px;height:48px;border-radius:9999px;background:rgba(255,255,255,.16);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center}" +
-    ".mw-panel{position:fixed !important;bottom:24px !important;right:24px !important;left:auto !important;top:auto !important;width:380px;max-width:calc(100vw - 32px);height:580px;max-height:calc(100vh - 48px);background:#fff;border-radius:16px;box-shadow:0 20px 50px -10px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;z-index:2147483647 !important;font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;border:1px solid #e5e7eb;margin:0 !important;float:none !important;transform:none !important}" +
+    ".mw-panel{position:fixed !important;left:auto !important;top:auto !important;max-width:calc(100vw - 32px);max-height:calc(100vh - 48px);background:#fff;border-radius:16px;box-shadow:0 20px 50px -10px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;z-index:2147483647 !important;border:1px solid #e5e7eb;margin:0 !important;float:none !important;transform:none !important}" +
     ".mw-header{background:var(--mw-primary);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between}" +
     ".mw-header-left{display:flex;align-items:center;gap:12px}" +
     ".mw-avatar{width:36px;height:36px;border-radius:9999px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;overflow:hidden}" +
@@ -632,10 +655,9 @@
     ".mw-msg-bubble{max-width:75%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;color:#111827;background:#fff;border:1px solid #e5e7eb;border-bottom-left-radius:4px;white-space:pre-wrap;word-wrap:break-word}" +
     ".mw-msg.user .mw-msg-bubble{background:var(--mw-primary);color:#fff;border-color:var(--mw-primary);border-bottom-right-radius:4px;border-bottom-left-radius:16px}" +
     ".mw-typing{display:flex;gap:4px;padding:4px 0}" +
-    ".mw-typing span{width:6px;height:6px;border-radius:9999px;background:#9ca3af;animation:mw-bounce 1.4s infinite}" +
+    ".mw-typing span{width:6px;height:6px;border-radius:9999px;background:#9ca3af}" +
     ".mw-typing span:nth-child(2){animation-delay:.2s}" +
     ".mw-typing span:nth-child(3){animation-delay:.4s}" +
-    "@keyframes mw-bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-6px);opacity:1}}" +
     ".mw-actions{display:flex;gap:8px;padding:8px 12px;background:#fff;border-top:1px solid #e5e7eb;flex-wrap:wrap}" +
     ".mw-action-btn{flex:1;min-width:90px;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;color:#111827;text-decoration:none;font-size:12px;font-weight:500;cursor:pointer;transition:background .15s;font-family:inherit}" +
     ".mw-action-btn:hover{background:#f3f4f6}" +
@@ -663,8 +685,47 @@
     ".mw-warn-banner{padding:8px 12px;background:#fef3c7;color:#92400e;font-size:12px;text-align:center;border-bottom:1px solid #fde68a}" +
     ".mw-turnstile{padding:8px 12px 4px;background:#fff;border-top:1px solid #e5e7eb;display:flex;justify-content:center}" +
     ".mw-turnstile iframe{max-width:100%}" +
+    "@keyframes mw-bounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-6px);opacity:1}}" +
     "@keyframes mw-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}" +
-    "@keyframes mw-spin{to{transform:rotate(360deg)}}";
+    "@keyframes mw-spin{to{transform:rotate(360deg)}}" +
+    ".mw-dark .mw-panel{background:#1f2937;border-color:#374151;color:#f3f4f6}" +
+    ".mw-dark .mw-messages{background:#111827}" +
+    ".mw-dark .mw-msg-bubble{background:#374151;color:#f3f4f6;border-color:#4b5563}" +
+    ".mw-dark .mw-msg.user .mw-msg-bubble{background:var(--mw-primary);color:#fff;border-color:var(--mw-primary)}" +
+    ".mw-dark .mw-input-bar{background:#1f2937;border-color:#374151}" +
+    ".mw-dark .mw-input{background:#374151;color:#f3f4f6;border-color:#4b5563}" +
+    ".mw-dark .mw-input::placeholder{color:#9ca3af}" +
+    ".mw-dark .mw-input:focus{border-color:var(--mw-primary)}" +
+    ".mw-dark .mw-actions{background:#1f2937;border-color:#374151}" +
+    ".mw-dark .mw-action-btn{background:#374151;color:#f3f4f6;border-color:#4b5563}" +
+    ".mw-dark .mw-action-btn:hover{background:#4b5563}" +
+    ".mw-dark .mw-footer{background:#1f2937}" +
+    ".mw-dark .mw-warn-banner{background:#78350f;color:#fde68a;border-color:#92400e}" +
+    ".mw-dark .mw-lead-form{background:#111827;border-color:#374151}" +
+    ".mw-dark .mw-lead-form input{background:#374151;color:#f3f4f6;border-color:#4b5563}" +
+    ".mw-dark .mw-lead-cancel{background:#374151;color:#d1d5db;border-color:#4b5563}" +
+    ".mw-dark .mw-turnstile{background:#1f2937;border-color:#374151}" +
+    ".mw-dark .mw-link{border-bottom-color:rgba(96,165,250,.35)}" +
+    ".mw-launcher.mw-launcher-left{left:24px !important;right:auto !important}" +
+    ".mw-panel.mw-panel-left{left:24px !important;right:auto !important}";
+
+  // Animation keyframes - conditionally added if animations are enabled
+  function addAnimationStyles() {
+    var animEl = document.getElementById("mw-anim-styles");
+    if (animEl) return;
+    var s = document.createElement("style");
+    s.id = "mw-anim-styles";
+    s.textContent =
+      ".mw-launcher{animation:mw-float 2.8s ease-in-out infinite}" +
+      ".mw-launcher::before{animation:mw-spin 3s linear infinite}" +
+      ".mw-typing span{animation:mw-bounce 1.4s infinite}";
+    document.head.appendChild(s);
+  }
+
+  function removeAnimationStyles() {
+    var animEl = document.getElementById("mw-anim-styles");
+    if (animEl) animEl.remove();
+  }
 
   var style = document.createElement("style");
   style.textContent = css;
@@ -722,6 +783,7 @@
       document.body.appendChild(launcher);
       document.body.appendChild(panel);
       updateBizNameUI();
+      applyCustomConfig();
       sendPageView();
     } else {
       setTimeout(init, 50);
@@ -774,6 +836,95 @@
   }
 
   // ============================================================
+  // SECTION 10b: Custom Config Application
+  // ============================================================
+  function applyCustomConfig() {
+    var fontFamily = FONT_MAP[widgetConfig.font_family] || FONT_MAP.system;
+    panel.style.fontFamily = fontFamily;
+    panel.style.width = widgetConfig.width + "px";
+    panel.style.height = widgetConfig.height + "px";
+    panel.style.borderRadius = widgetConfig.border_radius + "px";
+
+    var pos = "right";
+    var px = widgetConfig.position_x + "px";
+    var py = widgetConfig.position_y + "px";
+
+    launcher.style.bottom = py;
+    launcher.style.right = px;
+    launcher.style.left = "auto";
+    launcher.className = "mw-launcher";
+
+    panel.style.bottom = py;
+    panel.style.right = px;
+    panel.style.left = "auto";
+    panel.className = "mw-panel";
+
+    var bubbles = panel.querySelectorAll(".mw-msg-bubble");
+    for (var i = 0; i < bubbles.length; i++) {
+      bubbles[i].style.borderRadius = widgetConfig.border_radius + "px";
+      bubbles[i].style.borderBottomLeftRadius = "4px";
+    }
+    var userBubbles = panel.querySelectorAll(".mw-msg.user .mw-msg-bubble");
+    for (var i = 0; i < userBubbles.length; i++) {
+      userBubbles[i].style.borderBottomRightRadius = "4px";
+      userBubbles[i].style.borderBottomLeftRadius = widgetConfig.border_radius + "px";
+    }
+
+    var input = document.getElementById("mw-input");
+    if (input) input.style.borderRadius = widgetConfig.border_radius + "px";
+
+    var sendBtn = panel.querySelector(".mw-send");
+    if (sendBtn) sendBtn.style.borderRadius = widgetConfig.button_radius + "px";
+
+    var actionBtns = panel.querySelectorAll(".mw-action-btn");
+    for (var i = 0; i < actionBtns.length; i++) {
+      actionBtns[i].style.borderRadius = widgetConfig.button_radius + "px";
+    }
+
+    var leadSubmit = document.getElementById("mw-lead-submit");
+    if (leadSubmit) leadSubmit.style.borderRadius = widgetConfig.button_radius + "px";
+    var leadCancel = document.getElementById("mw-lead-cancel");
+    if (leadCancel) leadCancel.style.borderRadius = widgetConfig.button_radius + "px";
+
+    var avatarEls = panel.querySelectorAll(".mw-avatar, .mw-msg-avatar");
+    for (var i = 0; i < avatarEls.length; i++) {
+      avatarEls[i].style.display = widgetConfig.show_avatar ? "" : "none";
+    }
+
+    var footer = panel.querySelector(".mw-footer");
+    if (footer) footer.style.display = widgetConfig.show_branding ? "" : "none";
+
+    if (widgetConfig.dark_mode) {
+      panel.classList.add("mw-dark");
+    } else {
+      panel.classList.remove("mw-dark");
+    }
+
+    if (widgetConfig.animations) {
+      addAnimationStyles();
+    } else {
+      removeAnimationStyles();
+    }
+  }
+
+  function applyCustomConfigToMessages() {
+    var msgBubbles = panel.querySelectorAll(".mw-msg-bubble");
+    for (var i = 0; i < msgBubbles.length; i++) {
+      msgBubbles[i].style.borderRadius = widgetConfig.border_radius + "px";
+      if (msgBubbles[i].closest(".mw-msg.user")) {
+        msgBubbles[i].style.borderBottomRightRadius = "4px";
+        msgBubbles[i].style.borderBottomLeftRadius = widgetConfig.border_radius + "px";
+      } else {
+        msgBubbles[i].style.borderBottomLeftRadius = "4px";
+      }
+    }
+    var avatarEls = panel.querySelectorAll(".mw-avatar, .mw-msg-avatar");
+    for (var i = 0; i < avatarEls.length; i++) {
+      avatarEls[i].style.display = widgetConfig.show_avatar ? "" : "none";
+    }
+  }
+
+  // ============================================================
   // SECTION 11: Render
   // ============================================================
   function renderActions() {
@@ -798,6 +949,11 @@
     actionsEl.style.display = html ? "flex" : "none";
     var leadCta = document.getElementById("mw-lead-cta");
     if (leadCta) leadCta.addEventListener("click", openLeadForm);
+
+    var actionBtns = actionsEl.querySelectorAll(".mw-action-btn");
+    for (var i = 0; i < actionBtns.length; i++) {
+      actionBtns[i].style.borderRadius = widgetConfig.button_radius + "px";
+    }
   }
 
   function render() {
@@ -829,6 +985,21 @@
 
     msgEl.innerHTML = html;
     msgEl.scrollTop = msgEl.scrollHeight;
+
+    var msgBubbles = panel.querySelectorAll(".mw-msg-bubble");
+    for (var i = 0; i < msgBubbles.length; i++) {
+      msgBubbles[i].style.borderRadius = widgetConfig.border_radius + "px";
+      if (msgBubbles[i].closest(".mw-msg.user")) {
+        msgBubbles[i].style.borderBottomRightRadius = "4px";
+        msgBubbles[i].style.borderBottomLeftRadius = widgetConfig.border_radius + "px";
+      } else {
+        msgBubbles[i].style.borderBottomLeftRadius = "4px";
+      }
+    }
+    var avatarEls = panel.querySelectorAll(".mw-avatar, .mw-msg-avatar");
+    for (var i = 0; i < avatarEls.length; i++) {
+      avatarEls[i].style.display = widgetConfig.show_avatar ? "" : "none";
+    }
   }
 
   // ============================================================
@@ -898,18 +1069,38 @@
   document.getElementById("mw-lead-submit").addEventListener("click", submitLead);
 
   // ============================================================
-  // SECTION 13: Theme fetch
+  // SECTION 13: Widget config fetch
   // ============================================================
-  if (businessId) {
-    fetch(SUPABASE_URL + "/functions/v1/get-contact-info", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: "Bearer " + SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ user_id: sanitizeUuid(businessId) }),
-    }).then(function (r) { return r.json(); }).then(function (data) {
+  function initCustomConfig(data) {
+    if (!data) return;
+    var raw = data.widget_config;
+    if (raw && typeof raw === "string") {
+      try {
+        var parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          for (var k in parsed) {
+            if (parsed.hasOwnProperty(k) && widgetConfig.hasOwnProperty(k)) {
+              widgetConfig[k] = parsed[k];
+            }
+          }
+        }
+      } catch (e) { /* keep defaults */ }
+    }
+    applyCustomConfig();
+  }
+
+  function fetchWidgetConfig(id) {
+    var url = ORIGIN + "/functions/v1/widget-config?business_id=" + encodeURIComponent(id);
+    if (visitorId) url += "&visitor_id=" + encodeURIComponent(visitorId);
+
+    fetch(url, { method: "GET" }).then(function (r) {
+      if (!r.ok) throw new Error("Config fetch failed");
+      return r.json();
+    }).then(function (data) {
+      configFetched = true;
+      guestToken = data.guest_token || "";
+      supabaseUrl = data.supabase_url || "";
+
       if (data.primary_color) theme.primary = data.primary_color;
       if (data.business_name) theme.businessName = data.business_name;
       if (data.welcome_message) theme.welcome = data.welcome_message;
@@ -927,6 +1118,10 @@
         if (isOpen) render();
       }
       if (isOpen) renderActions();
+
+      initCustomConfig(data);
     }).catch(function () { /* keep defaults */ });
   }
+
+  if (businessId) fetchWidgetConfig(businessId);
 })();

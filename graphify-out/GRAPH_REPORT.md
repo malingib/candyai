@@ -1,12 +1,12 @@
-# Graph Report - candyai  (2026-05-28)
+# Graph Report - candyai  (2026-05-29)
 
 ## Corpus Check
-- 146 files · ~126,147 words
+- 147 files · ~134,900 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 437 nodes · 501 edges · 16 communities detected
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 29 edges (avg confidence: 0.8)
+- 467 nodes · 563 edges · 16 communities detected
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 38 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -25,65 +25,65 @@
 - [[_COMMUNITY_Community 13|Community 13]]
 - [[_COMMUNITY_Community 14|Community 14]]
 - [[_COMMUNITY_Community 15|Community 15]]
-- [[_COMMUNITY_Community 25|Community 25]]
+- [[_COMMUNITY_Community 24|Community 24]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `toast()` - 20 edges
 2. `ensureConversation()` - 12 edges
 3. `submitLead()` - 10 edges
-4. `render()` - 9 edges
+4. `render()` - 10 edges
 5. `buildWebsiteData()` - 8 edges
-6. `toggle()` - 7 edges
-7. `pingAnalytics()` - 6 edges
-8. `multiRateLimit()` - 5 edges
-9. `searchKnowledgeBase()` - 5 edges
-10. `isQdrantConfigured()` - 5 edges
+6. `fetchWidgetConfig()` - 8 edges
+7. `toggle()` - 7 edges
+8. `useAuth()` - 7 edges
+9. `pingAnalytics()` - 6 edges
+10. `multiRateLimit()` - 5 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `getEmbedding()` --calls--> `searchKnowledgeBase()`  [INFERRED]
   supabase/functions/_shared/embeddings.ts → supabase/functions/_shared/vector-search.ts
-- `getEmbedding()` --calls--> `searchKnowledgeBase()`  [INFERRED]
-  supabase/functions/_shared/ai.ts → supabase/functions/_shared/vector-search.ts
 - `verifyJWT()` --calls--> `ensureAdmin()`  [INFERRED]
   supabase/functions/_shared/jwt-verify.ts → supabase/functions/admin-control/index.ts
 - `toast()` --calls--> `handleAuth()`  [INFERRED]
   src/hooks/use-toast.ts → src/pages/Auth.tsx
 - `toast()` --calls--> `handleSave()`  [INFERRED]
   src/hooks/use-toast.ts → src/pages/dashboard/KnowledgeBase.tsx
+- `toast()` --calls--> `handleCrawl()`  [INFERRED]
+  src/hooks/use-toast.ts → src/pages/dashboard/KnowledgeBase.tsx
 
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.06
-Nodes (30): openCreate(), remove(), reset(), save(), handleConvertToTicket(), handleReplyChange(), handleSendReply(), sendTyping() (+22 more)
+Cohesion: 0.07
+Nodes (32): openCreate(), remove(), reset(), save(), handleConvertToTicket(), handleReplyChange(), handleSendReply(), sendTyping() (+24 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.07
+Cohesion: 0.08
 Nodes (14): timingSafeEqual(), toHex(), verifyGithubSignature(), verifyJWT(), verifyTokenInRequest(), admin(), check(), getClientIp() (+6 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.13
-Nodes (27): closeLeadForm(), ensureConversation(), escapeHtml(), getTimestamp(), init(), loadTurnstile(), persistMessage(), pingAnalytics() (+19 more)
+Cohesion: 0.12
+Nodes (34): addAnimationStyles(), applyCustomConfig(), applyTheme(), closeLeadForm(), ensureConversation(), escapeHtml(), fetchWidgetConfig(), getTimestamp() (+26 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (15): buildPricingResponse(), buildTenderAvailabilityResponse(), buildWebsiteOverviewResponse(), callGatewayStream(), callProviderWithFallbackStream(), compactPricingSection(), extractSectionBetween(), extractSmsPricingFacts() (+7 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.16
-Nodes (13): sanitizeMessages(), errorResponse(), jsonResponse(), sanitize(), buildWebsiteData(), cleanVisitorId(), discoverPages(), ensureWebsiteData() (+5 more)
+Cohesion: 0.11
+Nodes (12): getEmbedding(), getEmbedding(), buildKnowledgeContext(), formatSearchContext(), getVectorProvider(), MemoryProvider, PineconeProvider, rerankResults() (+4 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.16
-Nodes (9): getOverlap(), smartChunk(), getEmbedding(), getEmbedding(), buildKnowledgeContext(), formatSearchContext(), rerankResults(), searchKnowledgeBase() (+1 more)
+Cohesion: 0.11
+Nodes (17): sanitizeMessages(), getOverlap(), smartChunk(), errorResponse(), jsonResponse(), sanitize(), base64url(), signGuestToken() (+9 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.23
-Nodes (7): buildAnalyticsPayload(), buildChatPayload(), buildLeadPayload(), sanitizeEmail(), sanitizePhone(), sanitizeText(), sanitizeUuid()
+Cohesion: 0.09
+Nodes (12): ProtectedRoute(), Billing(), EmbedCode(), Leads(), SettingsPage(), useToast(), useAuth(), useIsAdmin() (+4 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.17
-Nodes (6): ProtectedRoute(), useAuth(), useIsAdmin(), UserOnlyRoute(), isLikelyStaleChunkError(), tryRecoverFromStaleChunk()
+Cohesion: 0.23
+Nodes (7): buildAnalyticsPayload(), buildChatPayload(), buildLeadPayload(), sanitizeEmail(), sanitizePhone(), sanitizeText(), sanitizeUuid()
 
 ### Community 8 - "Community 8"
 Cohesion: 0.33
@@ -113,7 +113,7 @@ Nodes (5): isQdrantConfigured(), qdrantDeleteCollection(), qdrantEnsureCollectio
 Cohesion: 0.33
 Nodes (1): ErrorBoundary
 
-### Community 25 - "Community 25"
+### Community 24 - "Community 24"
 Cohesion: 1.0
 Nodes (2): formatCycleResetDate(), getCycleResetAt()
 
@@ -124,19 +124,23 @@ Nodes (2): formatCycleResetDate(), getCycleResetAt()
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 15`** (6 nodes): `ErrorBoundary`, `.componentDidCatch()`, `.constructor()`, `.getDerivedStateFromError()`, `.render()`, `ErrorBoundary.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 25`** (3 nodes): `formatCycleResetDate()`, `getCycleResetAt()`, `billing-cycle.ts`
+- **Thin community `Community 24`** (3 nodes): `formatCycleResetDate()`, `getCycleResetAt()`, `billing-cycle.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
+- **Why does `useToast()` connect `Community 6` to `Community 0`?**
+  _High betweenness centrality (0.011) - this node is a cross-community bridge._
 - **Are the 17 inferred relationships involving `toast()` (e.g. with `handleAuth()` and `handleSave()`) actually correct?**
   _`toast()` has 17 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
-- **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.07 - nodes in this community are weakly interconnected._
+- **Should `Community 1` be split into smaller, more focused modules?**
+  _Cohesion score 0.08 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.13 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.12 - nodes in this community are weakly interconnected._
 - **Should `Community 3` be split into smaller, more focused modules?**
-  _Cohesion score 0.09 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08 - nodes in this community are weakly interconnected._
+- **Should `Community 4` be split into smaller, more focused modules?**
+  _Cohesion score 0.11 - nodes in this community are weakly interconnected._
