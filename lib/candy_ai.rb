@@ -19,4 +19,14 @@ module CandyAI
       @default_ai_provider = nil
     end
   end
+
+  class << self
+    attr_writer :config
+
+    def config
+      @config ||= Configuration.new
+    end
+  end
 end
+
+require_relative 'candy_ai/ai'
