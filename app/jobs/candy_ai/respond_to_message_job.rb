@@ -12,10 +12,16 @@ module CandyAI
       message = Message.includes(:conversation, :account, :inbox).find_by(id: message_id)
       return if message.blank? || !eligible_message?(message)
 
+      configuration = CandyAI::AccountConfiguration.effective(message.inbox)
+      return unless configuration['enabled'] == true
+
       response = CandyAI::AI.orchestrator.respond(
         messages: conversation_messages(message.conversation),
-        provider: CandyAI.config.default_ai_provider,
-        model: ENV['CANDYAI_AI_MODEL'].presence
+        provider: configuration['provider'].presence || CandyAI.config.default_ai_provider,
+        model: configuration['model'].presence || ENV['CANDYAI_AI_MODEL'].presence,
+        system_prompt: configuration['system_prompt'].presence,
+        temperature: configuration['temperature'],
+        max_tokens: configuration['max_tokens']
       )
 
       return if response.text.blank?
