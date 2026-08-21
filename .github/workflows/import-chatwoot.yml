@@ -28,54 +28,89 @@ jobs:
           tmp="$(mktemp -d)"
           git clone --depth 1 --branch develop https://github.com/chatwoot/chatwoot.git "$tmp/chatwoot"
 
-          # Preserve this workflow while replacing the application tree.
-          mkdir -p "$tmp/workflows"
-          cp .github/workflows/import-chatwoot.yml "$tmp/workflows/import-chatwoot.yml"
-
           find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
           cp -a "$tmp/chatwoot"/. .
-          rm -rf .git
-          git init
-          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git fetch origin develop
-          git checkout -B develop origin/develop
 
-          # Restore the workflow after importing the upstream tree.
+          # Restore CandyAI's import workflow because it is not part of upstream Chatwoot.
           mkdir -p .github/workflows
-          cp "$tmp/workflows/import-chatwoot.yml" .github/workflows/import-chatwoot.yml
+          cat > .github/workflows/import-chatwoot.yml <<'WORKFLOW'
+          name: Import Chatwoot OSS Foundation
+
+          on:
+            push:
+              branches:
+                - develop
+              paths:
+                - .github/workflows/import-chatwoot.yml
+                - .github/candyai-bootstrap.trigger
+
+          permissions:
+            contents: write
+
+          jobs:
+            import:
+              if: ${{ !contains(github.event.head_commit.message, '[chatwoot-import]') }}
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                  with:
+                    fetch-depth: 0
+                - name: Import Chatwoot develop
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    tmp="$(mktemp -d)"
+                    git clone --depth 1 --branch develop https://github.com/chatwoot/chatwoot.git "$tmp/chatwoot"
+                    find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
+                    cp -a "$tmp/chatwoot"/. .
+                    mkdir -p .github/workflows
+                    cp "$GITHUB_WORKSPACE/.github/workflows/import-chatwoot.yml" .github/workflows/import-chatwoot.yml
+                    cat > CANDYAI_FOUNDATION.md <<'EOF'
+          # CandyAI — Chatwoot OSS Foundation
+
+          CandyAI is a self-hosted downstream product based on Chatwoot OSS.
+
+          - Preserve Chatwoot core service-desk and omnichannel functionality.
+          - No Chatwoot Cloud or paid Chatwoot dependency.
+          - Add CandyAI/MobiWave functionality in isolated domains.
+          - Keep the future CandyAI agent/tool system deferred until the core platform is stable.
+          - Preserve upstream attribution and licensing requirements.
+
+          Planned extensions: CandyAI branding, MobiWave integrations, Paystack billing, business/company CRM, CandyAI AI/RAG, CandyAI SLA/roles, and future bounded AI agents/tools.
+
+          The existing pre-Chatwoot CandyAI implementation is preserved in `legacy/candyai-pre-chatwoot`.
+          EOF
+                    rm -f .github/candyai-bootstrap.trigger
+                    git config user.name "github-actions[bot]"
+                    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                    git add -A
+                    git commit -m "Import Chatwoot OSS develop as CandyAI foundation [chatwoot-import]"
+                    git push origin HEAD:develop
+                env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW
 
           cat > CANDYAI_FOUNDATION.md <<'EOF'
           # CandyAI — Chatwoot OSS Foundation
 
-          CandyAI is being built as a self-hosted downstream product based on the Chatwoot open-source repository.
+          CandyAI is a self-hosted downstream product based on Chatwoot OSS.
 
-          ## Principles
           - Preserve Chatwoot core service-desk and omnichannel functionality.
-          - No dependency on Chatwoot Cloud or paid Chatwoot services.
-          - Add CandyAI/MobiWave functionality in isolated application domains.
+          - No Chatwoot Cloud or paid Chatwoot dependency.
+          - Add CandyAI/MobiWave functionality in isolated domains.
           - Keep the future CandyAI agent/tool system deferred until the core platform is stable.
           - Preserve upstream attribution and licensing requirements.
 
-          ## Planned extensions
-          - CandyAI branding
-          - MobiWave integrations
-          - Paystack billing
-          - Business/company CRM extensions
-          - CandyAI AI/RAG layer
-          - CandyAI SLA and roles where required
-          - Future bounded AI agents/tools
+          Planned extensions: CandyAI branding, MobiWave integrations, Paystack billing, business/company CRM, CandyAI AI/RAG, CandyAI SLA/roles, and future bounded AI agents/tools.
 
           The existing pre-Chatwoot CandyAI implementation is preserved in `legacy/candyai-pre-chatwoot`.
           EOF
 
+          rm -f .github/candyai-bootstrap.trigger
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Import Chatwoot OSS develop as CandyAI foundation [chatwoot-import]"
-          git push --force origin develop
+          git push origin HEAD:develop
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Remove bootstrap trigger
-        if: ${{ always() }}
-        run: true
