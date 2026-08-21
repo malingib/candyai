@@ -5,6 +5,7 @@ require_relative "ai/response"
 require_relative "ai/provider_registry"
 require_relative "ai/openai_compatible_provider"
 require_relative "ai/router"
+require_relative "ai/orchestrator"
 
 module CandyAI
   module AI
@@ -34,6 +35,10 @@ module CandyAI
 
     def self.router
       @router ||= Router.new
+    end
+
+    def self.orchestrator
+      @orchestrator ||= Orchestrator.new
     end
   end
 end
