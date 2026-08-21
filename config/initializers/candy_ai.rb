@@ -29,3 +29,24 @@ if ENV['CANDYAI_AI_API_KEY'].present? && ENV['CANDYAI_AI_MODEL'].present?
 
   CandyAI.config.default_ai_provider = provider_name
 end
+
+Rails.application.config.to_prepare do
+  Account.define_method(:candy_ai_configuration) do
+    CandyAI::AccountConfiguration.account(self)
+  end unless Account.method_defined?(:candy_ai_configuration)
+
+  Account.define_method(:candy_ai_enabled?) do
+    candy_ai_configuration['enabled'] == true
+  end unless Account.method_defined?(:candy_ai_enabled?)
+end
+
+Rails.application.routes.append do
+  namespace :api, defaults: { format: 'json' } do
+    namespace :v1 do
+      resources :accounts, only: [] do
+        resource :candy_ai, only: [:show, :update], controller: 'accounts/candy_ai'
+        resources :candy_ai_inboxes, only: [:show, :update], controller: 'accounts/candy_ai_inboxes', param: :inbox_id
+      end
+    end
+  end
+end
