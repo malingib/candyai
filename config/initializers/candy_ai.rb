@@ -3,21 +3,22 @@
 require Rails.root.join('lib/candy_ai')
 
 Rails.application.config.x.candy_ai = CandyAI::Configuration.new
+CandyAI.config = Rails.application.config.x.candy_ai
 
-Rails.application.config.x.candy_ai.enabled =
+CandyAI.config.enabled =
   ActiveModel::Type::Boolean.new.cast(ENV.fetch('CANDYAI_ENABLED', 'true'))
 
-Rails.application.config.x.candy_ai.brand_name =
+CandyAI.config.brand_name =
   ENV.fetch('CANDYAI_BRAND_NAME', CandyAI::PRODUCT_NAME)
 
-Rails.application.config.x.candy_ai.company_name =
+CandyAI.config.company_name =
   ENV.fetch('CANDYAI_COMPANY_NAME', CandyAI::COMPANY_NAME)
 
-Rails.application.config.x.candy_ai.default_ai_provider =
+CandyAI.config.default_ai_provider =
   ENV['CANDYAI_DEFAULT_AI_PROVIDER'].presence
 
 if ENV['CANDYAI_AI_API_KEY'].present? && ENV['CANDYAI_AI_MODEL'].present?
-  provider_name = Rails.application.config.x.candy_ai.default_ai_provider || 'default'
+  provider_name = CandyAI.config.default_ai_provider || 'default'
 
   CandyAI::AI.register_openai_compatible(
     name: provider_name,
@@ -26,5 +27,5 @@ if ENV['CANDYAI_AI_API_KEY'].present? && ENV['CANDYAI_AI_MODEL'].present?
     model: ENV['CANDYAI_AI_MODEL']
   )
 
-  Rails.application.config.x.candy_ai.default_ai_provider = provider_name
+  CandyAI.config.default_ai_provider = provider_name
 end
