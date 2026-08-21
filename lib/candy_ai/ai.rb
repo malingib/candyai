@@ -4,6 +4,7 @@ require_relative "ai/provider"
 require_relative "ai/response"
 require_relative "ai/provider_registry"
 require_relative "ai/openai_compatible_provider"
+require_relative "ai/router"
 
 module CandyAI
   module AI
@@ -29,6 +30,10 @@ module CandyAI
       )
       register_provider(name, provider)
       provider
+    end
+
+    def self.router
+      @router ||= Router.new
     end
   end
 end
