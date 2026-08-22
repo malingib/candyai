@@ -14,7 +14,8 @@ class CandyAIListener < BaseListener
 
     case configuration['mode']
     when 'assist'
-      CandyAI::GenerateSuggestionJob.perform_later(message.id)
+      suggestion = CandyAI::Suggestion.request_for(message)
+      CandyAI::GenerateSuggestionJob.perform_later(suggestion.id) if suggestion.pending?
     when 'autonomous'
       CandyAI::RespondToMessageJob.perform_later(message.id)
     end

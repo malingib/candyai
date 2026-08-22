@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Api::V1::Accounts::CandyAIInboxesController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::CandyAiInboxesController < Api::V1::Accounts::BaseController
   before_action :set_inbox
   before_action :authorize_account_update
 
@@ -42,3 +42,5 @@ class Api::V1::Accounts::CandyAIInboxesController < Api::V1::Accounts::BaseContr
     )
   end
 end
+
+Api::V1::Accounts::CandyAIInboxesController = Api::V1::Accounts::CandyAiInboxesController

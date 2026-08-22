@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require_relative "ai/provider"
-require_relative "ai/error"
-require_relative "ai/response"
-require_relative "ai/provider_registry"
-require_relative "ai/openai_compatible_provider"
-require_relative "ai/router"
-require_relative "ai/orchestrator"
+require_relative 'ai/provider'
+require_relative 'ai/error'
+require_relative 'ai/response'
+require_relative 'ai/provider_registry'
+require_relative 'ai/openai_compatible_provider'
+require_relative 'ai/router'
+require_relative 'ai/orchestrator'
 
 module CandyAI
   module AI
@@ -25,6 +25,7 @@ module CandyAI
     def self.register_openai_compatible(name:, api_key: nil, base_url: nil, model: nil, **options)
       provider = OpenAICompatibleProvider.new(
         options.merge(
+          name: name,
           api_key: api_key,
           base_url: base_url,
           model: model

@@ -8,7 +8,9 @@ Rails.application.routes.append do
       resources :accounts, only: [] do
         resource :candy_ai, only: [:show, :update], controller: 'accounts/candy_ai'
         resources :candy_ai_inboxes, only: [:show, :update], controller: 'accounts/candy_ai_inboxes', param: :inbox_id
-        resources :candy_ai_suggestions, only: [:index], controller: 'accounts/candy_ai_suggestions'
+        resources :candy_ai_suggestions, only: [:index, :show, :create, :update], controller: 'accounts/candy_ai_suggestions' do
+          post :regenerate, on: :member
+        end
       end
     end
   end

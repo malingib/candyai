@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_14_000000) do
+ActiveRecord::Schema[7.2].define(version: 2026_08_22_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -394,6 +394,39 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_14_000000) do
     t.index ["campaign_type"], name: "index_campaigns_on_campaign_type"
     t.index ["inbox_id"], name: "index_campaigns_on_inbox_id"
     t.index ["scheduled_at"], name: "index_campaigns_on_scheduled_at"
+  end
+
+  create_table "candy_ai_suggestions", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.integer "inbox_id", null: false
+    t.integer "conversation_id", null: false
+    t.integer "message_id", null: false
+    t.string "status", default: "generated", null: false
+    t.text "content"
+    t.string "provider"
+    t.string "model"
+    t.jsonb "usage", default: {}, null: false
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "source", default: "message_created", null: false
+    t.string "failure_category"
+    t.string "request_id"
+    t.jsonb "context_metadata", default: {}, null: false
+    t.datetime "generation_started_at"
+    t.datetime "generated_at"
+    t.datetime "expires_at"
+    t.datetime "accepted_at"
+    t.datetime "rejected_at"
+    t.integer "duration_ms"
+    t.index ["account_id", "conversation_id", "created_at"], name: "idx_candy_ai_suggestions_account_conversation"
+    t.index ["account_id", "status", "created_at"], name: "idx_candy_ai_suggestions_account_status_created"
+    t.index ["conversation_id", "status", "created_at"], name: "idx_candy_ai_suggestions_conversation_status_created"
+    t.index ["conversation_id"], name: "index_candy_ai_suggestions_on_conversation_id"
+    t.index ["inbox_id"], name: "index_candy_ai_suggestions_on_inbox_id"
+    t.index ["message_id"], name: "idx_candy_ai_suggestions_active_message", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'generating'::character varying])::text[]))"
+    t.index ["message_id"], name: "index_candy_ai_suggestions_on_message_id"
+    t.index ["request_id"], name: "index_candy_ai_suggestions_on_request_id", unique: true, where: "(request_id IS NOT NULL)"
   end
 
   create_table "canned_responses", id: :serial, force: :cascade do |t|
@@ -1150,6 +1183,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_14_000000) do
     t.integer "sender_name_type", default: 0, null: false
     t.string "business_name"
     t.jsonb "csat_config", default: {}, null: false
+    t.jsonb "candy_ai_settings", default: {}, null: false
     t.index ["account_id"], name: "index_inboxes_on_account_id"
     t.index ["channel_id", "channel_type"], name: "index_inboxes_on_channel_id_and_channel_type"
     t.index ["portal_id"], name: "index_inboxes_on_portal_id"
@@ -1596,6 +1630,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_14_000000) do
   add_foreign_key "campaign_recipients", "campaigns", on_delete: :cascade
   add_foreign_key "campaign_recipients", "contacts", on_delete: :cascade
   add_foreign_key "campaign_recipients", "inboxes", on_delete: :cascade
+  add_foreign_key "candy_ai_suggestions", "accounts", on_delete: :cascade
+  add_foreign_key "candy_ai_suggestions", "conversations", on_delete: :cascade
+  add_foreign_key "candy_ai_suggestions", "inboxes", on_delete: :cascade
+  add_foreign_key "candy_ai_suggestions", "messages", on_delete: :cascade
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).

@@ -59,6 +59,17 @@ RSpec.describe CandyAI::AI::OpenAICompatibleProvider do
       end.to raise_error(CandyAI::AI::ConfigurationError, 'AI provider endpoint must be an HTTPS URL')
     end
 
+    it 'does not allow insecure private-network endpoints' do
+      expect do
+        described_class.new(
+          api_key: 'test-key',
+          base_url: 'http://192.168.1.10/v1',
+          allow_insecure_http: true,
+          model: 'test-model'
+        )
+      end.to raise_error(CandyAI::AI::ConfigurationError, 'AI provider endpoint must be an HTTPS URL')
+    end
+
     it 'classifies upstream HTTP failures without exposing response bodies' do
       response = Struct.new(:code).new('401')
       provider = described_class.new(api_key: 'test-key', model: 'test-model')

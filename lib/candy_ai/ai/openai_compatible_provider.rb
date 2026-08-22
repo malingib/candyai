@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require "net/http"
-require "json"
-require "uri"
+require 'net/http'
+require 'json'
+require 'uri'
 
 module CandyAI
   module AI
     # Adapter for OpenAI-compatible chat-completions APIs.
     # Works with hosted and self-hosted endpoints that expose /chat/completions.
     class OpenAICompatibleProvider < Provider
-      DEFAULT_BASE_URL = "https://api.openai.com/v1"
+      DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 
       def initialize(config = {})
         super
@@ -17,7 +17,7 @@ module CandyAI
       end
 
       def chat(messages:, model: nil, temperature: nil, max_tokens: nil, **options)
-        raise ArgumentError, "messages must be an Array" unless messages.is_a?(Array)
+        raise ArgumentError, 'messages must be an Array' unless messages.is_a?(Array)
 
         selected_model = model || config[:model]
         raise ConfigurationError, 'AI provider model is not configured' if selected_model.nil? || selected_model.to_s.empty?
@@ -32,14 +32,14 @@ module CandyAI
         payload.merge!(options)
 
         response = request(payload)
-        choice = response.fetch("choices").first
+        choice = response.fetch('choices').first
         raise MalformedResponseError, 'AI provider returned no response choices' if choice.nil?
 
         Response.new(
-          text: choice.dig("message", "content").to_s,
-          model: response["model"] || payload[:model],
-          provider: self.class.name,
-          usage: response["usage"] || {},
+          text: choice.dig('message', 'content').to_s,
+          model: response['model'] || payload[:model],
+          provider: config[:name] || self.class.name,
+          usage: response['usage'] || {},
           raw: response
         )
       end
@@ -47,14 +47,14 @@ module CandyAI
       private
 
       def request(payload)
-        uri = URI.join(base_url.end_with?("/") ? base_url : "#{base_url}/", "chat/completions")
+        uri = URI.join(base_url.end_with?('/') ? base_url : "#{base_url}/", 'chat/completions')
         request = Net::HTTP::Post.new(uri)
-        request["Authorization"] = "Bearer #{api_key}" if api_key && !api_key.empty?
-        request["Content-Type"] = "application/json"
+        request['Authorization'] = "Bearer #{api_key}" if api_key.present?
+        request['Content-Type'] = 'application/json'
         request.body = JSON.generate(payload)
 
         http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = uri.scheme == "https"
+        http.use_ssl = uri.scheme == 'https'
         http.open_timeout = config.fetch(:open_timeout, 10)
         http.read_timeout = config.fetch(:read_timeout, 120)
 
@@ -86,7 +86,7 @@ module CandyAI
 
       def validate_endpoint!
         uri = URI.parse(base_url)
-        valid_scheme = uri.scheme == 'https' || (uri.scheme == 'http' && config[:allow_insecure_http] == true)
+        valid_scheme = uri.scheme == 'https' || local_http_endpoint?(uri)
         invalid = !valid_scheme || uri.host.nil? || uri.host.empty? || uri.userinfo
         raise ConfigurationError, 'AI provider endpoint must be an HTTPS URL' if invalid
       rescue URI::InvalidURIError
@@ -94,7 +94,7 @@ module CandyAI
       end
 
       def validate_credentials!
-        return if (api_key && !api_key.empty?) || custom_endpoint?
+        return if (api_key.present?) || custom_endpoint?
 
         raise ConfigurationError, 'AI provider API credentials are not configured'
       end
@@ -104,7 +104,12 @@ module CandyAI
       end
 
       def base_url
-        config.fetch(:base_url, DEFAULT_BASE_URL)
+        config[:base_url].presence || DEFAULT_BASE_URL
+      end
+
+      def local_http_endpoint?(uri)
+        uri.scheme == 'http' && config[:allow_insecure_http] == true &&
+          %w[localhost 127.0.0.1 ::1].include?(uri.host)
       end
 
       def api_key

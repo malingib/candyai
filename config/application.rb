@@ -40,9 +40,9 @@ module Chatwoot
       'ai' => 'AI',
       'openai_compatible_provider' => 'OpenAICompatibleProvider',
       'candy_ai_listener' => 'CandyAIListener',
-      'candy_ai_controller' => 'CandyAIController',
-      'candy_ai_inboxes_controller' => 'CandyAIInboxesController',
-      'candy_ai_suggestions_controller' => 'CandyAISuggestionsController'
+      'candy_ai_controller' => 'CandyAiController',
+      'candy_ai_inboxes_controller' => 'CandyAiInboxesController',
+      'candy_ai_suggestions_controller' => 'CandyAiSuggestionsController'
     )
 
     # Initialize configuration defaults for originally generated Rails version.

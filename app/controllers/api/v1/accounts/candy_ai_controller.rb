@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class Api::V1::Accounts::CandyAIController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::CandyAiController < Api::V1::Accounts::BaseController
   before_action :authorize_account_update, only: [:update]
 
   def show
@@ -28,3 +28,5 @@ class Api::V1::Accounts::CandyAIController < Api::V1::Accounts::BaseController
     )
   end
 end
+
+Api::V1::Accounts::CandyAIController = Api::V1::Accounts::CandyAiController

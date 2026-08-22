@@ -98,6 +98,24 @@
       "MODEL": "Generated with {model}",
       "CREDITS": "Credits: {credits}"
     },
+    "CANDY_AI": {
+      "TITLE": "CandyAI Assist",
+      "DESCRIPTION": "Review the suggested reply before adding it to the composer.",
+      "REQUEST": "Get suggestion",
+      "REGENERATE": "Regenerate",
+      "USE": "Use in composer",
+      "EDIT": "Edit",
+      "CANCEL": "Cancel",
+      "REJECT": "Reject",
+      "LOADING": "Loading suggestions…",
+      "GENERATING": "CandyAI is preparing a suggestion…",
+      "ERRORS": {
+        "LOAD": "Unable to load CandyAI suggestions.",
+        "STATUS": "Unable to refresh the suggestion status.",
+        "GENERATE": "Unable to generate a suggestion.",
+        "UPDATE": "Unable to update the suggestion."
+      }
+    },
     "CARD": {
       "SHOW_LABELS": "Show labels",
       "HIDE_LABELS": "Hide labels",

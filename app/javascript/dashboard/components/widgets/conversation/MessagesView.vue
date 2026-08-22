@@ -13,6 +13,7 @@ import Banner from 'dashboard/components/ui/Banner.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import ResizableEditorWrapper from './ResizableEditorWrapper.vue';
 import ReferralBubble from 'dashboard/components-next/Conversation/ReferralBubble.vue';
+import AssistSuggestionPanel from './AssistSuggestionPanel.vue';
 
 // stores and apis
 import { mapGetters } from 'vuex';
@@ -49,6 +50,7 @@ export default {
     Spinner,
     ResizableEditorWrapper,
     ReferralBubble,
+    AssistSuggestionPanel,
   },
   mixins: [inboxMixin],
   setup() {
@@ -548,6 +550,7 @@ export default {
           />
         </div>
       </div>
+      <AssistSuggestionPanel :conversation-id="currentChat.id" />
       <ResizableEditorWrapper
         ref="resizableEditorWrapperRef"
         :container-height="Math.max(0, containerHeight - topBannerHeight)"
