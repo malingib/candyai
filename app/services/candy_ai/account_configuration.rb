@@ -34,9 +34,16 @@ module CandyAI
     end
 
     def self.effective(inbox)
-      account = account(inbox.account)
-      local = inbox(inbox)
-      account.merge(local) { |_key, account_value, inbox_value| inbox_value.nil? ? account_value : inbox_value }
+      account_config = account(inbox.account)
+      inbox_config = inbox(inbox)
+
+      account_config.merge(inbox_config) do |_key, account_value, inbox_value|
+        inbox_value.nil? ? account_value : inbox_value
+      end.tap do |effective|
+        # Account enablement is the global kill switch. An inbox can opt in,
+        # but it must never bypass an account-level disablement.
+        effective['enabled'] = account_config['enabled'] == true && inbox_config['enabled'] == true
+      end
     end
 
     def self.normalize(params)
