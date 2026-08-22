@@ -20,17 +20,16 @@ RSpec.describe CandyAIListener do
   end
   let(:inbox) { instance_double(Inbox) }
   let(:event) { instance_double(Events::Base, data: { message: message }) }
-
-  before do
-    allow(CandyAI).to receive(:config).and_return(config)
-    allow(CandyAI::AccountConfiguration).to receive(:effective).with(inbox).and_return(inbox_configuration)
-  end
-
   let(:inbox_configuration) do
     {
       'enabled' => true,
       'mode' => 'autonomous'
     }
+  end
+
+  before do
+    allow(CandyAI).to receive(:config).and_return(config)
+    allow(CandyAI::AccountConfiguration).to receive(:effective).with(inbox).and_return(inbox_configuration)
   end
 
   it 'queues an AI response for an enabled autonomous inbox' do
@@ -45,6 +44,17 @@ RSpec.describe CandyAIListener do
     )
 
     expect(CandyAI::RespondToMessageJob).not_to receive(:perform_later)
+
+    listener.message_created(event)
+  end
+
+  it 'queues a suggestion for assist mode' do
+    allow(CandyAI::AccountConfiguration).to receive(:effective).with(inbox).and_return(
+      inbox_configuration.merge('mode' => 'assist')
+    )
+
+    expect(CandyAI::GenerateSuggestionJob).to receive(:perform_later).with(42)
+    expect(Messages::MessageBuilder).not_to receive(:new)
 
     listener.message_created(event)
   end

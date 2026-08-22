@@ -92,6 +92,7 @@ class Account < ApplicationRecord
   has_many :messages, dependent: :destroy_async
   has_many :notes, dependent: :destroy_async
   has_many :notification_settings, dependent: :destroy_async
+  has_many :candy_ai_suggestions, class_name: 'CandyAI::Suggestion', dependent: :destroy_async
   has_many :notifications, dependent: :destroy_async
   has_many :portals, dependent: :destroy_async, class_name: '::Portal'
   has_many :sms_channels, dependent: :destroy_async, class_name: '::Channel::Sms'

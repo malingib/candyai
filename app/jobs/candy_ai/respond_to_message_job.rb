@@ -1,89 +1,80 @@
 # frozen_string_literal: true
 
-module CandyAI
-  class RespondToMessageJob < ApplicationJob
-    queue_as :default
+class CandyAI::RespondToMessageJob < ApplicationJob
+  queue_as :default
 
-    retry_on StandardError, wait: :exponentially_longer, attempts: 3
+  def perform(message_id)
+    return unless CandyAI.config.enabled
 
-    MAX_CONTEXT_MESSAGES = 20
+    message = Message.includes(:conversation, :account, :inbox).find_by(id: message_id)
+    return unless eligible_message?(message)
+    return unless autonomous_configuration?(message)
+    return if response_already_delivered?(message)
 
-    def perform(message_id)
-      message = Message.includes(:conversation, :account, :inbox).find_by(id: message_id)
-      return if message.blank? || !eligible_message?(message)
+    response = generate_response(message)
+    deliver_response(message.conversation, response.text) if response.text.present?
+  rescue ActiveRecord::RecordNotFound
+    nil
+  rescue CandyAI::AI::Error => e
+    Rails.logger.warn("CandyAI generation failed: #{e.class.name}: #{e.message}")
+    nil
+  end
 
-      configuration = CandyAI::AccountConfiguration.effective(message.inbox)
-      return unless configuration['enabled'] == true
-      return unless configuration['mode'] == 'autonomous'
-      return unless bot_id.present?
-      return if response_already_delivered?(message)
+  private
 
-      response = CandyAI::AI.orchestrator.respond(
-        messages: conversation_messages(message.conversation),
-        provider: configuration['provider'].presence || CandyAI.config.default_ai_provider,
-        model: configuration['model'].presence || ENV['CANDYAI_AI_MODEL'].presence,
-        system_prompt: configuration['system_prompt'].presence,
-        temperature: configuration['temperature'],
-        max_tokens: configuration['max_tokens']
-      )
+  def eligible_message?(message)
+    return false unless message.present? && message.incoming? && !message.private? && message.content_for_llm.present?
 
-      return if response.text.blank?
+    valid_relationships?(message)
+  end
 
-      deliver_response(message.conversation, response.text)
-    rescue ActiveRecord::RecordNotFound
-      nil
-    end
+  def valid_relationships?(message)
+    message.conversation.present? && message.inbox.present? && message.account.present? &&
+      message.account_id == message.conversation.account_id && message.account_id == message.inbox.account_id
+  end
 
-    private
+  def autonomous_configuration?(message)
+    configuration = CandyAI::AccountConfiguration.effective(message.inbox)
+    configuration['enabled'] == true && configuration['mode'] == 'autonomous' && bot_id.present?
+  end
 
-    def eligible_message?(message)
-      message.incoming? && !message.private? && message.content_for_llm.present?
-    end
+  def generate_response(message)
+    configuration = CandyAI::AccountConfiguration.effective(message.inbox)
 
-    def bot_id
-      ENV['CANDYAI_AGENT_BOT_ID'].presence
-    end
+    CandyAI::AI.orchestrator.respond(
+      messages: CandyAI::ContextBuilder.new(message.conversation, account: message.account).messages,
+      provider: configuration['provider'].presence || CandyAI.config.default_ai_provider,
+      model: configuration['model'].presence || ENV['CANDYAI_AI_MODEL'].presence,
+      system_prompt: configuration['system_prompt'].presence,
+      temperature: configuration['temperature'],
+      max_tokens: configuration['max_tokens']
+    )
+  end
 
-    def response_already_delivered?(message)
-      message.conversation.messages
-             .where(message_type: 'outgoing', sender_type: 'AgentBot', sender_id: bot_id)
-             .where('created_at >= ?', message.created_at)
-             .exists?
-    end
+  def bot_id
+    ENV['CANDYAI_AGENT_BOT_ID'].presence
+  end
 
-    def conversation_messages(conversation)
-      conversation.messages
-                  .chat
-                  .where(private: false)
-                  .order(created_at: :desc)
-                  .limit(MAX_CONTEXT_MESSAGES)
-                  .to_a
-                  .reverse
-                  .filter_map { |message| llm_message(message) }
-    end
+  def response_already_delivered?(message)
+    message.conversation.messages.exists?(
+      message_type: 'outgoing',
+      sender_type: 'AgentBot',
+      sender_id: bot_id,
+      created_at: message.created_at..
+    )
+  end
 
-    def llm_message(message)
-      content = message.content_for_llm
-      return if content.blank?
-
+  def deliver_response(conversation, content)
+    Messages::MessageBuilder.new(
+      nil,
+      conversation,
       {
-        role: message.incoming? ? 'user' : 'assistant',
-        content: content.to_s
+        message_type: 'outgoing',
+        content: content,
+        content_type: 'text',
+        sender_type: 'AgentBot',
+        sender_id: Integer(bot_id)
       }
-    end
-
-    def deliver_response(conversation, content)
-      Messages::MessageBuilder.new(
-        nil,
-        conversation,
-        {
-          message_type: 'outgoing',
-          content: content,
-          content_type: 'text',
-          sender_type: 'AgentBot',
-          sender_id: Integer(bot_id)
-        }
-      ).perform
-    end
+    ).perform
   end
 end

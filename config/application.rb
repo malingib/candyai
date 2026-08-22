@@ -35,6 +35,16 @@ end
 
 module Chatwoot
   class Application < Rails::Application
+    Rails.autoloaders.main.inflector.inflect(
+      'candy_ai' => 'CandyAI',
+      'ai' => 'AI',
+      'openai_compatible_provider' => 'OpenAICompatibleProvider',
+      'candy_ai_listener' => 'CandyAIListener',
+      'candy_ai_controller' => 'CandyAIController',
+      'candy_ai_inboxes_controller' => 'CandyAIInboxesController',
+      'candy_ai_suggestions_controller' => 'CandyAISuggestionsController'
+    )
+
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 7.0
     config.rails_i18n.enabled_modules = [:pluralization]

@@ -11,11 +11,20 @@ module CandyAI
     class OpenAICompatibleProvider < Provider
       DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
+      def initialize(config = {})
+        super
+        validate_endpoint!
+      end
+
       def chat(messages:, model: nil, temperature: nil, max_tokens: nil, **options)
         raise ArgumentError, "messages must be an Array" unless messages.is_a?(Array)
 
+        selected_model = model || config[:model]
+        raise ConfigurationError, 'AI provider model is not configured' if selected_model.nil? || selected_model.to_s.empty?
+
+        validate_credentials!
         payload = {
-          model: model || config.fetch(:model),
+          model: selected_model,
           messages: messages
         }
         payload[:temperature] = temperature unless temperature.nil?
@@ -24,6 +33,7 @@ module CandyAI
 
         response = request(payload)
         choice = response.fetch("choices").first
+        raise MalformedResponseError, 'AI provider returned no response choices' if choice.nil?
 
         Response.new(
           text: choice.dig("message", "content").to_s,
@@ -51,14 +61,46 @@ module CandyAI
         response = http.request(request)
         body = JSON.parse(response.body)
 
-        unless response.is_a?(Net::HTTPSuccess)
-          message = body.dig("error", "message") || response.message
-          raise RuntimeError, "AI provider request failed (#{response.code}): #{message}"
-        end
+        raise_error_for_status(response) unless response.is_a?(Net::HTTPSuccess)
 
         body
       rescue JSON::ParserError => e
-        raise RuntimeError, "AI provider returned invalid JSON: #{e.message}"
+        raise MalformedResponseError, "AI provider returned invalid JSON: #{e.message}"
+      rescue Net::OpenTimeout, Net::ReadTimeout
+        raise TimeoutError, 'AI provider request timed out'
+      rescue SocketError, SystemCallError
+        raise UnavailableError, 'AI provider is unavailable'
+      end
+
+      def raise_error_for_status(response)
+        error_class = case response.code.to_i
+                      when 401, 403 then AuthenticationError
+                      when 400, 422 then InvalidRequestError
+                      when 429 then RateLimitError
+                      when 500..599 then UpstreamError
+                      else ProviderError
+                      end
+
+        raise error_class, "AI provider request failed (#{response.code})"
+      end
+
+      def validate_endpoint!
+        uri = URI.parse(base_url)
+        valid_scheme = uri.scheme == 'https' || (uri.scheme == 'http' && config[:allow_insecure_http] == true)
+        invalid = !valid_scheme || uri.host.nil? || uri.host.empty? || uri.userinfo
+        raise ConfigurationError, 'AI provider endpoint must be an HTTPS URL' if invalid
+      rescue URI::InvalidURIError
+        raise ConfigurationError, 'AI provider endpoint is invalid'
+      end
+
+      def validate_credentials!
+        return if (api_key && !api_key.empty?) || custom_endpoint?
+
+        raise ConfigurationError, 'AI provider API credentials are not configured'
+      end
+
+      def custom_endpoint?
+        base_url != DEFAULT_BASE_URL
       end
 
       def base_url

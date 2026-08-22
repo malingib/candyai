@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "ai/provider"
+require_relative "ai/error"
 require_relative "ai/response"
 require_relative "ai/provider_registry"
 require_relative "ai/openai_compatible_provider"

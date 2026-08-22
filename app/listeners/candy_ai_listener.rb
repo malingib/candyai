@@ -11,9 +11,13 @@ class CandyAIListener < BaseListener
 
     configuration = CandyAI::AccountConfiguration.effective(message.inbox)
     return unless configuration['enabled'] == true
-    return unless configuration['mode'] == 'autonomous'
 
-    CandyAI::RespondToMessageJob.perform_later(message.id)
+    case configuration['mode']
+    when 'assist'
+      CandyAI::GenerateSuggestionJob.perform_later(message.id)
+    when 'autonomous'
+      CandyAI::RespondToMessageJob.perform_later(message.id)
+    end
   end
 
   private

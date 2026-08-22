@@ -2,8 +2,9 @@
 
 require Rails.root.join('lib/candy_ai')
 
-Rails.application.config.x.candy_ai = CandyAI::Configuration.new
-CandyAI.config = Rails.application.config.x.candy_ai
+candy_ai_config = CandyAI::Configuration.new
+Rails.application.config.x[:candy_ai] = candy_ai_config
+CandyAI.config = candy_ai_config
 
 CandyAI.config.enabled =
   ActiveModel::Type::Boolean.new.cast(ENV.fetch('CANDYAI_ENABLED', 'true'))
@@ -22,31 +23,24 @@ if ENV['CANDYAI_AI_API_KEY'].present? && ENV['CANDYAI_AI_MODEL'].present?
 
   CandyAI::AI.register_openai_compatible(
     name: provider_name,
-    api_key: ENV['CANDYAI_AI_API_KEY'],
+    api_key: ENV.fetch('CANDYAI_AI_API_KEY', nil),
     base_url: ENV.fetch('CANDYAI_AI_BASE_URL', nil),
-    model: ENV['CANDYAI_AI_MODEL']
+    model: ENV.fetch('CANDYAI_AI_MODEL', nil)
   )
 
   CandyAI.config.default_ai_provider = provider_name
 end
 
 Rails.application.config.to_prepare do
-  Account.define_method(:candy_ai_configuration) do
-    CandyAI::AccountConfiguration.account(self)
-  end unless Account.method_defined?(:candy_ai_configuration)
+  unless Account.method_defined?(:candy_ai_configuration)
+    Account.define_method(:candy_ai_configuration) do
+      CandyAI::AccountConfiguration.account(self)
+    end
+  end
 
-  Account.define_method(:candy_ai_enabled?) do
-    candy_ai_configuration['enabled'] == true
-  end unless Account.method_defined?(:candy_ai_enabled?)
-end
-
-Rails.application.routes.append do
-  namespace :api, defaults: { format: 'json' } do
-    namespace :v1 do
-      resources :accounts, only: [] do
-        resource :candy_ai, only: [:show, :update], controller: 'accounts/candy_ai'
-        resources :candy_ai_inboxes, only: [:show, :update], controller: 'accounts/candy_ai_inboxes', param: :inbox_id
-      end
+  unless Account.method_defined?(:candy_ai_enabled?)
+    Account.define_method(:candy_ai_enabled?) do
+      candy_ai_configuration['enabled'] == true
     end
   end
 end
