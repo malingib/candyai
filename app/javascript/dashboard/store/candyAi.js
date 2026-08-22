@@ -9,7 +9,8 @@ const defaults = {
   temperature: 0.3,
   max_tokens: 800,
   handoff_enabled: true,
-  handoff_message: 'I’m connecting you with a human teammate who can help further.',
+  handoff_message:
+    'I’m connecting you with a human teammate who can help further.',
 };
 
 export const useCandyAiStore = defineStore('candyAi', {

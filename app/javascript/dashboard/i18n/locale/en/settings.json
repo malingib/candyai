@@ -1080,5 +1080,50 @@
       "CONFIRM_BUTTON_LABEL": "Delete",
       "CANCEL_BUTTON_LABEL": "Cancel"
     }
+  },
+  "CANDY_AI": {
+    "TITLE": "CandyAI",
+    "DESCRIPTION": "Configure CandyAI for AI-assisted customer conversations.",
+    "LOADING": "Loading CandyAI settings...",
+    "ERRORS": {
+      "LOAD": "Unable to load CandyAI settings.",
+      "SAVE": "Unable to save CandyAI settings. Please try again."
+    },
+    "GENERAL": {
+      "TITLE": "General",
+      "DESCRIPTION": "Control whether CandyAI is available to your account.",
+      "ENABLE": "Enable CandyAI",
+      "ENABLE_DESCRIPTION": "Allow CandyAI to assist with conversations."
+    },
+    "PROVIDER": {
+      "TITLE": "AI Provider",
+      "DESCRIPTION": "Choose the model provider and model used for CandyAI responses.",
+      "LABEL": "Provider",
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "GEMINI": "Google Gemini",
+      "CUSTOM": "Custom / OpenAI-compatible",
+      "MODEL": "Model",
+      "MODEL_PLACEHOLDER": "gpt-4o-mini"
+    },
+    "BEHAVIOR": {
+      "TITLE": "Behavior",
+      "DESCRIPTION": "Tune how CandyAI responds to customers.",
+      "SYSTEM_PROMPT": "System prompt",
+      "SYSTEM_PROMPT_PLACEHOLDER": "You are CandyAI, a helpful customer support assistant...",
+      "TEMPERATURE": "Temperature",
+      "MAX_TOKENS": "Maximum tokens"
+    },
+    "HANDOFF": {
+      "TITLE": "Human Handoff",
+      "DESCRIPTION": "Give customers a clear path to a human agent when AI should stop.",
+      "ENABLE": "Enable human handoff",
+      "ENABLE_DESCRIPTION": "Allow CandyAI to signal that a human agent should take over.",
+      "MESSAGE": "Handoff message"
+    },
+    "SAVED": "CandyAI settings saved.",
+    "RESET": "Reset",
+    "SAVING": "Saving...",
+    "SAVE": "Save settings"
   }
 }
