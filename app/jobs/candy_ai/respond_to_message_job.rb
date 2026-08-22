@@ -14,6 +14,9 @@ module CandyAI
 
       configuration = CandyAI::AccountConfiguration.effective(message.inbox)
       return unless configuration['enabled'] == true
+      return unless configuration['mode'] == 'autonomous'
+      return unless bot_id.present?
+      return if response_already_delivered?(message)
 
       response = CandyAI::AI.orchestrator.respond(
         messages: conversation_messages(message.conversation),
@@ -35,6 +38,17 @@ module CandyAI
 
     def eligible_message?(message)
       message.incoming? && !message.private? && message.content_for_llm.present?
+    end
+
+    def bot_id
+      ENV['CANDYAI_AGENT_BOT_ID'].presence
+    end
+
+    def response_already_delivered?(message)
+      message.conversation.messages
+             .where(message_type: 'outgoing', sender_type: 'AgentBot', sender_id: bot_id)
+             .where('created_at >= ?', message.created_at)
+             .exists?
     end
 
     def conversation_messages(conversation)
@@ -59,8 +73,6 @@ module CandyAI
     end
 
     def deliver_response(conversation, content)
-      sender_id = Integer(ENV.fetch('CANDYAI_AGENT_BOT_ID'))
-
       Messages::MessageBuilder.new(
         nil,
         conversation,
@@ -69,7 +81,7 @@ module CandyAI
           content: content,
           content_type: 'text',
           sender_type: 'AgentBot',
-          sender_id: sender_id
+          sender_id: Integer(bot_id)
         }
       ).perform
     end
