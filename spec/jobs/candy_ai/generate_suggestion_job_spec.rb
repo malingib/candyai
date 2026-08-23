@@ -3,8 +3,11 @@
 require 'rails_helper'
 
 RSpec.describe CandyAI::GenerateSuggestionJob do
-  let(:account) { create(:account, settings: { 'candy_ai' => { 'enabled' => true } }) }
-  let(:inbox) { create(:inbox, account: account, candy_ai_settings: { 'enabled' => true, 'mode' => 'assist' }) }
+  let(:account) { create(:account, settings: { 'candy_ai' => { 'enabled' => true, 'system_prompt' => 'Account policy' } }) }
+  let(:inbox) do
+    create(:inbox, account: account,
+                   candy_ai_settings: { 'enabled' => true, 'mode' => 'assist', 'system_prompt' => 'Inbox policy' })
+  end
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, content: 'How do I reset my password?') }
   let(:suggestion) { CandyAI::Suggestion.request_for(message, source: 'manual') }
@@ -37,6 +40,18 @@ RSpec.describe CandyAI::GenerateSuggestionJob do
       quality_status: 'pass'
     )
     expect(suggestion.intelligence).to include('intent' => 'account_access')
+  end
+
+  it 'passes account and inbox instructions as separate prompt layers' do
+    router = instance_double(CandyAI::AI::Router, chat: response)
+    expect(router).to receive(:chat) do |**kwargs|
+      expect(kwargs[:system]).to include('Account guidance:\nAccount policy')
+      expect(kwargs[:system]).to include('Inbox guidance:\nInbox policy')
+      response
+    end
+    allow(CandyAI::AI).to receive(:router).and_return(router)
+
+    described_class.perform_now(suggestion.id)
   end
 
   it 'records a usage record on success' do
