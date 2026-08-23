@@ -41,9 +41,7 @@ class Api::V1::Accounts::CandyAiSuggestionsController < Api::V1::Accounts::BaseC
     return unless ensure_assist_enabled!
 
     current = current_suggestion
-    unless current.generated?
-      return render json: { error: 'Only a generated suggestion can be regenerated' }, status: :unprocessable_entity
-    end
+    return render json: { error: 'Only a generated suggestion can be regenerated' }, status: :unprocessable_entity unless current.generated?
 
     current.update!(status: 'expired', expires_at: Time.current)
     suggestion = CandyAI::Suggestion.request_for(source_message, source: 'regenerate')
@@ -85,8 +83,6 @@ class Api::V1::Accounts::CandyAiSuggestionsController < Api::V1::Accounts::BaseC
 
     if !CandyAI.config.enabled?
       render json: { error: 'CandyAI is disabled' }, status: :unprocessable_entity
-    elsif configuration['enabled'] != true
-      render json: { error: 'CandyAI Assist Mode is disabled' }, status: :unprocessable_entity
     elsif configuration['autonomous_enabled'] == true
       render json: { error: 'CandyAI Assist Mode is not available for autonomous inboxes' }, status: :unprocessable_entity
     else

@@ -61,7 +61,7 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
       end
 
       complete_suggestion(suggestion, response, started_at, intelligence: intelligence,
-                                           context_metadata: context_metadata(context, intelligence))
+                                                            context_metadata: context_metadata(context, intelligence))
       success = true
     rescue CandyAI::AI::Error => e
       error_category = failure_category(e)
@@ -192,8 +192,8 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
 
   def sanitize_error(message)
     message.to_s.gsub(/Bearer\s+\S+/i, 'Bearer [REDACTED]')
-            .gsub(/sk-[a-zA-Z0-9]{20,}/, '[REDACTED]')
-            .truncate(500)
+           .gsub(/sk-[a-zA-Z0-9]{20,}/, '[REDACTED]')
+           .truncate(500)
   end
 
   def record_usage(suggestion, configuration, response, started_at, success, error_category = nil)

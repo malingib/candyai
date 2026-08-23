@@ -45,8 +45,8 @@ RSpec.describe CandyAI::GenerateSuggestionJob do
   it 'passes account and inbox instructions as separate prompt layers' do
     router = instance_double(CandyAI::AI::Router, chat: response)
     expect(router).to receive(:chat) do |**kwargs|
-      expect(kwargs[:system]).to include('Account guidance:\nAccount policy')
-      expect(kwargs[:system]).to include('Inbox guidance:\nInbox policy')
+      expect(kwargs[:system]).to include("Account guidance:\nAccount policy")
+      expect(kwargs[:system]).to include("Inbox guidance:\nInbox policy")
       response
     end
     allow(CandyAI::AI).to receive(:router).and_return(router)
