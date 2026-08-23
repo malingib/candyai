@@ -40,9 +40,14 @@ class Api::V1::Accounts::CandyAiSuggestionsController < Api::V1::Accounts::BaseC
   def regenerate
     return unless ensure_assist_enabled!
 
-    current_suggestion.update!(status: 'expired') if current_suggestion.generated?
+    current = current_suggestion
+    unless current.generated?
+      return render json: { error: 'Only a generated suggestion can be regenerated' }, status: :unprocessable_entity
+    end
+
+    current.update!(status: 'expired', expires_at: Time.current)
     suggestion = CandyAI::Suggestion.request_for(source_message, source: 'regenerate')
-    CandyAI::GenerateSuggestionJob.perform_later(suggestion.id)
+    CandyAI::GenerateSuggestionJob.perform_later(suggestion.id) if suggestion.pending?
 
     render json: { suggestion: serialize(suggestion) }, status: :accepted
   end
