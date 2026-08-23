@@ -23,9 +23,10 @@ module CandyAI
   class ConfigurationResolver
     # Returns a frozen hash with a stable, fully-resolved schema:
     #   enabled, assist_enabled, autonomous_enabled, provider, model,
-    #   system_instructions, temperature, max_tokens, mode, handoff_enabled,
-    #   handoff_message, context_message_limit, context_character_limit,
-    #   generation_limit, fallback_provider
+    #   account_instructions, inbox_instructions, system_instructions,
+    #   temperature, max_tokens, mode, handoff_enabled, handoff_message,
+    #   context_message_limit, context_character_limit, generation_limit,
+    #   fallback_provider
     def self.for(account:, inbox: nil)
       new(account: account, inbox: inbox).resolve
     end
@@ -36,23 +37,32 @@ module CandyAI
     end
 
     def resolve
-      merged = account_config.merge(inbox_overrides) do |_key, account_value, inbox_value|
+      account = account_config
+      inbox = inbox_overrides
+      merged = account.merge(inbox) do |_key, account_value, inbox_value|
         inbox_value.nil? ? account_value : inbox_value
       end
 
       # 'enabled' is a kill switch and must not be overridden by a lower layer.
       # Compute it independently from raw account/inbox settings.
       enabled = global_enabled? &&
-                (account_config['enabled'] == true) &&
-                (!@inbox || inbox_overrides['enabled'] == true)
+                (account['enabled'] == true) &&
+                (!@inbox || inbox['enabled'] == true)
+
+      account_instructions = account['system_prompt'].presence
+      inbox_instructions = @inbox ? inbox['system_prompt'].presence : nil
 
       effective = {
         'enabled' => enabled,
-        'assist_enabled' => merged['mode'].to_s == 'assist',
-        'autonomous_enabled' => merged['mode'].to_s == 'autonomous',
+        'assist_enabled' => enabled && merged['mode'].to_s == 'assist',
+        'autonomous_enabled' => enabled && merged['mode'].to_s == 'autonomous',
         'provider' => merged['provider'].presence || CandyAI.config.default_ai_provider,
         'model' => merged['model'].presence,
-        'system_instructions' => merged['system_prompt'].presence,
+        'account_instructions' => account_instructions,
+        'inbox_instructions' => inbox_instructions,
+        # Retained as the account-level instruction for compatibility with
+        # existing callers. New generation code should use the two scoped keys.
+        'system_instructions' => account_instructions,
         'temperature' => merged['temperature'],
         'max_tokens' => merged['max_tokens'],
         'mode' => merged['mode'].to_s,
@@ -83,16 +93,6 @@ module CandyAI
 
     def global_enabled?
       CandyAI.config.enabled?
-    end
-
-    def account_enabled?(merged)
-      merged['enabled'] == true
-    end
-
-    def inbox_enabled?(merged)
-      return true unless @inbox
-
-      merged['enabled'] == true
     end
   end
 end
