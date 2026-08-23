@@ -122,8 +122,8 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
       message.conversation,
       account: message.account,
       inbox: message.inbox,
-      account_instructions: configuration['system_instructions'],
-      inbox_instructions: configuration['system_instructions']
+      account_instructions: configuration['account_instructions'],
+      inbox_instructions: configuration['inbox_instructions']
     ).build
   end
 
@@ -133,8 +133,8 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
 
   def generate_response(_message, configuration, context)
     system_prompt = CandyAI::PromptBuilder.new(
-      account_instructions: configuration['system_instructions'],
-      inbox_instructions: configuration['system_instructions']
+      account_instructions: configuration['account_instructions'],
+      inbox_instructions: configuration['inbox_instructions']
     ).build
 
     messages = context[:conversation] || context['conversation'] || []
