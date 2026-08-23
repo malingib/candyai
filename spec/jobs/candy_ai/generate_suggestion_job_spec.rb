@@ -18,9 +18,9 @@ RSpec.describe CandyAI::GenerateSuggestionJob do
   end
 
   before do
-    allow(CandyAI::AI).to receive(:orchestrator).and_return(instance_double(CandyAI::AI::Orchestrator, respond: response))
+    allow(CandyAI::AI).to receive(:router).and_return(instance_double(CandyAI::AI::Router, chat: response))
     allow(CandyAI).to receive(:config).and_return(
-      instance_double(CandyAI::Configuration, enabled: true, default_ai_provider: 'test-provider')
+      instance_double(CandyAI::Configuration, enabled?: true, default_ai_provider: 'test-provider')
     )
   end
 
@@ -33,19 +33,42 @@ RSpec.describe CandyAI::GenerateSuggestionJob do
       status: 'generated',
       content: 'You can reset it from the account settings.',
       provider: 'test-provider',
-      model: 'test-model'
+      model: 'test-model',
+      quality_status: 'pass'
+    )
+    expect(suggestion.intelligence).to include('intent' => 'account_access')
+  end
+
+  it 'records a usage record on success' do
+    expect { described_class.perform_now(suggestion.id) }
+      .to change(CandyAI::UsageRecord, :count).by(1)
+
+    expect(CandyAI::UsageRecord.last).to have_attributes(
+      account: account,
+      success: true,
+      provider: 'test-provider'
     )
   end
 
   it 'records provider failures without raising to the job queue' do
-    orchestrator = instance_double(CandyAI::AI::Orchestrator)
-    allow(orchestrator).to receive(:respond).and_raise(CandyAI::AI::TimeoutError, 'timed out')
-    allow(CandyAI::AI).to receive(:orchestrator).and_return(orchestrator)
+    router = instance_double(CandyAI::AI::Router)
+    allow(router).to receive(:chat).and_raise(CandyAI::AI::TimeoutError, 'timed out')
+    allow(CandyAI::AI).to receive(:router).and_return(router)
 
     expect { described_class.perform_now(suggestion.id) }.not_to raise_error
 
     expect(suggestion.reload).to have_attributes(status: 'failed', failure_category: 'timeout')
-    expect(suggestion.error_message).to eq('timed out')
+    expect(CandyAI::UsageRecord.last).to have_attributes(success: false, error_category: 'timeout')
+  end
+
+  it 'rejects a low-quality response' do
+    allow(CandyAI::AI).to receive(:router).and_return(
+      instance_double(CandyAI::AI::Router, chat: CandyAI::AI::Response.new(text: ''))
+    )
+
+    expect { described_class.perform_now(suggestion.id) }.not_to raise_error
+
+    expect(suggestion.reload).to have_attributes(status: 'failed', failure_category: 'quality')
   end
 
   it 'does not process a suggestion whose relationships were tampered with' do

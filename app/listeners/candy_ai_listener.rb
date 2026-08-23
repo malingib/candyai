@@ -4,12 +4,12 @@ class CandyAIListener < BaseListener
   include Events::Types
 
   def message_created(event)
-    return unless CandyAI.config.enabled
+    return unless CandyAI.config.enabled?
 
     message = extract_message_and_account(event)[0]
     return unless eligible_message?(message)
 
-    configuration = CandyAI::AccountConfiguration.effective(message.inbox)
+    configuration = CandyAI::ConfigurationResolver.for(account: message.account, inbox: message.inbox)
     return unless configuration['enabled'] == true
 
     case configuration['mode']

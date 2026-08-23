@@ -28,6 +28,18 @@ const isEditable = computed(
   () => latestSuggestion.value?.status === 'generated'
 );
 
+// Maps a provider failure category to a human-friendly, non-leaky message.
+const failureMessage = computed(() => {
+  const category = latestSuggestion.value?.failure_category;
+  if (latestSuggestion.value?.status !== 'failed' || !category) return '';
+  if (category === 'quality') return t('CONVERSATION.CANDY_AI.QUALITY_FAILED');
+  if (['unavailable', 'timeout'].includes(category))
+    return t('CONVERSATION.CANDY_AI.UNAVAILABLE');
+  return t('CONVERSATION.CANDY_AI.FAILED');
+});
+
+const intelligence = computed(() => latestSuggestion.value?.intelligence || {});
+
 const setSuggestions = nextSuggestions => {
   suggestions.value = nextSuggestions.map(suggestion => ({ ...suggestion }));
   if (isEditable.value && editingId.value !== latestSuggestion.value.id) {
@@ -100,6 +112,8 @@ const acceptSuggestion = async () => {
       status: 'accepted',
       content: editedContent.value,
     });
+    // Assist Mode never sends automatically: the agent inserts the text into
+    // the composer and decides whether to send it.
     emitter.emit(BUS_EVENTS.INSERT_INTO_NORMAL_EDITOR, editedContent.value);
     setSuggestions([
       {
@@ -160,6 +174,8 @@ const stopEditing = () => {
   editedContent.value = latestSuggestion.value?.content || '';
 };
 
+const signalLabel = key => t(`CONVERSATION.CANDY_AI.${key.toUpperCase()}`);
+
 watch(() => props.conversationId, fetchSuggestions);
 onMounted(fetchSuggestions);
 onBeforeUnmount(() => clearTimeout(pollTimeout));
@@ -177,7 +193,7 @@ onBeforeUnmount(() => clearTimeout(pollTimeout));
         </p>
       </div>
       <Button
-        v-if="!isBusy"
+        v-if="!isBusy && latestSuggestion?.status !== 'failed'"
         :label="
           latestSuggestion
             ? t('CONVERSATION.CANDY_AI.REGENERATE')
@@ -197,9 +213,45 @@ onBeforeUnmount(() => clearTimeout(pollTimeout));
     <p v-else-if="isBusy" class="mt-3 text-xs text-n-slate-11">
       {{ t('CONVERSATION.CANDY_AI.GENERATING') }}
     </p>
+    <p
+      v-else-if="latestSuggestion?.status === 'failed'"
+      class="mt-3 text-xs text-n-ruby-11"
+    >
+      {{ failureMessage }}
+    </p>
     <p v-else-if="error" class="mt-3 text-xs text-n-ruby-11">{{ error }}</p>
 
-    <div v-else-if="latestSuggestion?.status === 'generated'" class="mt-3">
+    <div v-if="latestSuggestion?.status === 'generated'" class="mt-3">
+      <div
+        v-if="intelligence && Object.keys(intelligence).length"
+        class="mb-2 flex flex-wrap gap-1.5"
+      >
+        <span
+          v-if="intelligence.intent"
+          class="rounded-full bg-n-slate-3 px-2 py-0.5 text-[11px] text-n-slate-11"
+        >
+          {{ signalLabel('intent') }}: {{ intelligence.intent }}
+        </span>
+        <span
+          v-if="intelligence.sentiment"
+          class="rounded-full bg-n-slate-3 px-2 py-0.5 text-[11px] text-n-slate-11"
+        >
+          {{ signalLabel('sentiment') }}: {{ intelligence.sentiment }}
+        </span>
+        <span
+          v-if="intelligence.urgency"
+          class="rounded-full bg-n-slate-3 px-2 py-0.5 text-[11px] text-n-slate-11"
+        >
+          {{ signalLabel('urgency') }}: {{ intelligence.urgency }}
+        </span>
+        <span
+          v-if="intelligence.needs_human"
+          class="rounded-full bg-n-amber-3 px-2 py-0.5 text-[11px] text-n-amber-11"
+        >
+          {{ t('CONVERSATION.CANDY_AI.ESCALATE') }}
+        </span>
+      </div>
+
       <textarea
         v-if="editingId === latestSuggestion.id"
         v-model="editedContent"

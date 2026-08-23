@@ -3,6 +3,12 @@
 class CandyAI::GenerateSuggestionJob < ApplicationJob
   queue_as :default
 
+  # Rolling windows for abuse control.
+  ACCOUNT_WINDOW = 1.minute
+  ACCOUNT_LIMIT = 20
+  CONVERSATION_WINDOW = 1.minute
+  CONVERSATION_LIMIT = 5
+
   def perform(suggestion_id)
     suggestion = CandyAI::Suggestion.includes(:message, :conversation, :account, :inbox).find_by(id: suggestion_id)
     return unless suggestion
@@ -16,6 +22,9 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     process_generation(suggestion, message, started_at)
   rescue CandyAI::AI::Error => e
     fail_suggestion(suggestion, failure_category(e), e.message) if suggestion
+    nil
+  rescue CandyAI::RateLimiter::LimitExceeded => e
+    fail_suggestion(suggestion, 'rate_limited', e.message) if suggestion
     nil
   end
 
@@ -32,21 +41,64 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
   end
 
   def process_generation(suggestion, message, started_at)
-    configuration = configuration_for(message)
+    configuration = effective_configuration(message)
     return fail_suggestion(suggestion, 'disabled', 'CandyAI Assist Mode is disabled') unless configuration
 
-    context = build_context(message)
-    response = generate_response(message, configuration, context)
-    return fail_suggestion(suggestion, 'malformed_response', 'AI provider returned an empty response') if response.text.blank?
+    enforce_rate_limits!(suggestion, configuration)
 
-    complete_suggestion(suggestion, response, started_at, context_metadata: { 'message_count' => context.length })
+    success = false
+    response = nil
+    error_category = nil
+    begin
+      context = build_context(message, configuration)
+      intelligence = analyze_intelligence(context)
+      response = generate_response(message, configuration, context)
+
+      quality = CandyAI::SuggestionQuality.new(response)
+      unless quality.valid?
+        error_category = 'quality'
+        return fail_suggestion(suggestion, 'quality', "Quality check failed: #{quality.failures.join(', ')}")
+      end
+
+      complete_suggestion(suggestion, response, started_at, intelligence: intelligence,
+                                           context_metadata: context_metadata(context, intelligence))
+      success = true
+    rescue CandyAI::AI::Error => e
+      error_category = failure_category(e)
+      raise
+    ensure
+      record_usage(suggestion, configuration, response, started_at, success, error_category)
+    end
   end
 
-  def configuration_for(message)
-    return unless CandyAI.config.enabled && eligible_message?(message)
+  def effective_configuration(message)
+    return unless CandyAI.config.enabled? && eligible_message?(message)
 
-    configuration = CandyAI::AccountConfiguration.effective(message.inbox)
-    configuration if configuration['enabled'] == true && configuration['mode'] == 'assist'
+    configuration = CandyAI::ConfigurationResolver.for(account: message.account, inbox: message.inbox)
+    return nil unless configuration['enabled'] == true && configuration['assist_enabled'] == true
+
+    configuration
+  end
+
+  def enforce_rate_limits!(suggestion, configuration)
+    limiter = CandyAI::RateLimiter.new
+    limit = configuration['generation_limit'] || CandyAI::ConfigurationResolver::DEFAULT_GENERATION_LIMIT
+    limiter.check!(
+      key: "account:#{suggestion.account_id}",
+      limit: ACCOUNT_LIMIT,
+      window: ACCOUNT_WINDOW
+    )
+    limiter.check!(
+      key: "conversation:#{suggestion.conversation_id}",
+      limit: CONVERSATION_LIMIT,
+      window: CONVERSATION_WINDOW
+    )
+    limiter.check!(
+      key: "suggestion:#{suggestion.message_id}",
+      limit: limit,
+      window: 10.minutes,
+      idempotency_key: suggestion.request_id
+    )
   end
 
   def eligible_message?(message)
@@ -65,40 +117,61 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
       message.account_id == message.conversation.account_id && message.account_id == message.inbox.account_id
   end
 
-  def build_context(message)
-    CandyAI::ContextBuilder.new(message.conversation, account: message.account, inbox: message.inbox).messages
+  def build_context(message, configuration)
+    CandyAI::ContextBuilder.new(
+      message.conversation,
+      account: message.account,
+      inbox: message.inbox,
+      account_instructions: configuration['system_instructions'],
+      inbox_instructions: configuration['system_instructions']
+    ).build
+  end
+
+  def analyze_intelligence(context)
+    CandyAI::ConversationIntelligence.new.analyze(context)
   end
 
   def generate_response(_message, configuration, context)
-    CandyAI::AI.orchestrator.respond(
-      messages: context,
+    system_prompt = CandyAI::PromptBuilder.new(
+      account_instructions: configuration['system_instructions'],
+      inbox_instructions: configuration['system_instructions']
+    ).build
+
+    messages = context[:conversation] || context['conversation'] || []
+
+    CandyAI::AI.router.chat(
+      messages: messages,
       provider: configuration['provider'].presence || CandyAI.config.default_ai_provider,
       model: configuration['model'].presence || ENV['CANDYAI_AI_MODEL'].presence,
-      system_prompt: configuration['system_prompt'].presence,
+      fallback: configuration['fallback_provider'].present?,
       temperature: configuration['temperature'],
-      max_tokens: configuration['max_tokens']
+      max_tokens: configuration['max_tokens'],
+      system: system_prompt
     )
   end
 
-  def complete_suggestion(suggestion, response, started_at, context_metadata:)
+  def complete_suggestion(suggestion, response, started_at, intelligence:, context_metadata:)
     suggestion.update!(
       status: 'generated',
       content: response.text,
       provider: response.provider,
       model: response.model,
       usage: response.usage || {},
+      intelligence: intelligence,
+      quality_status: 'pass',
       context_metadata: context_metadata,
       generated_at: Time.current,
       duration_ms: elapsed_ms(started_at)
     )
     log_event(
       'generation_completed', suggestion, provider: response.provider, model: response.model,
-                                          duration_ms: suggestion.duration_ms
+                                          duration_ms: suggestion.duration_ms, intelligence: intelligence
     )
   end
 
   def fail_suggestion(suggestion, category, message)
-    suggestion.update!(status: 'failed', failure_category: category, error_message: sanitize_error(message),
+    suggestion.update!(status: 'failed', failure_category: category,
+                       error_message: sanitize_error(message), quality_status: 'fail',
                        duration_ms: elapsed_since(suggestion.generation_started_at))
     log_event('generation_failed', suggestion, error_category: category)
   rescue ActiveRecord::RecordNotFound, ActiveRecord::RecordInvalid
@@ -118,7 +191,32 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
   end
 
   def sanitize_error(message)
-    message.to_s.gsub(/Bearer\s+\S+/i, 'Bearer [REDACTED]').truncate(500)
+    message.to_s.gsub(/Bearer\s+\S+/i, 'Bearer [REDACTED]')
+            .gsub(/sk-[a-zA-Z0-9]{20,}/, '[REDACTED]')
+            .truncate(500)
+  end
+
+  def record_usage(suggestion, configuration, response, started_at, success, error_category = nil)
+    CandyAI::UsageRecorder.record!(
+      account: suggestion.account,
+      inbox: suggestion.inbox,
+      conversation: suggestion.conversation,
+      suggestion: suggestion,
+      provider: response&.provider || configuration['provider'].presence || CandyAI.config.default_ai_provider,
+      model: response&.model || configuration['model'].presence,
+      request_id: suggestion.request_id,
+      started_at: started_at.is_a?(Time) ? started_at : Time.current,
+      success: success,
+      response: response,
+      error_category: success ? nil : error_category.presence || suggestion.failure_category
+    )
+  end
+
+  def context_metadata(context, intelligence)
+    {
+      'message_count' => (context[:conversation] || context['conversation'] || []).length,
+      'intelligence' => intelligence
+    }
   end
 
   def request_id

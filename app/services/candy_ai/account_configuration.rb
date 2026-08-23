@@ -24,6 +24,9 @@ class CandyAI::AccountConfiguration
 
   ALLOWED_MODES = %w[assist autonomous].freeze
 
+  # Effective config keys that can also be expressed as account-level instructions.
+  INSTRUCTION_KEYS = %w[system_prompt].freeze
+
   def self.account(account)
     DEFAULTS.merge((account.settings || {})['candy_ai'] || {})
   end

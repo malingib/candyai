@@ -7,6 +7,12 @@ require_relative 'ai/provider_registry'
 require_relative 'ai/openai_compatible_provider'
 require_relative 'ai/router'
 require_relative 'ai/orchestrator'
+require_relative 'instruction_system'
+require_relative 'prompt_builder'
+require_relative 'conversation_intelligence'
+require_relative 'suggestion_quality'
+require_relative 'rate_limiter'
+require_relative 'usage_recorder'
 
 module CandyAI
   module AI

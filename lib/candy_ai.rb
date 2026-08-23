@@ -18,6 +18,10 @@ module CandyAI
       @company_name = COMPANY_NAME
       @default_ai_provider = nil
     end
+
+    def enabled?
+      @enabled != false
+    end
   end
 
   class << self
@@ -25,6 +29,10 @@ module CandyAI
 
     def config
       @config ||= Configuration.new
+    end
+
+    def enabled?
+      config.enabled != false
     end
   end
 end

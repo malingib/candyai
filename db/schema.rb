@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_08_22_170000) do
+ActiveRecord::Schema[7.2].define(version: 2026_08_23_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -419,14 +419,43 @@ ActiveRecord::Schema[7.2].define(version: 2026_08_22_170000) do
     t.datetime "accepted_at"
     t.datetime "rejected_at"
     t.integer "duration_ms"
+    t.jsonb "intelligence", default: {}, null: false
+    t.string "quality_status"
+    t.jsonb "quality_failures", default: [], null: false
     t.index ["account_id", "conversation_id", "created_at"], name: "idx_candy_ai_suggestions_account_conversation"
     t.index ["account_id", "status", "created_at"], name: "idx_candy_ai_suggestions_account_status_created"
     t.index ["conversation_id", "status", "created_at"], name: "idx_candy_ai_suggestions_conversation_status_created"
     t.index ["conversation_id"], name: "index_candy_ai_suggestions_on_conversation_id"
     t.index ["inbox_id"], name: "index_candy_ai_suggestions_on_inbox_id"
-    t.index ["message_id"], name: "idx_candy_ai_suggestions_active_message", unique: true, where: "((status)::text = ANY ((ARRAY['pending'::character varying, 'generating'::character varying])::text[]))"
+    t.index ["message_id"], name: "idx_candy_ai_suggestions_active_message", unique: true, where: "((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('generating'::character varying)::text]))"
     t.index ["message_id"], name: "index_candy_ai_suggestions_on_message_id"
+    t.index ["quality_status"], name: "idx_candy_ai_suggestions_quality_status"
     t.index ["request_id"], name: "index_candy_ai_suggestions_on_request_id", unique: true, where: "(request_id IS NOT NULL)"
+  end
+
+  create_table "candy_ai_usage_records", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.integer "inbox_id"
+    t.integer "conversation_id"
+    t.integer "suggestion_id"
+    t.string "provider"
+    t.string "model"
+    t.string "request_id"
+    t.datetime "requested_at", null: false
+    t.datetime "completed_at"
+    t.integer "duration_ms"
+    t.integer "input_tokens"
+    t.integer "output_tokens"
+    t.integer "total_tokens"
+    t.decimal "estimated_cost", precision: 12, scale: 6
+    t.boolean "success", default: false, null: false
+    t.string "error_category"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "conversation_id", "created_at"], name: "idx_candy_ai_usage_account_conversation"
+    t.index ["account_id", "created_at"], name: "idx_candy_ai_usage_account_created"
+    t.index ["request_id"], name: "idx_candy_ai_usage_request_id"
+    t.index ["suggestion_id"], name: "idx_candy_ai_usage_suggestion"
   end
 
   create_table "canned_responses", id: :serial, force: :cascade do |t|
@@ -535,8 +564,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_08_22_170000) do
     t.integer "status", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
     t.index ["account_id", "assistant_id", "status", "language"], name: "idx_cap_faq_suggestions_on_account_assistant_status_language"
+    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
     t.index ["assistant_id"], name: "index_captain_faq_suggestions_on_assistant_id"
     t.index ["embedding"], name: "vector_idx_captain_faq_suggestions_embedding", opclass: :vector_cosine_ops, using: :ivfflat
   end
@@ -776,8 +805,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_08_22_170000) do
     t.jsonb "phone_number_health", default: {}, null: false
     t.datetime "phone_number_health_checked_at"
     t.string "phone_number_health_error", limit: 500
-    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
+    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
   end
 
   create_table "companies", force: :cascade do |t|
@@ -1117,10 +1146,10 @@ ActiveRecord::Schema[7.2].define(version: 2026_08_22_170000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "inbox_id"
-    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "(account_id IS NOT NULL) AND (inbox_id IS NULL)"
+    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "((account_id IS NOT NULL) AND (inbox_id IS NULL))"
     t.index ["inbox_id", "name", "template_type", "locale"], name: "index_email_templates_on_inbox_scope", unique: true, where: "(inbox_id IS NOT NULL)"
     t.index ["inbox_id"], name: "index_email_templates_on_inbox_id"
-    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "(account_id IS NULL) AND (inbox_id IS NULL)"
+    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "((account_id IS NULL) AND (inbox_id IS NULL))"
   end
 
   create_table "folders", force: :cascade do |t|
@@ -1634,6 +1663,10 @@ ActiveRecord::Schema[7.2].define(version: 2026_08_22_170000) do
   add_foreign_key "candy_ai_suggestions", "conversations", on_delete: :cascade
   add_foreign_key "candy_ai_suggestions", "inboxes", on_delete: :cascade
   add_foreign_key "candy_ai_suggestions", "messages", on_delete: :cascade
+  add_foreign_key "candy_ai_usage_records", "accounts", on_delete: :cascade
+  add_foreign_key "candy_ai_usage_records", "candy_ai_suggestions", column: "suggestion_id", on_delete: :nullify
+  add_foreign_key "candy_ai_usage_records", "conversations", on_delete: :nullify
+  add_foreign_key "candy_ai_usage_records", "inboxes", on_delete: :nullify
   add_foreign_key "inboxes", "portals"
   add_foreign_key "user_sessions", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).

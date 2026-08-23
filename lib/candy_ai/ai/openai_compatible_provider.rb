@@ -3,6 +3,7 @@
 require 'net/http'
 require 'json'
 require 'uri'
+require 'securerandom'
 
 module CandyAI
   module AI
@@ -31,7 +32,10 @@ module CandyAI
         payload[:max_tokens] = max_tokens unless max_tokens.nil?
         payload.merge!(options)
 
+        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         response = request(payload)
+        latency_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round
+
         choice = response.fetch('choices').first
         raise MalformedResponseError, 'AI provider returned no response choices' if choice.nil?
 
@@ -39,9 +43,39 @@ module CandyAI
           text: choice.dig('message', 'content').to_s,
           model: response['model'] || payload[:model],
           provider: config[:name] || self.class.name,
-          usage: response['usage'] || {},
+          usage: normalize_usage(response['usage']),
+          finish_reason: response.dig('choices', 0, 'finish_reason'),
+          request_id: response['id'].presence || SecureRandom.uuid,
+          latency_ms: latency_ms,
+          metadata: { base_url: base_url },
           raw: response
         )
+      end
+
+      # Providers are considered unavailable when misconfigured at construction.
+      def available?
+        config[:model].present? && endpoint_reachable?
+      rescue StandardError
+        false
+      end
+
+      private
+
+      def endpoint_reachable?
+        uri = URI.parse(base_url)
+        uri.scheme.present? && uri.host.present?
+      rescue URI::InvalidURIError
+        false
+      end
+
+      def normalize_usage(usage)
+        return {} if usage.blank?
+
+        {
+          'prompt_tokens' => usage['prompt_tokens'],
+          'completion_tokens' => usage['completion_tokens'],
+          'total_tokens' => usage['total_tokens']
+        }.compact
       end
 
       private

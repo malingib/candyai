@@ -29,6 +29,26 @@ if ENV['CANDYAI_AI_API_KEY'].present? && ENV['CANDYAI_AI_MODEL'].present?
   )
 
   CandyAI.config.default_ai_provider = provider_name
+
+  # OpenRouter and MobiWave-hosted inference are OpenAI-compatible endpoints.
+  # Register them under friendly names when configured so routing can target them.
+  if ENV['CANDYAI_OPENROUTER_API_KEY'].present? && ENV['CANDYAI_OPENROUTER_MODEL'].present?
+    CandyAI::AI.register_openai_compatible(
+      name: 'openrouter',
+      api_key: ENV.fetch('CANDYAI_OPENROUTER_API_KEY', nil),
+      base_url: ENV.fetch('CANDYAI_OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+      model: ENV.fetch('CANDYAI_OPENROUTER_MODEL', nil)
+    )
+  end
+
+  if ENV['CANDYAI_MOBIWAVE_API_KEY'].present? && ENV['CANDYAI_MOBIWAVE_MODEL'].present?
+    CandyAI::AI.register_openai_compatible(
+      name: 'mobiwave',
+      api_key: ENV.fetch('CANDYAI_MOBIWAVE_API_KEY', nil),
+      base_url: ENV.fetch('CANDYAI_MOBIWAVE_BASE_URL', 'https://inference.mobiwave.test/v1'),
+      model: ENV.fetch('CANDYAI_MOBIWAVE_MODEL', nil)
+    )
+  end
 end
 
 Rails.application.config.to_prepare do

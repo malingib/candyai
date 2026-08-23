@@ -75,10 +75,18 @@ class Api::V1::Accounts::CandyAiSuggestionsController < Api::V1::Accounts::BaseC
   end
 
   def ensure_assist_enabled!
-    configuration = CandyAI::AccountConfiguration.effective(source_message.inbox)
-    return true if CandyAI.config.enabled && configuration['enabled'] == true && configuration['mode'] == 'assist'
+    configuration = CandyAI::ConfigurationResolver.for(account: source_message.account, inbox: source_message.inbox)
+    return true if configuration['enabled'] == true && configuration['assist_enabled'] == true
 
-    render json: { error: 'CandyAI Assist Mode is disabled' }, status: :unprocessable_entity
+    if !CandyAI.config.enabled?
+      render json: { error: 'CandyAI is disabled' }, status: :unprocessable_entity
+    elsif configuration['enabled'] != true
+      render json: { error: 'CandyAI Assist Mode is disabled' }, status: :unprocessable_entity
+    elsif configuration['autonomous_enabled'] == true
+      render json: { error: 'CandyAI Assist Mode is not available for autonomous inboxes' }, status: :unprocessable_entity
+    else
+      render json: { error: 'CandyAI Assist Mode is disabled' }, status: :unprocessable_entity
+    end
 
     false
   end
@@ -91,6 +99,7 @@ class Api::V1::Accounts::CandyAiSuggestionsController < Api::V1::Accounts::BaseC
     record.attributes.slice(
       'id', 'account_id', 'inbox_id', 'conversation_id', 'message_id', 'source', 'status',
       'content', 'provider', 'model', 'usage', 'failure_category', 'error_message',
+      'intelligence', 'quality_status',
       'request_id', 'generation_started_at', 'generated_at', 'expires_at', 'accepted_at',
       'rejected_at', 'duration_ms', 'created_at', 'updated_at'
     )
