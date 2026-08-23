@@ -43,5 +43,9 @@ class CandyAI::Suggestion < ApplicationRecord
       suggestion.source = source
       suggestion.status = 'pending'
     end
+  rescue ActiveRecord::RecordNotUnique
+    # The partial unique index is the concurrency boundary. If two requests
+    # race, return the winner rather than leaking a database exception.
+    active.find_by!(message_id: message.id)
   end
 end
