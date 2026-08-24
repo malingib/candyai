@@ -4,18 +4,13 @@ module CandyAI
   module AI
     # Selects a registered provider while keeping routing policy outside the
     # Chatwoot conversation layer.
-    #
-    # Rules:
-    #   * configured default provider is used when no explicit provider given
-    #   * explicit provider/model always wins
-    #   * fallback is attempted ONLY when explicitly enabled via fallback:
-    #     do not silently switch providers
-    #   * an unavailable provider raises rather than leaking a bad request
     class Router
-      def initialize(registry: CandyAI::AI.registry, default_provider: nil, fallback_provider: nil)
+      def initialize(registry: CandyAI::AI.registry, default_provider: nil,
+                     fallback_provider: nil, fallback_model: nil)
         @registry = registry
         @default_provider = default_provider
         @fallback_provider = fallback_provider
+        @fallback_model = fallback_model
       end
 
       def provider(name: nil)
@@ -25,15 +20,16 @@ module CandyAI
         @registry.fetch(provider_name)
       end
 
-      def chat(messages:, provider: nil, model: nil, fallback: false, system: nil, **options)
+      def chat(messages:, provider: nil, model: nil, fallback: false, fallback_model: nil, system: nil, **options)
         selected_name = resolve_provider_name(provider)
         prepared = prepend_system(messages, system)
         attempt_chat(selected_name, prepared, model, options)
       rescue CandyAI::AI::ProviderError => e
         if fallback && @fallback_provider.present? && @fallback_provider.to_s != selected_name.to_s
+          selected_model = fallback_model.presence || @fallback_model.presence
           Rails.logger.warn({ event: 'candy_ai.provider_fallback', from: selected_name,
-                              to: @fallback_provider, error: e.class.name }.to_json)
-          attempt_chat(@fallback_provider, prepared, model, options)
+                              to: @fallback_provider, model: selected_model, error: e.class.name }.to_json)
+          attempt_chat(@fallback_provider, prepared, selected_model, options)
         else
           raise
         end
