@@ -2,20 +2,7 @@
 
 module CandyAI
   # Single authoritative resolution path for CandyAI configuration.
-  #
-  # Resolution order (each layer overrides the previous one only when it
-  # explicitly sets a value):
-  #
-  #   Global (CandyAI.config)
-  #     ↓
-  #   Account (account.settings['candy_ai'])
-  #     ↓
-  #   Inbox  (inbox.candy_ai_settings)
-  #
-  # The result is deterministic: controllers, jobs, and services must not
-  # independently reconstruct precedence logic. They call `for(...)`.
   class ConfigurationResolver
-    # Returns a frozen hash with a stable, fully-resolved schema.
     def self.for(account:, inbox: nil)
       new(account: account, inbox: inbox).resolve
     end
@@ -39,7 +26,7 @@ module CandyAI
       account_instructions = account['system_prompt'].presence
       inbox_instructions = @inbox ? inbox['system_prompt'].presence : nil
 
-      effective = {
+      {
         'enabled' => enabled,
         'assist_enabled' => enabled && merged['mode'].to_s == 'assist',
         'autonomous_enabled' => enabled && merged['mode'].to_s == 'autonomous',
@@ -57,10 +44,9 @@ module CandyAI
         'context_character_limit' => merged['context_character_limit'] || CandyAI::ContextBuilder::MAX_CONTEXT_CHARACTERS,
         'generation_limit' => merged['generation_limit'] || DEFAULT_GENERATION_LIMIT,
         'fallback_provider' => merged['fallback_provider'].presence,
+        'fallback_model' => merged['fallback_model'].presence,
         'daily_cost_limit_usd' => merged['daily_cost_limit_usd'].presence || ENV['CANDYAI_DAILY_COST_LIMIT_USD'].presence
-      }
-
-      effective.freeze
+      }.freeze
     end
 
     private
