@@ -137,6 +137,7 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
       provider: configuration['provider'].presence || CandyAI.config.default_ai_provider,
       model: configuration['model'].presence || ENV['CANDYAI_AI_MODEL'].presence,
       fallback: configuration['fallback_provider'].present?,
+      fallback_model: configuration['fallback_model'],
       temperature: configuration['temperature'],
       max_tokens: configuration['max_tokens'],
       system: system_prompt
