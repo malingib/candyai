@@ -100,7 +100,7 @@ class Api::V1::Accounts::CandyAiSuggestionsController < Api::V1::Accounts::BaseC
     record.attributes.slice(
       'id', 'account_id', 'inbox_id', 'conversation_id', 'message_id', 'source', 'status',
       'content', 'provider', 'model', 'usage', 'failure_category', 'error_message',
-      'intelligence', 'quality_status',
+      'intelligence', 'context_metadata', 'quality_status',
       'request_id', 'generation_started_at', 'generated_at', 'expires_at', 'accepted_at',
       'rejected_at', 'duration_ms', 'created_at', 'updated_at'
     )
