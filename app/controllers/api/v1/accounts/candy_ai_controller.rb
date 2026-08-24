@@ -23,7 +23,9 @@ class Api::V1::Accounts::CandyAiController < Api::V1::Accounts::BaseController
 
   def candy_ai_params
     params.require(:settings).permit(
-      :enabled, :provider, :model, :system_prompt, :temperature, :max_tokens,
+      :enabled, :provider, :model, :fallback_provider, :fallback_model,
+      :system_prompt, :temperature, :max_tokens, :generation_limit,
+      :context_message_limit, :context_character_limit, :daily_cost_limit_usd,
       :handoff_enabled, :handoff_message
     )
   end
