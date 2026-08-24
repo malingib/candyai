@@ -3,19 +3,14 @@
 module CandyAI
   # Lightweight conversation intelligence derived before generation.
   #
-  # The default implementation is deterministic heuristic analysis of the
-  # supplied context so we avoid adding a heavyweight second model. An optional
-  # AI-based analyzer may be supplied (e.g. structured JSON output from a
-  # provider) but it is never required and its output is sanitized.
-  #
-  # Results are internal signals used by the prompt/context layer; unsupported
-  # claims must never be surfaced to customers.
+  # The default implementation is deterministic heuristic analysis so we do
+  # not add a heavyweight second model. An optional structured analyzer may be
+  # supplied, but its output is strictly allow-listed before it is trusted.
   class ConversationIntelligence
     INTENTS = %w[
       billing_question order_issue technical_issue account_access
       complaint compliment general_question greeting
     ].freeze
-
     SENTIMENTS = %w[positive neutral negative].freeze
     URGENCIES = %w[low normal high].freeze
 
@@ -23,10 +18,8 @@ module CandyAI
       @analyzer = analyzer
     end
 
-    # context: the structured context hash from CandyAI::ContextBuilder#build
-    # Returns a frozen hash of signals.
     def analyze(context)
-      conversation = (context[:conversation] || context['conversation'] || [])
+      conversation = context[:conversation] || context['conversation'] || []
       last_user_message = last_user_text(conversation)
 
       signals = {
@@ -38,15 +31,20 @@ module CandyAI
         'needs_human' => escalation?(last_user_message, conversation)
       }
 
-      signals = merge_ai_signals(signals) if @analyzer
+      merge_ai_signals(signals) if @analyzer
       coerce(signals)
     end
 
     private
 
     def last_user_text(conversation)
-      conversation.reverse.find { |m| m[:role].to_s == 'user' || m['role'].to_s == 'user' }
-              &.dig(:content) || m['content']
+      message = conversation.reverse.find do |entry|
+        role = entry[:role] || entry['role']
+        role.to_s == 'user'
+      end
+      return if message.blank?
+
+      message[:content] || message['content']
     end
 
     def detect_intent(text)
@@ -85,32 +83,35 @@ module CandyAI
     end
 
     def question?(text)
-      text.to_s.strip.end_with?('?') || text.to_s.downcase.match?(/\b(how|what|why|when|where|can you|could you|is it|are you|do you)\b/i)
+      text.to_s.strip.end_with?('?') || text.to_s.match?(/\b(how|what|why|when|where|can you|could you|is it|are you|do you)\b/i)
     end
 
     def resolved?(conversation)
       return false if conversation.empty?
 
       last = conversation.last
-      last_text = (last[:content] || last['content']).to_s.downcase
-      last_text.match?(/(resolved|all set|thank you|thanks|that works|great|perfect|sorted)/) &&
-        last[:role].to_s != 'user' && last['role'].to_s != 'user'
+      role = last[:role] || last['role']
+      return false if role.to_s == 'user'
+
+      text = (last[:content] || last['content']).to_s.downcase
+      text.match?(/resolved|all set|thank you|thanks|that works|great|perfect|sorted/)
     end
 
     def escalation?(text, conversation)
       lowered = text.to_s.downcase
-      lowered.match?(/speak to (a|an|human|agent|person)|real person|manager|escalate|supervisor/) ||
-        detect_sentiment(conversation) == 'negative' && detect_urgency(text) == 'high'
+      direct_request = lowered.match?(/speak to (a|an|human|agent|person)|real person|manager|escalate|supervisor/)
+      high_risk = detect_sentiment(conversation) == 'negative' && detect_urgency(text) == 'high'
+      direct_request || high_risk
     end
 
     def conversation_text(conversation)
-      conversation.map { |m| m[:content] || m['content'] }.compact.join(' ')
+      conversation.filter_map { |entry| entry[:content] || entry['content'] }.join(' ')
     end
 
-    # Optional: merge sanitized signals from an external analyzer.
-    # The analyzer must return a hash; we never trust it blindly.
     def merge_ai_signals(signals)
-      ai = @analyzer.call(signals) || {}
+      ai = @analyzer.call(signals)
+      return signals unless ai.is_a?(Hash)
+
       ai = ai.transform_keys(&:to_s)
       signals['intent'] = ai['intent'] if INTENTS.include?(ai['intent'])
       signals['sentiment'] = ai['sentiment'] if SENTIMENTS.include?(ai['sentiment'])
@@ -118,6 +119,8 @@ module CandyAI
       signals['is_question'] = !!ai['is_question'] unless ai['is_question'].nil?
       signals['resolved'] = !!ai['resolved'] unless ai['resolved'].nil?
       signals['needs_human'] = !!ai['needs_human'] unless ai['needs_human'].nil?
+      signals
+    rescue StandardError
       signals
     end
 
@@ -130,7 +133,7 @@ module CandyAI
         'resolved' => !!signals['resolved'],
         'needs_human' => !!signals['needs_human']
       }
-      coerced['confidence'] = 'heuristic' unless @analyzer
+      coerced['confidence'] = @analyzer ? 'assisted' : 'heuristic'
       coerced.freeze
     end
   end
