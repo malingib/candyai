@@ -56,7 +56,7 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     begin
       context = build_context(message, configuration)
       intelligence = analyze_intelligence(context)
-      response = generate_response(message, configuration, context)
+      response = generate_response(configuration, context, intelligence)
 
       quality = CandyAI::SuggestionQuality.new(response)
       unless quality.valid?
@@ -123,10 +123,11 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     CandyAI::ConversationIntelligence.new.analyze(context)
   end
 
-  def generate_response(_message, configuration, context)
+  def generate_response(configuration, context, intelligence)
     system_prompt = CandyAI::PromptBuilder.new(
       account_instructions: configuration['account_instructions'],
-      inbox_instructions: configuration['inbox_instructions']
+      inbox_instructions: configuration['inbox_instructions'],
+      intelligence: intelligence
     ).build
 
     messages = context[:conversation] || context['conversation'] || []
