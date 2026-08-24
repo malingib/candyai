@@ -56,7 +56,8 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     begin
       context = build_context(message, configuration)
       intelligence = analyze_intelligence(context)
-      response = generate_response(configuration, context, intelligence)
+      handoff = decide_handoff(intelligence, configuration)
+      response = generate_response(configuration, context, intelligence, handoff)
 
       quality = CandyAI::SuggestionQuality.new(response)
       unless quality.valid?
@@ -64,8 +65,14 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
         return fail_suggestion(suggestion, 'quality', "Quality check failed: #{quality.failures.join(', ')}")
       end
 
-      complete_suggestion(suggestion, response, started_at, intelligence: intelligence,
-                                                            context_metadata: context_metadata(context, intelligence))
+      complete_suggestion(
+        suggestion,
+        response,
+        started_at,
+        intelligence: intelligence,
+        handoff: handoff,
+        context_metadata: context_metadata(context, intelligence, handoff)
+      )
       success = true
     rescue CandyAI::AI::Error => e
       error_category = failure_category(e)
@@ -123,11 +130,19 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     CandyAI::ConversationIntelligence.new.analyze(context)
   end
 
-  def generate_response(configuration, context, intelligence)
+  def decide_handoff(intelligence, configuration)
+    CandyAI::HandoffDecision.evaluate(
+      intelligence: intelligence,
+      handoff_enabled: configuration['handoff_enabled']
+    )
+  end
+
+  def generate_response(configuration, context, intelligence, handoff)
     system_prompt = CandyAI::PromptBuilder.new(
       account_instructions: configuration['account_instructions'],
       inbox_instructions: configuration['inbox_instructions'],
-      intelligence: intelligence
+      intelligence: intelligence,
+      handoff: handoff
     ).build
 
     messages = context[:conversation] || context['conversation'] || []
@@ -144,7 +159,7 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     )
   end
 
-  def complete_suggestion(suggestion, response, started_at, intelligence:, context_metadata:)
+  def complete_suggestion(suggestion, response, started_at, intelligence:, handoff:, context_metadata:)
     suggestion.update!(
       status: 'generated', content: response.text, provider: response.provider,
       model: response.model, usage: response.usage || {}, intelligence: intelligence,
@@ -152,7 +167,7 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
       duration_ms: elapsed_ms(started_at)
     )
     log_event('generation_completed', suggestion, provider: response.provider, model: response.model,
-              duration_ms: suggestion.duration_ms, intelligence: intelligence)
+              duration_ms: suggestion.duration_ms, intelligence: intelligence, handoff: handoff)
   end
 
   def fail_suggestion(suggestion, category, message)
@@ -194,10 +209,11 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     )
   end
 
-  def context_metadata(context, intelligence)
+  def context_metadata(context, intelligence, handoff)
     {
       'message_count' => (context[:conversation] || context['conversation'] || []).length,
-      'intelligence' => intelligence
+      'intelligence' => intelligence,
+      'handoff' => handoff
     }
   end
 
