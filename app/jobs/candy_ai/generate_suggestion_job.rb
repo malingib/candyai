@@ -3,7 +3,6 @@
 class CandyAI::GenerateSuggestionJob < ApplicationJob
   queue_as :default
 
-  # Rolling windows for abuse control.
   ACCOUNT_WINDOW = 1.minute
   ACCOUNT_LIMIT = 20
   CONVERSATION_WINDOW = 1.minute
@@ -26,6 +25,9 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
   rescue CandyAI::RateLimiter::LimitExceeded => e
     fail_suggestion(suggestion, 'rate_limited', e.message) if suggestion
     nil
+  rescue CandyAI::UsageBudget::LimitExceeded => e
+    fail_suggestion(suggestion, 'cost_budget', e.message) if suggestion
+    nil
   end
 
   private
@@ -45,6 +47,8 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     return fail_suggestion(suggestion, 'disabled', 'CandyAI Assist Mode is disabled') unless configuration
 
     enforce_rate_limits!(suggestion, configuration)
+    CandyAI::UsageBudget.check!(account: suggestion.account,
+                                daily_limit_usd: configuration['daily_cost_limit_usd'])
 
     success = false
     response = nil
@@ -83,22 +87,10 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
   def enforce_rate_limits!(suggestion, configuration)
     limiter = CandyAI::RateLimiter.new
     limit = configuration['generation_limit'] || CandyAI::ConfigurationResolver::DEFAULT_GENERATION_LIMIT
-    limiter.check!(
-      key: "account:#{suggestion.account_id}",
-      limit: ACCOUNT_LIMIT,
-      window: ACCOUNT_WINDOW
-    )
-    limiter.check!(
-      key: "conversation:#{suggestion.conversation_id}",
-      limit: CONVERSATION_LIMIT,
-      window: CONVERSATION_WINDOW
-    )
-    limiter.check!(
-      key: "suggestion:#{suggestion.message_id}",
-      limit: limit,
-      window: 10.minutes,
-      idempotency_key: suggestion.request_id
-    )
+    limiter.check!(key: "account:#{suggestion.account_id}", limit: ACCOUNT_LIMIT, window: ACCOUNT_WINDOW)
+    limiter.check!(key: "conversation:#{suggestion.conversation_id}", limit: CONVERSATION_LIMIT, window: CONVERSATION_WINDOW)
+    limiter.check!(key: "suggestion:#{suggestion.message_id}", limit: limit, window: 10.minutes,
+                   idempotency_key: suggestion.request_id)
   end
 
   def eligible_message?(message)
@@ -152,21 +144,13 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
 
   def complete_suggestion(suggestion, response, started_at, intelligence:, context_metadata:)
     suggestion.update!(
-      status: 'generated',
-      content: response.text,
-      provider: response.provider,
-      model: response.model,
-      usage: response.usage || {},
-      intelligence: intelligence,
-      quality_status: 'pass',
-      context_metadata: context_metadata,
-      generated_at: Time.current,
+      status: 'generated', content: response.text, provider: response.provider,
+      model: response.model, usage: response.usage || {}, intelligence: intelligence,
+      quality_status: 'pass', context_metadata: context_metadata, generated_at: Time.current,
       duration_ms: elapsed_ms(started_at)
     )
-    log_event(
-      'generation_completed', suggestion, provider: response.provider, model: response.model,
-                                          duration_ms: suggestion.duration_ms, intelligence: intelligence
-    )
+    log_event('generation_completed', suggestion, provider: response.provider, model: response.model,
+              duration_ms: suggestion.duration_ms, intelligence: intelligence)
   end
 
   def fail_suggestion(suggestion, category, message)
@@ -198,16 +182,12 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
 
   def record_usage(suggestion, configuration, response, started_at, success, error_category = nil)
     CandyAI::UsageRecorder.record!(
-      account: suggestion.account,
-      inbox: suggestion.inbox,
-      conversation: suggestion.conversation,
+      account: suggestion.account, inbox: suggestion.inbox, conversation: suggestion.conversation,
       suggestion: suggestion,
       provider: response&.provider || configuration['provider'].presence || CandyAI.config.default_ai_provider,
       model: response&.model || configuration['model'].presence,
-      request_id: suggestion.request_id,
-      started_at: started_at.is_a?(Time) ? started_at : Time.current,
-      success: success,
-      response: response,
+      request_id: suggestion.request_id, started_at: started_at.is_a?(Time) ? started_at : Time.current,
+      success: success, response: response,
       error_category: success ? nil : error_category.presence || suggestion.failure_category
     )
   end
