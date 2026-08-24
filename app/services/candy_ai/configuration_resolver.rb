@@ -14,19 +14,8 @@ module CandyAI
   #
   # The result is deterministic: controllers, jobs, and services must not
   # independently reconstruct precedence logic. They call `for(...)`.
-  #
-  # Kill switches are enforced here:
-  #   * CandyAI.config.enabled            -> global kill switch
-  #   * account.enabled                   -> account kill switch
-  #   * inbox.enabled + account.enabled   -> inbox opt-in (cannot bypass)
-  #   * mode == 'autonomous' is surfaced but Assist generation refuses it.
   class ConfigurationResolver
-    # Returns a frozen hash with a stable, fully-resolved schema:
-    #   enabled, assist_enabled, autonomous_enabled, provider, model,
-    #   account_instructions, inbox_instructions, system_instructions,
-    #   temperature, max_tokens, mode, handoff_enabled, handoff_message,
-    #   context_message_limit, context_character_limit, generation_limit,
-    #   fallback_provider
+    # Returns a frozen hash with a stable, fully-resolved schema.
     def self.for(account:, inbox: nil)
       new(account: account, inbox: inbox).resolve
     end
@@ -43,8 +32,6 @@ module CandyAI
         inbox_value.nil? ? account_value : inbox_value
       end
 
-      # 'enabled' is a kill switch and must not be overridden by a lower layer.
-      # Compute it independently from raw account/inbox settings.
       enabled = global_enabled? &&
                 (account['enabled'] == true) &&
                 (!@inbox || inbox['enabled'] == true)
@@ -60,8 +47,6 @@ module CandyAI
         'model' => merged['model'].presence,
         'account_instructions' => account_instructions,
         'inbox_instructions' => inbox_instructions,
-        # Retained as the account-level instruction for compatibility with
-        # existing callers. New generation code should use the two scoped keys.
         'system_instructions' => account_instructions,
         'temperature' => merged['temperature'],
         'max_tokens' => merged['max_tokens'],
@@ -71,7 +56,8 @@ module CandyAI
         'context_message_limit' => merged['context_message_limit'] || CandyAI::ContextBuilder::MAX_MESSAGES,
         'context_character_limit' => merged['context_character_limit'] || CandyAI::ContextBuilder::MAX_CONTEXT_CHARACTERS,
         'generation_limit' => merged['generation_limit'] || DEFAULT_GENERATION_LIMIT,
-        'fallback_provider' => merged['fallback_provider'].presence
+        'fallback_provider' => merged['fallback_provider'].presence,
+        'daily_cost_limit_usd' => merged['daily_cost_limit_usd'].presence || ENV['CANDYAI_DAILY_COST_LIMIT_USD'].presence
       }
 
       effective.freeze
