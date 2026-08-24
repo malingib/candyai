@@ -36,7 +36,12 @@ module CandyAI
         input_tokens: usage[:input_tokens],
         output_tokens: usage[:output_tokens],
         total_tokens: usage[:total_tokens],
-        estimated_cost: estimate_cost(provider, model, usage),
+        estimated_cost: CandyAI::CostEstimator.estimate(
+          provider: provider,
+          model: model,
+          input_tokens: usage[:input_tokens],
+          output_tokens: usage[:output_tokens]
+        ),
         success: success,
         error_category: error_category
       )
@@ -62,12 +67,6 @@ module CandyAI
         output_tokens: usage['completion_tokens'] || usage[:completion_tokens],
         total_tokens: usage['total_tokens'] || usage[:total_tokens]
       }.compact
-    end
-
-    # Conservative cost estimate hook. Real pricing should be supplied via
-    # configuration; default is nil so we never fabricate billing numbers.
-    def estimate_cost(_provider, _model, _usage)
-      nil
     end
   end
 end
