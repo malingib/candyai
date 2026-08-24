@@ -27,7 +27,7 @@ module CandyAI
     def evaluate
       if resolved?
         build('continue', 'resolved')
-      elsif customer_requested_human?
+      elsif needs_human?
         build(@handoff_enabled ? 'recommend_handoff' : 'continue', 'customer_requested_human')
       elsif high_risk_urgent_negative?
         build(@handoff_enabled ? 'recommend_handoff' : 'continue', 'high_risk_urgent_negative')
@@ -38,10 +38,8 @@ module CandyAI
 
     private
 
-    def customer_requested_human?
-      @intelligence['needs_human'] == true &&
-        @intelligence['urgency'].to_s == 'high' ||
-        @intelligence['needs_human'] == true && @intelligence['intent'].to_s == 'complaint'
+    def needs_human?
+      @intelligence['needs_human'] == true
     end
 
     def high_risk_urgent_negative?
