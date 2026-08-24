@@ -5,9 +5,15 @@ class CandyAI::AccountConfiguration
     'enabled' => false,
     'provider' => nil,
     'model' => nil,
+    'fallback_provider' => nil,
+    'fallback_model' => nil,
     'system_prompt' => nil,
     'temperature' => 0.2,
     'max_tokens' => 800,
+    'generation_limit' => 3,
+    'context_message_limit' => nil,
+    'context_character_limit' => nil,
+    'daily_cost_limit_usd' => nil,
     'handoff_enabled' => true,
     'handoff_message' => 'I will connect you with a human agent.'
   }.freeze
@@ -17,14 +23,14 @@ class CandyAI::AccountConfiguration
     'mode' => 'assist',
     'provider' => nil,
     'model' => nil,
+    'fallback_provider' => nil,
+    'fallback_model' => nil,
     'system_prompt' => nil,
     'handoff_enabled' => true,
     'handoff_message' => nil
   }.freeze
 
   ALLOWED_MODES = %w[assist autonomous].freeze
-
-  # Effective config keys that can also be expressed as account-level instructions.
   INSTRUCTION_KEYS = %w[system_prompt].freeze
 
   def self.account(account)
@@ -43,8 +49,6 @@ class CandyAI::AccountConfiguration
       inbox_value.nil? ? account_value : inbox_value
     end
 
-    # Account enablement is the global kill switch. An inbox can opt in,
-    # but it must never bypass an account-level disablement.
     effective['enabled'] = account_config['enabled'] == true && inbox_config['enabled'] == true
     effective
   end
@@ -53,6 +57,10 @@ class CandyAI::AccountConfiguration
     values = params.to_h.stringify_keys.slice(*DEFAULTS.keys)
     values['temperature'] = values['temperature'].to_f.clamp(0.0, 2.0) if values.key?('temperature')
     values['max_tokens'] = values['max_tokens'].to_i.clamp(1, 16_384) if values.key?('max_tokens')
+    values['generation_limit'] = values['generation_limit'].to_i.clamp(1, 100) if values.key?('generation_limit')
+    values['context_message_limit'] = values['context_message_limit'].to_i.clamp(1, 100) if values.key?('context_message_limit')
+    values['context_character_limit'] = values['context_character_limit'].to_i.clamp(1_000, 50_000) if values.key?('context_character_limit')
+    values['daily_cost_limit_usd'] = values['daily_cost_limit_usd'].to_f.clamp(0.0, 100_000.0) if values.key?('daily_cost_limit_usd')
     values['enabled'] = ActiveModel::Type::Boolean.new.cast(values['enabled']) if values.key?('enabled')
     values['handoff_enabled'] = ActiveModel::Type::Boolean.new.cast(values['handoff_enabled']) if values.key?('handoff_enabled')
     values
