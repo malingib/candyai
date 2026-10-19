@@ -14,6 +14,7 @@ Last updated: 2026-10-20
 
 ## Remaining release gates
 
+- [ ] Resolve the Community Edition licensing gate documented in `docs/CANDYAI_LICENSE_COMPLIANCE.md` before production use or public redistribution.
 - [ ] Run focused RSpec and the repository's full CI suite in a checked-out environment.
 - [ ] Perform a real Rails + PostgreSQL + Redis + Sidekiq boot and smoke test.
 - [ ] Review upstream drift and produce a narrow, conflict-reviewed update strategy.
