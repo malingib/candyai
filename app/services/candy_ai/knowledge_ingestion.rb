@@ -1,23 +1,13 @@
 # frozen_string_literal: true
 
-require 'ipaddr'
-require 'net/http'
-require 'resolv'
 require 'uri'
 
 module CandyAI
   class KnowledgeIngestion
     MAX_CONTENT_BYTES = 2.megabytes
-    BLOCKED_NETWORKS = [
-      IPAddr.new('127.0.0.0/8'),
-      IPAddr.new('10.0.0.0/8'),
-      IPAddr.new('172.16.0.0/12'),
-      IPAddr.new('192.168.0.0/16'),
-      IPAddr.new('169.254.0.0/16'),
-      IPAddr.new('::1/128'),
-      IPAddr.new('fc00::/7'),
-      IPAddr.new('fe80::/10')
-    ].freeze
+    OPEN_TIMEOUT_SECONDS = 10
+    READ_TIMEOUT_SECONDS = 20
+    ALLOWED_CONTENT_TYPES = %w[application/json application/xhtml+xml].freeze
 
     def self.ingest_text(account:, title:, content:, inbox: nil, source_url: nil, metadata: {})
       raise ArgumentError, 'content is required' if content.blank?
@@ -36,43 +26,62 @@ module CandyAI
       )
     end
 
+    # Use Chatwoot's SafeFetch implementation rather than Net::HTTP directly.
+    # SafeFetch applies the platform's SSRF-aware resolver and redirect checks.
     def self.ingest_url(account:, url:, inbox: nil, title: nil, metadata: {})
-      uri = URI.parse(url)
-      raise ArgumentError, 'only HTTP(S) URLs are supported' unless %w[http https].include?(uri.scheme)
-      raise ArgumentError, 'a hostname is required' if uri.host.blank?
-      raise ArgumentError, 'private or local network URLs are not allowed' if private_or_local_host?(uri.host)
+      uri = validated_uri!(url)
 
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https', open_timeout: 10, read_timeout: 20) do |http|
-        http.get(uri.request_uri, { 'User-Agent' => 'CandyAI-KnowledgeBot/1.0' })
+      SafeFetch.fetch(
+        uri.to_s,
+        max_bytes: MAX_CONTENT_BYTES,
+        open_timeout: OPEN_TIMEOUT_SECONDS,
+        read_timeout: READ_TIMEOUT_SECONDS,
+        allowed_content_type_prefixes: ['text/'],
+        allowed_content_types: ALLOWED_CONTENT_TYPES
+      ) do |result|
+        content = result.tempfile.read.to_s
+        content = ActionController::Base.helpers.strip_tags(content) if html_content_type?(result.content_type)
+
+        ingest_text(
+          account: account,
+          inbox: inbox,
+          title: title.presence || uri.host,
+          content: content.strip,
+          source_url: uri.to_s,
+          metadata: metadata.merge('content_type' => result.content_type.to_s)
+        )
       end
-
-      raise "knowledge source returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
-      raise ArgumentError, 'knowledge source is too large' if response.body.to_s.bytesize > MAX_CONTENT_BYTES
-
-      body = response.body.to_s
-      body = ActionController::Base.helpers.strip_tags(body) if response['content-type'].to_s.include?('html')
-
-      ingest_text(
-        account: account,
-        inbox: inbox,
-        title: title.presence || uri.host,
-        content: body.strip,
-        source_url: url,
-        metadata: metadata.merge('content_type' => response['content-type'])
-      )
+    rescue SafeFetch::FileTooLargeError
+      raise ArgumentError, 'knowledge source is too large'
+    rescue SafeFetch::InvalidUrlError, SafeFetch::UnsafeUrlError => e
+      raise ArgumentError, "knowledge source URL is not allowed: #{e.class.name.demodulize}"
+    rescue SafeFetch::Error => e
+      Rails.logger.warn("[CandyAI] Knowledge source fetch failed: #{e.class}")
+      raise ArgumentError, 'knowledge source could not be fetched'
     end
 
-    def self.private_or_local_host?(host)
-      addresses = Resolv.getaddresses(host)
-      addresses.any? do |address|
-        ip = IPAddr.new(address)
-        BLOCKED_NETWORKS.any? { |network| network.include?(ip) }
-      rescue IPAddr::InvalidAddressError
-        false
+    def self.validated_uri!(url)
+      uri = URI.parse(url.to_s)
+      unless uri.is_a?(URI::HTTP) && uri.host.present?
+        raise ArgumentError, 'only absolute HTTP(S) URLs are supported'
       end
-    rescue Resolv::ResolvError
-      true
+
+      raise ArgumentError, 'URL credentials are not allowed' if uri.userinfo.present?
+      raise ArgumentError, 'URL fragments are not allowed' if uri.fragment.present?
+
+      expected_port = uri.scheme == 'https' ? 443 : 80
+      raise ArgumentError, 'non-standard URL ports are not allowed' unless uri.port == expected_port
+
+      uri
+    rescue URI::InvalidURIError
+      raise ArgumentError, 'invalid knowledge source URL'
     end
-    private_class_method :private_or_local_host?
+    private_class_method :validated_uri!
+
+    def self.html_content_type?(content_type)
+      content_type.to_s.downcase.include?('text/html') ||
+        content_type.to_s.downcase.include?('application/xhtml+xml')
+    end
+    private_class_method :html_content_type?
   end
 end
