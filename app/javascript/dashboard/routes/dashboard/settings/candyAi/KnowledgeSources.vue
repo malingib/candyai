@@ -44,7 +44,8 @@ const add = async () => {
     notice.value = t('CANDY_AI.KNOWLEDGE.ADDED');
     await load();
   } catch (e) {
-    error.value = e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.SAVE_ERROR');
+    error.value =
+      e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.SAVE_ERROR');
   } finally {
     saving.value = false;
   }
@@ -75,7 +76,8 @@ const saveEdit = async id => {
     notice.value = t('CANDY_AI.KNOWLEDGE.UPDATED');
     await load();
   } catch (e) {
-    error.value = e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.SAVE_ERROR');
+    error.value =
+      e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.SAVE_ERROR');
   }
 };
 
@@ -88,7 +90,8 @@ const runAction = async (action, id, successMessage) => {
     notice.value = successMessage;
     await load();
   } catch (e) {
-    error.value = e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.ACTION_ERROR');
+    error.value =
+      e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.ACTION_ERROR');
   }
 };
 
@@ -104,7 +107,9 @@ onMounted(load);
     <div class="flex flex-col gap-4">
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-1">
-          <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.TYPE') }}</span>
+          <span class="text-sm font-medium text-n-slate-12">{{
+            t('CANDY_AI.KNOWLEDGE.TYPE')
+          }}</span>
           <select
             v-model="form.source_type"
             class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm"
@@ -114,7 +119,9 @@ onMounted(load);
           </select>
         </label>
         <label class="grid gap-1">
-          <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.DOCUMENT_TITLE') }}</span>
+          <span class="text-sm font-medium text-n-slate-12">{{
+            t('CANDY_AI.KNOWLEDGE.DOCUMENT_TITLE')
+          }}</span>
           <input
             v-model="form.title"
             type="text"
@@ -126,7 +133,9 @@ onMounted(load);
       </div>
 
       <label v-if="form.source_type === 'url'" class="grid gap-1">
-        <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.SOURCE_URL') }}</span>
+        <span class="text-sm font-medium text-n-slate-12">{{
+          t('CANDY_AI.KNOWLEDGE.SOURCE_URL')
+        }}</span>
         <input
           v-model="form.url"
           type="url"
@@ -134,10 +143,14 @@ onMounted(load);
           class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm"
           placeholder="https://docs.example.com/help"
         />
-        <span class="text-xs text-n-slate-11">{{ t('CANDY_AI.KNOWLEDGE.URL_HELP') }}</span>
+        <span class="text-xs text-n-slate-11">{{
+          t('CANDY_AI.KNOWLEDGE.URL_HELP')
+        }}</span>
       </label>
       <label v-else class="grid gap-1">
-        <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.CONTENT') }}</span>
+        <span class="text-sm font-medium text-n-slate-12">{{
+          t('CANDY_AI.KNOWLEDGE.CONTENT')
+        }}</span>
         <textarea
           v-model="form.content"
           required
@@ -152,37 +165,77 @@ onMounted(load);
         <button
           type="button"
           class="rounded-md bg-n-slate-12 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          :disabled="saving || (form.source_type === 'url' ? !form.url.trim() : !form.content.trim())"
+          :disabled="
+            saving ||
+            (form.source_type === 'url'
+              ? !form.url.trim()
+              : !form.content.trim())
+          "
           @click="add"
         >
-          {{ saving ? t('CANDY_AI.KNOWLEDGE.ADDING') : t('CANDY_AI.KNOWLEDGE.ADD') }}
+          {{
+            saving
+              ? t('CANDY_AI.KNOWLEDGE.ADDING')
+              : t('CANDY_AI.KNOWLEDGE.ADD')
+          }}
         </button>
       </div>
 
-      <div v-if="error" class="rounded-md border border-ruby-6 px-4 py-3 text-sm text-ruby-11" role="alert">
+      <div
+        v-if="error"
+        class="rounded-md border border-ruby-6 px-4 py-3 text-sm text-ruby-11"
+        role="alert"
+      >
         {{ error }}
       </div>
-      <div v-if="notice" class="rounded-md border border-n-weak px-4 py-3 text-sm" role="status">
+      <div
+        v-if="notice"
+        class="rounded-md border border-n-weak px-4 py-3 text-sm"
+        role="status"
+      >
         {{ notice }}
       </div>
 
       <div class="flex items-center justify-between gap-3">
-        <h3 class="text-sm font-semibold text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.SOURCES') }}</h3>
-        <button type="button" class="text-sm underline" :disabled="loading" @click="load">
-          {{ loading ? t('CANDY_AI.KNOWLEDGE.LOADING') : t('CANDY_AI.KNOWLEDGE.REFRESH_LIST') }}
+        <h3 class="text-sm font-semibold text-n-slate-12">
+          {{ t('CANDY_AI.KNOWLEDGE.SOURCES') }}
+        </h3>
+        <button
+          type="button"
+          class="text-sm underline"
+          :disabled="loading"
+          @click="load"
+        >
+          {{
+            loading
+              ? t('CANDY_AI.KNOWLEDGE.LOADING')
+              : t('CANDY_AI.KNOWLEDGE.REFRESH_LIST')
+          }}
         </button>
       </div>
 
-      <p v-if="!loading && documents.length === 0" class="text-sm text-n-slate-11">
+      <p
+        v-if="!loading && documents.length === 0"
+        class="text-sm text-n-slate-11"
+      >
         {{ t('CANDY_AI.KNOWLEDGE.EMPTY') }}
       </p>
 
       <ul v-else class="divide-y divide-n-weak">
-        <li v-for="document in documents" :key="document.id" class="flex flex-col gap-3 py-4">
+        <li
+          v-for="document in documents"
+          :key="document.id"
+          class="flex flex-col gap-3 py-4"
+        >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <div class="font-medium text-n-slate-12">{{ document.title }}</div>
-              <div v-if="document.source_url" class="mt-1 break-all text-xs text-n-slate-11">
+              <div class="font-medium text-n-slate-12">
+                {{ document.title }}
+              </div>
+              <div
+                v-if="document.source_url"
+                class="mt-1 break-all text-xs text-n-slate-11"
+              >
                 {{ document.source_url }}
               </div>
               <div class="mt-1 text-xs text-n-slate-11">
@@ -199,10 +252,18 @@ onMounted(load);
                 {{ t('CANDY_AI.KNOWLEDGE.EDIT') }}
               </button>
               <button
-                v-if="document.source_type === 'url' && document.status === 'active'"
+                v-if="
+                  document.source_type === 'url' && document.status === 'active'
+                "
                 type="button"
                 class="rounded-md border border-n-slate-6 px-3 py-1.5 text-xs"
-                @click="runAction('refresh', document.id, t('CANDY_AI.KNOWLEDGE.REFRESHED'))"
+                @click="
+                  runAction(
+                    'refresh',
+                    document.id,
+                    t('CANDY_AI.KNOWLEDGE.REFRESHED')
+                  )
+                "
               >
                 {{ t('CANDY_AI.KNOWLEDGE.REFRESH_SOURCE') }}
               </button>
@@ -210,7 +271,13 @@ onMounted(load);
                 v-if="document.status === 'active'"
                 type="button"
                 class="rounded-md border border-n-slate-6 px-3 py-1.5 text-xs"
-                @click="runAction('archive', document.id, t('CANDY_AI.KNOWLEDGE.ARCHIVED'))"
+                @click="
+                  runAction(
+                    'archive',
+                    document.id,
+                    t('CANDY_AI.KNOWLEDGE.ARCHIVED')
+                  )
+                "
               >
                 {{ t('CANDY_AI.KNOWLEDGE.ARCHIVE') }}
               </button>
@@ -226,7 +293,13 @@ onMounted(load);
                 <button
                   type="button"
                   class="rounded-md bg-ruby-9 px-3 py-1.5 text-xs text-white"
-                  @click="runAction('delete', document.id, t('CANDY_AI.KNOWLEDGE.DELETED'))"
+                  @click="
+                    runAction(
+                      'delete',
+                      document.id,
+                      t('CANDY_AI.KNOWLEDGE.DELETED')
+                    )
+                  "
                 >
                   {{ t('CANDY_AI.KNOWLEDGE.CONFIRM_DELETE') }}
                 </button>
@@ -240,20 +313,45 @@ onMounted(load);
               </template>
             </div>
           </div>
-          <div v-if="editingId === document.id" class="grid gap-3 rounded-md border border-n-weak p-3">
+          <div
+            v-if="editingId === document.id"
+            class="grid gap-3 rounded-md border border-n-weak p-3"
+          >
             <label class="grid gap-1">
-              <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.DOCUMENT_TITLE') }}</span>
-              <input v-model="editForm.title" maxlength="255" class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm" />
+              <span class="text-sm font-medium text-n-slate-12">{{
+                t('CANDY_AI.KNOWLEDGE.DOCUMENT_TITLE')
+              }}</span>
+              <input
+                v-model="editForm.title"
+                maxlength="255"
+                class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm"
+              />
             </label>
             <label class="grid gap-1">
-              <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.CONTENT') }}</span>
-              <textarea v-model="editForm.content" rows="5" maxlength="2000000" class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm" />
+              <span class="text-sm font-medium text-n-slate-12">{{
+                t('CANDY_AI.KNOWLEDGE.CONTENT')
+              }}</span>
+              <textarea
+                v-model="editForm.content"
+                rows="5"
+                maxlength="2000000"
+                class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm"
+              />
             </label>
             <div class="flex justify-end gap-2">
-              <button type="button" class="rounded-md border border-n-slate-6 px-3 py-1.5 text-xs" @click="editingId = null">
+              <button
+                type="button"
+                class="rounded-md border border-n-slate-6 px-3 py-1.5 text-xs"
+                @click="editingId = null"
+              >
                 {{ t('CANDY_AI.KNOWLEDGE.CANCEL') }}
               </button>
-              <button type="button" class="rounded-md bg-n-slate-12 px-3 py-1.5 text-xs text-white" :disabled="!editForm.title.trim() || !editForm.content.trim()" @click="saveEdit(document.id)">
+              <button
+                type="button"
+                class="rounded-md bg-n-slate-12 px-3 py-1.5 text-xs text-white"
+                :disabled="!editForm.title.trim() || !editForm.content.trim()"
+                @click="saveEdit(document.id)"
+              >
                 {{ t('CANDY_AI.KNOWLEDGE.SAVE_CHANGES') }}
               </button>
             </div>

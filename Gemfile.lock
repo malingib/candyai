@@ -98,8 +98,8 @@ GEM
       jbuilder (~> 2)
       rails (>= 4.2, < 8.0)
       selectize-rails (~> 0.6)
-    ai-agents (0.13.0)
-      ruby_llm (~> 2.0.0)
+    ai-agents (0.12.0)
+      ruby_llm (~> 1.14)
     annotaterb (4.20.0)
       activerecord (>= 6.0.0)
       activesupport (>= 6.0.0)
@@ -697,8 +697,8 @@ GEM
       base64 (>= 0.1.0)
       logger (>= 1.6.0)
       rack (>= 3.0.0, < 4)
-    rack-proxy (1.0.3)
-      rack (>= 2.0, < 4)
+    rack-proxy (0.7.7)
+      rack
     rack-session (2.1.2)
       base64 (>= 0.1.0)
       rack (>= 3.0.0)
@@ -846,17 +846,17 @@ GEM
     ruby2ruby (2.5.0)
       ruby_parser (~> 3.1)
       sexp_processor (~> 4.6)
-    ruby_llm (2.0.0)
+    ruby_llm (1.15.0)
       base64
       event_stream_parser (~> 1)
       faraday (>= 1.10.0)
       faraday-multipart (>= 1)
       faraday-net_http (>= 1)
       faraday-retry (>= 1)
-      json (< 3)
-      marcel (>= 1.0, < 3)
-      schematist (~> 1.1)
+      marcel (~> 1)
+      ruby_llm-schema (~> 0)
       zeitwerk (~> 2)
+    ruby_llm-schema (0.3.0)
     ruby_parser (3.22.0)
       racc (~> 1.5)
       sexp_processor (~> 4.16)
@@ -873,7 +873,6 @@ GEM
       sprockets (> 3.0)
       sprockets-rails
       tilt
-    schematist (1.1.0)
     scout_apm (5.3.3)
       parser
     scss_lint (0.60.0)
@@ -1013,11 +1012,11 @@ GEM
     vite_rails (3.10.0)
       railties (>= 5.1, < 9)
       vite_ruby (~> 3.0, >= 3.2.2)
-    vite_ruby (3.10.6)
+    vite_ruby (3.10.2)
       dry-cli (>= 0.7, < 2)
       logger (~> 1.6)
       mutex_m
-      rack-proxy (>= 0.6.1)
+      rack-proxy (~> 0.6, >= 0.6.1)
       zeitwerk (~> 2.2)
     warden (1.2.9)
       rack (>= 2.0.9)
@@ -1061,7 +1060,7 @@ DEPENDENCIES
   administrate (>= 0.20.1)
   administrate-field-active_storage (>= 1.0.3)
   administrate-field-belongs_to_search (>= 0.10.0)
-  ai-agents (~> 0.13.0)
+  ai-agents (>= 0.12.0)
   annotaterb
   attr_extras
   audited (~> 5.4, >= 5.4.1)
@@ -1167,7 +1166,8 @@ DEPENDENCIES
   rubocop-rails
   rubocop-rspec
   ruby-openai
-  ruby_llm (~> 2.0.0)
+  ruby_llm (>= 1.14.1)
+  ruby_llm-schema
   scout_apm
   scss_lint
   searchkick
