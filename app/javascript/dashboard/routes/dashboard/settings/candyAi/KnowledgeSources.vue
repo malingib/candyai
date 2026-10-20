@@ -11,6 +11,8 @@ const saving = ref(false);
 const error = ref('');
 const notice = ref('');
 const confirmDeleteId = ref(null);
+const editingId = ref(null);
+const editForm = reactive({ title: '', content: '' });
 const form = reactive({ source_type: 'url', title: '', url: '', content: '' });
 
 const load = async () => {
@@ -45,6 +47,35 @@ const add = async () => {
     error.value = e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.SAVE_ERROR');
   } finally {
     saving.value = false;
+  }
+};
+
+const startEdit = async document => {
+  error.value = '';
+  try {
+    const response = await CandyAiKnowledgeDocumentsAPI.get(document.id);
+    const source = response.data.payload;
+    editForm.title = source.title || '';
+    editForm.content = source.content || '';
+    editingId.value = document.id;
+  } catch (e) {
+    error.value = t('CANDY_AI.KNOWLEDGE.ACTION_ERROR');
+  }
+};
+
+const saveEdit = async id => {
+  error.value = '';
+  notice.value = '';
+  try {
+    await CandyAiKnowledgeDocumentsAPI.update(id, {
+      title: editForm.title,
+      content: editForm.content,
+    });
+    editingId.value = null;
+    notice.value = t('CANDY_AI.KNOWLEDGE.UPDATED');
+    await load();
+  } catch (e) {
+    error.value = e?.response?.data?.error || t('CANDY_AI.KNOWLEDGE.SAVE_ERROR');
   }
 };
 
@@ -160,6 +191,14 @@ onMounted(load);
             </div>
             <div class="flex flex-wrap gap-2">
               <button
+                v-if="editingId !== document.id"
+                type="button"
+                class="rounded-md border border-n-slate-6 px-3 py-1.5 text-xs"
+                @click="startEdit(document)"
+              >
+                {{ t('CANDY_AI.KNOWLEDGE.EDIT') }}
+              </button>
+              <button
                 v-if="document.source_type === 'url' && document.status === 'active'"
                 type="button"
                 class="rounded-md border border-n-slate-6 px-3 py-1.5 text-xs"
@@ -199,6 +238,24 @@ onMounted(load);
                   {{ t('CANDY_AI.KNOWLEDGE.CANCEL') }}
                 </button>
               </template>
+            </div>
+          </div>
+          <div v-if="editingId === document.id" class="grid gap-3 rounded-md border border-n-weak p-3">
+            <label class="grid gap-1">
+              <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.DOCUMENT_TITLE') }}</span>
+              <input v-model="editForm.title" maxlength="255" class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm" />
+            </label>
+            <label class="grid gap-1">
+              <span class="text-sm font-medium text-n-slate-12">{{ t('CANDY_AI.KNOWLEDGE.CONTENT') }}</span>
+              <textarea v-model="editForm.content" rows="5" maxlength="2000000" class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm" />
+            </label>
+            <div class="flex justify-end gap-2">
+              <button type="button" class="rounded-md border border-n-slate-6 px-3 py-1.5 text-xs" @click="editingId = null">
+                {{ t('CANDY_AI.KNOWLEDGE.CANCEL') }}
+              </button>
+              <button type="button" class="rounded-md bg-n-slate-12 px-3 py-1.5 text-xs text-white" :disabled="!editForm.title.trim() || !editForm.content.trim()" @click="saveEdit(document.id)">
+                {{ t('CANDY_AI.KNOWLEDGE.SAVE_CHANGES') }}
+              </button>
             </div>
           </div>
         </li>
