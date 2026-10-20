@@ -5,6 +5,7 @@ import { useCandyAiStore } from 'dashboard/store/candyAi';
 import SettingsLayout from '../SettingsLayout.vue';
 import BaseSettingsHeader from '../components/BaseSettingsHeader.vue';
 import SectionLayout from '../account/components/SectionLayout.vue';
+import KnowledgeSources from './KnowledgeSources.vue';
 
 const { t } = useI18n();
 const store = useCandyAiStore();
@@ -165,6 +166,8 @@ onMounted(async () => {
             </div>
           </div>
         </SectionLayout>
+
+        <KnowledgeSources />
 
         <SectionLayout
           :title="t('CANDY_AI.HANDOFF.TITLE')"
