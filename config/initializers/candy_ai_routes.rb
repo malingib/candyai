@@ -8,7 +8,7 @@ Rails.application.routes.append do
   put '/api/v1/accounts/:account_id/candy_ai',
       to: 'api/v1/accounts/candy_ai#update'
 
-get '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
+  get '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
       to: 'api/v1/accounts/candy_ai_knowledge_documents#index'
   post '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
        to: 'api/v1/accounts/candy_ai_knowledge_documents#create'
