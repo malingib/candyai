@@ -2,8 +2,8 @@
 
 require Rails.root.join('lib/candy_ai')
 
-Rails.application.config.x.candy_ai = CandyAI::Configuration.new
-CandyAI.config = Rails.application.config.x.candy_ai
+Rails.application.config.x[:candy_ai] = CandyAI::Configuration.new
+CandyAI.config = Rails.application.config.x[:candy_ai]
 
 CandyAI.config.enabled =
   ActiveModel::Type::Boolean.new.cast(ENV.fetch('CANDYAI_ENABLED', 'true'))

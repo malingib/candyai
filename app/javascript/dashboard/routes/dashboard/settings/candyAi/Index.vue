@@ -88,10 +88,18 @@ onMounted(async () => {
                 v-model="form.provider"
                 class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm"
               >
-                <option value="openai">{{ t('CANDY_AI.PROVIDER.OPENAI') }}</option>
-                <option value="anthropic">{{ t('CANDY_AI.PROVIDER.ANTHROPIC') }}</option>
-                <option value="gemini">{{ t('CANDY_AI.PROVIDER.GEMINI') }}</option>
-                <option value="custom">{{ t('CANDY_AI.PROVIDER.CUSTOM') }}</option>
+                <option value="openai">
+                  {{ t('CANDY_AI.PROVIDER.OPENAI') }}
+                </option>
+                <option value="anthropic">
+                  {{ t('CANDY_AI.PROVIDER.ANTHROPIC') }}
+                </option>
+                <option value="gemini">
+                  {{ t('CANDY_AI.PROVIDER.GEMINI') }}
+                </option>
+                <option value="custom">
+                  {{ t('CANDY_AI.PROVIDER.CUSTOM') }}
+                </option>
               </select>
             </label>
 
