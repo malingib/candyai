@@ -72,7 +72,10 @@ module CandyAI
         model:,
         messages:,
         temperature: @config['temperature'],
-        max_tokens: @config['max_tokens']
+        max_tokens: @config['max_tokens'],
+        account: @account,
+        conversation: @conversation,
+        idempotency_key: "completion:#{@conversation.id}:#{@message.id}"
       )
     end
 
