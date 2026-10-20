@@ -15,24 +15,7 @@ class Api::V1::Accounts::CandyAiKnowledgeDocumentsController < Api::V1::Accounts
   end
 
   def create
-    inbox = scoped_inbox(params[:inbox_id])
-    document = if params[:url].present?
-                 CandyAI::KnowledgeIngestion.ingest_url(
-                   account: @current_account,
-                   url: params[:url],
-                   inbox: inbox,
-                   title: params[:title],
-                   metadata: {}
-                 )
-               else
-                 CandyAI::KnowledgeIngestion.ingest_text(
-                   account: @current_account,
-                   title: params[:title],
-                   content: params[:content],
-                   inbox: inbox,
-                   metadata: {}
-                 )
-               end
+    document = create_document(scoped_inbox(params[:inbox_id]))
     render json: { payload: serialize(document, include_content: true) }, status: :created
   rescue ArgumentError, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -87,6 +70,15 @@ class Api::V1::Accounts::CandyAiKnowledgeDocumentsController < Api::V1::Accounts
     return nil if inbox_id.blank?
 
     @current_account.inboxes.find(inbox_id)
+  end
+
+  def create_document(inbox)
+    common = { account: @current_account, inbox: inbox, title: params[:title], metadata: {} }
+    if params[:url].present?
+      CandyAI::KnowledgeIngestion.ingest_url(**common, url: params[:url])
+    else
+      CandyAI::KnowledgeIngestion.ingest_text(**common, content: params[:content])
+    end
   end
 
   def serialize(document, include_content: false)

@@ -1,66 +1,77 @@
 # frozen_string_literal: true
 
-module CandyAI
-  # The conversation layer depends on this small gateway rather than a vendor
-  # SDK. Providers are configured once at boot and selected by account settings.
-  class LlmGateway
-    class << self
-      def complete(provider:, model:, messages:, temperature:, max_tokens:, account: nil, conversation: nil,
-                   idempotency_key: nil)
-        return nil unless messages.is_a?(Array)
+# The conversation layer depends on this small gateway rather than a vendor
+# SDK. Providers are configured once at boot and selected by account settings.
+class CandyAI::LlmGateway
+  class << self
+    def complete(provider:, model:, messages:, generation: {}, usage_context: nil)
+      normalized_messages = normalize_messages(messages)
+      return nil if normalized_messages.empty?
 
-        normalized_messages = messages.filter_map do |message|
-          next unless message.is_a?(Hash)
+      response = CandyAI::AI.router.chat(
+        provider: provider,
+        model: model,
+        messages: normalized_messages,
+        **generation
+      )
+      record_usage(response, provider, model, usage_context)
+      response&.text
+    rescue StandardError => e
+      # Do not log prompts, provider response bodies, API keys, or customer data.
+      Rails.logger.error("[CandyAI] LLM generation failed (#{e.class.name})")
+      nil
+    end
 
-          role = message[:role] || message['role']
-          content = message[:content] || message['content']
-          next if role.to_s.blank? || content.to_s.strip.blank?
+    private
 
-          { role: role.to_s, content: content.to_s }
-        end
-        return nil if normalized_messages.empty?
+    def normalize_messages(messages)
+      return [] unless messages.is_a?(Array)
 
-        response = CandyAI::AI.router.chat(
-          provider: provider,
-          model: model,
-          messages: normalized_messages,
-          temperature: temperature,
-          max_tokens: max_tokens
-        )
+      messages.filter_map { |message| normalize_message(message) }
+    end
 
-        record_usage(response, account:, conversation:, provider:, model:, idempotency_key:)
-        response&.text
-      rescue StandardError => e
-        # Do not log prompts, provider response bodies, API keys, or customer data.
-        Rails.logger.error("[CandyAI] LLM generation failed (#{e.class.name})")
-        nil
-      end
+    def normalize_message(message)
+      return unless message.is_a?(Hash)
 
-      private
+      role = message[:role] || message['role']
+      content = message[:content] || message['content']
+      return if role.to_s.blank? || content.to_s.strip.blank?
 
-      def record_usage(response, account:, conversation:, provider:, model:, idempotency_key:)
-        return if account.nil? || idempotency_key.blank? || response.nil?
+      { role: role.to_s, content: content.to_s }
+    end
 
-        usage = response.respond_to?(:usage) ? response.usage : {}
-        usage = {} unless usage.is_a?(Hash)
-        input_tokens = usage['prompt_tokens'] || usage[:prompt_tokens] || usage['input_tokens'] || usage[:input_tokens] || 0
-        output_tokens = usage['completion_tokens'] || usage[:completion_tokens] || usage['output_tokens'] || usage[:output_tokens] || 0
+    def record_usage(response, provider, model, usage_context)
+      return unless usage_context.present? && response.present?
 
-        CandyAI::UsageRecorder.record!(
-          account: account,
-          conversation: conversation,
-          idempotency_key: idempotency_key,
-          event_type: 'completion',
-          provider: provider.to_s,
-          model: response.respond_to?(:model) ? response.model.presence || model : model,
-          input_tokens: input_tokens.to_i,
-          output_tokens: output_tokens.to_i,
-          metadata: { 'usage_reported' => !usage.empty? }
-        )
-      rescue StandardError => e
-        # Usage reporting must not turn a successful customer answer into a failure.
-        Rails.logger.warn("[CandyAI] Usage recording failed (#{e.class.name})")
-      end
+      usage = provider_usage(response)
+      context = usage_context.symbolize_keys
+      CandyAI::UsageRecorder.record!(
+        account: context.fetch(:account),
+        conversation: context[:conversation],
+        idempotency_key: context[:idempotency_key],
+        event_type: 'completion',
+        provider: provider.to_s,
+        model: response_model(response, model),
+        input_tokens: token_count(usage, 'prompt_tokens', 'input_tokens'),
+        output_tokens: token_count(usage, 'completion_tokens', 'output_tokens'),
+        metadata: { 'usage_reported' => usage.present? }
+      )
+    rescue StandardError => e
+      # Usage reporting must not turn a successful customer answer into a failure.
+      Rails.logger.warn("[CandyAI] Usage recording failed (#{e.class.name})")
+    end
+
+    def provider_usage(response)
+      usage = response.respond_to?(:usage) ? response.usage : {}
+      usage.is_a?(Hash) ? usage : {}
+    end
+
+    def response_model(response, fallback)
+      response.respond_to?(:model) ? response.model.presence || fallback : fallback
+    end
+
+    def token_count(usage, primary, fallback)
+      (usage[primary] || usage[primary.to_sym] || usage[fallback] || usage[fallback.to_sym] || 0).to_i
     end
   end
 end

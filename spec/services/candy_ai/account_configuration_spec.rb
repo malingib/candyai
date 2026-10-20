@@ -39,19 +39,19 @@ RSpec.describe CandyAI::AccountConfiguration do
   describe '.effective' do
     let(:account) do
       build(:account, settings: {
-        'candy_ai' => {
-          'enabled' => true,
-          'provider' => 'openai',
-          'model' => 'account-model'
-        }
-      })
+              'candy_ai' => {
+                'enabled' => true,
+                'provider' => 'openai',
+                'model' => 'account-model'
+              }
+            })
     end
     let(:inbox) do
       build(:inbox, account: account, candy_ai_settings: {
-        'enabled' => true,
-        'mode' => 'autonomous',
-        'model' => 'inbox-model'
-      })
+              'enabled' => true,
+              'mode' => 'autonomous',
+              'model' => 'inbox-model'
+            })
     end
 
     it 'combines account and inbox settings' do

@@ -20,8 +20,7 @@ RSpec.describe CandyAI::LlmGateway do
         provider: 'openai',
         model: 'test-model',
         messages: messages,
-        temperature: 0.3,
-        max_tokens: 350
+        generation: { temperature: 0.3, max_tokens: 350 }
       )
 
       expect(result).to eq('A grounded answer.')
@@ -33,7 +32,6 @@ RSpec.describe CandyAI::LlmGateway do
         max_tokens: 350
       )
     end
-
 
     it 'records provider-reported token usage without retaining prompts' do
       account = create(:account)
@@ -49,10 +47,8 @@ RSpec.describe CandyAI::LlmGateway do
         provider: 'openai',
         model: 'test-model',
         messages: messages,
-        temperature: 0.3,
-        max_tokens: 350,
-        account: account,
-        idempotency_key: 'completion:conversation-1:message-1'
+        generation: { temperature: 0.3, max_tokens: 350 },
+        usage_context: { account: account, idempotency_key: 'completion:conversation-1:message-1' }
       )
 
       event = CandyAI::UsageEvent.find_by!(idempotency_key: 'completion:conversation-1:message-1')
@@ -70,8 +66,7 @@ RSpec.describe CandyAI::LlmGateway do
         provider: 'openai',
         model: 'test-model',
         messages: [{ role: 'user', content: '  ' }],
-        temperature: 0.3,
-        max_tokens: 350
+        generation: { temperature: 0.3, max_tokens: 350 }
       )
 
       expect(result).to be_nil
@@ -84,8 +79,7 @@ RSpec.describe CandyAI::LlmGateway do
         provider: 'openai',
         model: 'test-model',
         messages: [{ role: 'user', content: 'hello' }],
-        temperature: 0.3,
-        max_tokens: 350
+        generation: { temperature: 0.3, max_tokens: 350 }
       )
 
       expect(result).to be_nil

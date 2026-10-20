@@ -31,7 +31,7 @@ RSpec.describe CandyAI::UsageRecorder do
 
     it 'is idempotent for retried operations' do
       first = described_class.record!(**attributes)
-      second = described_class.record!(**attributes.merge(output_tokens: 999))
+      second = described_class.record!(**attributes, output_tokens: 999)
 
       expect(second.id).to eq(first.id)
       expect(CandyAI::UsageEvent.where(idempotency_key: attributes[:idempotency_key]).count).to eq(1)
@@ -43,17 +43,17 @@ RSpec.describe CandyAI::UsageRecorder do
       other_account = create(:account)
 
       expect do
-        described_class.record!(**attributes.merge(account: other_account))
+        described_class.record!(**attributes, account: other_account)
       end.to raise_error(ActiveRecord::RecordNotFound)
     end
 
     it 'rejects unknown event types and oversized metadata' do
       expect do
-        described_class.record!(**attributes.merge(event_type: 'prompt_dump'))
+        described_class.record!(**attributes, event_type: 'prompt_dump')
       end.to raise_error(ArgumentError, 'unknown usage event type')
 
       expect do
-        described_class.record!(**attributes.merge(metadata: { 'note' => 'x' * (described_class::MAX_METADATA_BYTES + 1) }))
+        described_class.record!(**attributes, metadata: { 'note' => 'x' * (described_class::MAX_METADATA_BYTES + 1) })
       end.to raise_error(ArgumentError, 'metadata is too large')
     end
   end
