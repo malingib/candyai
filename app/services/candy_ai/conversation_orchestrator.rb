@@ -38,7 +38,7 @@ module CandyAI
 
       Result.new(:reply, reply, 'autonomous', context.merge('grounding' => grounded))
     rescue StandardError => e
-      Rails.logger.error("[CandyAI] orchestration failed: #{e.class}: #{e.message}")
+      Rails.logger.error("[CandyAI] orchestration failed (#{e.class.name})")
       handoff('orchestration_error')
     end
 
@@ -62,8 +62,18 @@ module CandyAI
       model = @config['model'].presence
       return nil if provider.blank? || model.blank?
 
-      prompt = [@config['system_prompt'], grounding, "Customer: #{@message.content}"].compact.join("\n\n")
-      CandyAI::LlmGateway.complete(provider:, model:, prompt:, temperature: @config['temperature'], max_tokens: @config['max_tokens'])
+      system_content = [@config['system_prompt'], grounding].compact_blank.join("\n\n")
+      messages = []
+      messages << { role: 'system', content: system_content } if system_content.present?
+      messages << { role: 'user', content: @message.content_for_llm.to_s }
+
+      CandyAI::LlmGateway.complete(
+        provider:,
+        model:,
+        messages:,
+        temperature: @config['temperature'],
+        max_tokens: @config['max_tokens']
+      )
     end
 
     def handoff(reason)
