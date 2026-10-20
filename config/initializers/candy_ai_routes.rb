@@ -8,3 +8,20 @@ Rails.application.routes.append do
   put '/api/v1/accounts/:account_id/candy_ai',
       to: 'api/v1/accounts/candy_ai#update'
 end
+
+  get '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
+      to: 'api/v1/accounts/candy_ai_knowledge_documents#index'
+  post '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
+       to: 'api/v1/accounts/candy_ai_knowledge_documents#create'
+  get '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id',
+      to: 'api/v1/accounts/candy_ai_knowledge_documents#show'
+  patch '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id',
+        to: 'api/v1/accounts/candy_ai_knowledge_documents#update'
+  put '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id',
+      to: 'api/v1/accounts/candy_ai_knowledge_documents#update'
+  post '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id/archive',
+       to: 'api/v1/accounts/candy_ai_knowledge_documents#archive'
+  post '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id/refresh',
+       to: 'api/v1/accounts/candy_ai_knowledge_documents#refresh'
+  delete '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id',
+         to: 'api/v1/accounts/candy_ai_knowledge_documents#destroy'
