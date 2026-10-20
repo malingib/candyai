@@ -34,7 +34,7 @@ class Api::V1::Accounts::CandyAiKnowledgeDocumentsController < Api::V1::Accounts
                  )
                end
     render json: { payload: serialize(document) }, status: :created
-  rescue ArgumentError, ActiveRecord::RecordInvalid => e
+  rescue ArgumentError, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
