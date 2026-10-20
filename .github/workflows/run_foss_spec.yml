@@ -133,8 +133,18 @@ jobs:
           POSTGRES_PASSWORD: ''
           POSTGRES_DATABASE: chatwoot_test
 
-      - name: Seed database
+      - name: Load schema
         run: bundle exec rake db:schema:load
+        env:
+          RAILS_ENV: test
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
+          POSTGRES_USERNAME: postgres
+          POSTGRES_PASSWORD: ''
+          POSTGRES_DATABASE: chatwoot_test
+
+      - name: Run pending migrations
+        run: bundle exec rake db:migrate
         env:
           RAILS_ENV: test
           POSTGRES_HOST: 127.0.0.1
