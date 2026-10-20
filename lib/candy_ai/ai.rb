@@ -7,7 +7,8 @@ require_relative 'ai/openai_compatible_provider'
 require_relative 'ai/router'
 require_relative 'ai/orchestrator'
 
-module CandyAI::AI
+module CandyAI
+  module AI
   def self.registry
     @registry ||= ProviderRegistry.new
   end
@@ -38,5 +39,6 @@ module CandyAI::AI
 
   def self.orchestrator
     @orchestrator ||= Orchestrator.new
+  end
   end
 end
