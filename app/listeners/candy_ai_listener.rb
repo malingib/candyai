@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CandyAIListener < BaseListener
+class CandyAiListener < BaseListener
   include Events::Types
 
   def message_created(event)
