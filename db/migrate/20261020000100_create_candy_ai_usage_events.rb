@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateCandyAiUsageEvents < ActiveRecord::Migration[7.0]
+class CreateCandyAIUsageEvents < ActiveRecord::Migration[7.0]
   def change
     create_table :candy_ai_usage_events do |t|
       t.references :account, null: false, foreign_key: true
