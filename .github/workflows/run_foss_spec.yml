@@ -125,7 +125,7 @@ jobs:
 
       - name: Create database
         run: bundle exec rake db:create
-        env
+        env:
           RAILS_ENV: test
           POSTGRES_HOST: 127.0.0.1
           POSTGRES_PORT: 5432
