@@ -42,6 +42,37 @@
     "RESET": "Reset",
     "SAVING": "Saving...",
     "SAVE": "Save settings",
-    "TITLE": "CandyAI"
+    "TITLE": "CandyAI",
+    "KNOWLEDGE": {
+      "TITLE": "Knowledge sources",
+      "DESCRIPTION": "Add trusted help content for CandyAI to use when answering customers. Sources are scoped to this account.",
+      "TYPE": "Source type",
+      "URL": "Web page URL",
+      "TEXT": "Text content",
+      "DOCUMENT_TITLE": "Title",
+      "TITLE_PLACEHOLDER": "e.g. Refund policy",
+      "SOURCE_URL": "Source URL",
+      "URL_HELP": "Only public HTTP(S) pages are allowed. Private network destinations are blocked.",
+      "CONTENT": "Content",
+      "CONTENT_PLACEHOLDER": "Paste your policy, FAQ, or help article here.",
+      "ADD": "Add source",
+      "ADDING": "Adding…",
+      "SOURCES": "Your sources",
+      "LOADING": "Loading…",
+      "REFRESH_LIST": "Reload list",
+      "EMPTY": "No knowledge sources yet.",
+      "LOAD_ERROR": "Unable to load knowledge sources.",
+      "SAVE_ERROR": "Unable to add this source.",
+      "ACTION_ERROR": "Unable to complete this action.",
+      "ADDED": "Knowledge source added.",
+      "REFRESHED": "Source refreshed.",
+      "ARCHIVED": "Source archived.",
+      "DELETED": "Source deleted.",
+      "REFRESH_SOURCE": "Refresh",
+      "ARCHIVE": "Archive",
+      "DELETE": "Delete",
+      "CONFIRM_DELETE": "Delete permanently",
+      "CANCEL": "Cancel"
+    }
   }
 }
