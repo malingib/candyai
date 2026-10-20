@@ -75,7 +75,8 @@
       "CANCEL": "Cancel",
       "EDIT": "Edit",
       "UPDATED": "Knowledge source updated.",
-      "SAVE_CHANGES": "Save changes"
+      "SAVE_CHANGES": "Save changes",
+      "URL_PLACEHOLDER": "https://docs.example.com/help"
     }
   }
 }
