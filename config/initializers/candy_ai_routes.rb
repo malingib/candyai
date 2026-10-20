@@ -7,9 +7,8 @@ Rails.application.routes.append do
       to: 'api/v1/accounts/candy_ai#show'
   put '/api/v1/accounts/:account_id/candy_ai',
       to: 'api/v1/accounts/candy_ai#update'
-end
 
-  get '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
+get '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
       to: 'api/v1/accounts/candy_ai_knowledge_documents#index'
   post '/api/v1/accounts/:account_id/candy_ai/knowledge_documents',
        to: 'api/v1/accounts/candy_ai_knowledge_documents#create'
@@ -25,3 +24,4 @@ end
        to: 'api/v1/accounts/candy_ai_knowledge_documents#refresh'
   delete '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id',
          to: 'api/v1/accounts/candy_ai_knowledge_documents#destroy'
+end
