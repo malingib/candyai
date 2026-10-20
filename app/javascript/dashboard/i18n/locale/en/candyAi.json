@@ -72,7 +72,10 @@
       "ARCHIVE": "Archive",
       "DELETE": "Delete",
       "CONFIRM_DELETE": "Delete permanently",
-      "CANCEL": "Cancel"
+      "CANCEL": "Cancel",
+      "EDIT": "Edit",
+      "UPDATED": "Knowledge source updated.",
+      "SAVE_CHANGES": "Save changes"
     }
   }
 }
