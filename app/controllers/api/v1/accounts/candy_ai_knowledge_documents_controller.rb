@@ -7,11 +7,11 @@ class Api::V1::Accounts::CandyAiKnowledgeDocumentsController < Api::V1::Accounts
   def index
     documents = CandyAI::KnowledgeDocument.where(account: @current_account).order(updated_at: :desc)
     documents = documents.where(status: params[:status]) if CandyAI::KnowledgeDocument::STATUSES.include?(params[:status])
-    render json: { payload: documents.limit(100).map { |document| serialize(document) } }
+    render json: { payload: documents.limit(100).map { |document| serialize(document, include_content: false) } }
   end
 
   def show
-    render json: { payload: serialize(@document) }
+    render json: { payload: serialize(@document, include_content: true) }
   end
 
   def create
@@ -33,7 +33,7 @@ class Api::V1::Accounts::CandyAiKnowledgeDocumentsController < Api::V1::Accounts
                    metadata: {}
                  )
                end
-    render json: { payload: serialize(document) }, status: :created
+    render json: { payload: serialize(document, include_content: true) }, status: :created
   rescue ArgumentError, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
@@ -63,7 +63,7 @@ class Api::V1::Accounts::CandyAiKnowledgeDocumentsController < Api::V1::Accounts
       metadata: @document.metadata || {}
     )
     @document.archive!
-    render json: { payload: serialize(refreshed) }
+    render json: { payload: serialize(refreshed, include_content: true) }
   rescue ArgumentError, ActiveRecord::RecordInvalid => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
@@ -89,19 +89,20 @@ class Api::V1::Accounts::CandyAiKnowledgeDocumentsController < Api::V1::Accounts
     @current_account.inboxes.find(inbox_id)
   end
 
-  def serialize(document)
-    {
+  def serialize(document, include_content: false)
+    payload = {
       id: document.id,
       inbox_id: document.inbox_id,
       title: document.title,
       source_type: document.source_type,
       source_url: document.source_url,
-      content: document.content,
       status: document.status,
       metadata: document.metadata,
       last_ingested_at: document.last_ingested_at,
       created_at: document.created_at,
       updated_at: document.updated_at
     }
+    payload[:content] = document.content if include_content
+    payload
   end
 end
