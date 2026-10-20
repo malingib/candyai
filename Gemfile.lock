@@ -697,8 +697,8 @@ GEM
       base64 (>= 0.1.0)
       logger (>= 1.6.0)
       rack (>= 3.0.0, < 4)
-    rack-proxy (0.7.7)
-      rack
+    rack-proxy (1.0.3)
+      rack (>= 2.0, < 4)
     rack-session (2.1.2)
       base64 (>= 0.1.0)
       rack (>= 3.0.0)
@@ -846,17 +846,17 @@ GEM
     ruby2ruby (2.5.0)
       ruby_parser (~> 3.1)
       sexp_processor (~> 4.6)
-    ruby_llm (1.15.0)
+    ruby_llm (2.0.0)
       base64
       event_stream_parser (~> 1)
       faraday (>= 1.10.0)
       faraday-multipart (>= 1)
       faraday-net_http (>= 1)
       faraday-retry (>= 1)
-      marcel (~> 1)
-      ruby_llm-schema (~> 0)
+      json (< 3)
+      marcel (>= 1.0, < 3)
+      schematist (~> 1.1)
       zeitwerk (~> 2)
-    ruby_llm-schema (0.3.0)
     ruby_parser (3.22.0)
       racc (~> 1.5)
       sexp_processor (~> 4.16)
@@ -873,6 +873,7 @@ GEM
       sprockets (> 3.0)
       sprockets-rails
       tilt
+    schematist (1.1.0)
     scout_apm (5.3.3)
       parser
     scss_lint (0.60.0)
@@ -1166,8 +1167,7 @@ DEPENDENCIES
   rubocop-rails
   rubocop-rspec
   ruby-openai
-  ruby_llm (>= 1.14.1)
-  ruby_llm-schema
+  ruby_llm (~> 2.0.0)
   scout_apm
   scss_lint
   searchkick
