@@ -14,3 +14,8 @@
 # ActiveSupport::Inflector.inflections(:en) do |inflect|
 #   inflect.acronym 'RESTful'
 # end
+
+# CandyAI uses an acronym in its Zeitwerk namespace and directory names.
+ActiveSupport::Inflector.inflections(:en) do |inflect|
+  inflect.acronym 'AI'
+end
