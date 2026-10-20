@@ -41,6 +41,7 @@
     "SAVED": "CandyAI settings saved.",
     "RESET": "Reset",
     "SAVING": "Saving...",
-    "SAVE": "Save settings"
+    "SAVE": "Save settings",
+    "TITLE": "CandyAI"
   }
 }
