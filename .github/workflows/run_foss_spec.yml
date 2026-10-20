@@ -125,7 +125,7 @@ jobs:
 
       - name: Create database
         run: bundle exec rake db:create
-        env: &test_database_env
+        env
           RAILS_ENV: test
           POSTGRES_HOST: 127.0.0.1
           POSTGRES_PORT: 5432
@@ -135,7 +135,13 @@ jobs:
 
       - name: Seed database
         run: bundle exec rake db:schema:load
-        env: *test_database_env
+        env:
+          RAILS_ENV: test
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
+          POSTGRES_USERNAME: postgres
+          POSTGRES_PASSWORD: ''
+          POSTGRES_DATABASE: chatwoot_test
 
       - name: Run backend tests (parallelized)
         run: |
@@ -155,7 +161,12 @@ jobs:
             bundle exec rspec --profile=10 --format progress --format json --out tmp/rspec_results.json $TESTS
           fi
         env:
-          <<: *test_database_env
+          RAILS_ENV: test
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: 5432
+          POSTGRES_USERNAME: postgres
+          POSTGRES_PASSWORD: ''
+          POSTGRES_DATABASE: chatwoot_test
           NODE_OPTIONS: --openssl-legacy-provider
 
       - name: Upload test results
