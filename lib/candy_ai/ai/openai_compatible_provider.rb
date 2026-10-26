@@ -6,7 +6,7 @@ require 'uri'
 
 # Adapter for OpenAI-compatible chat-completions APIs.
 # Works with hosted and self-hosted endpoints that expose /chat/completions.
-class CandyAI::AI::OpenAICompatibleProvider < Provider
+class CandyAI::AI::OpenAICompatibleProvider < CandyAI::AI::Provider
   DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 
   def chat(messages:, model: nil, temperature: nil, max_tokens: nil, **options)
@@ -23,7 +23,7 @@ class CandyAI::AI::OpenAICompatibleProvider < Provider
     response = request(payload)
     choice = response.fetch('choices').first
 
-    Response.new(
+    CandyAI::AI::Response.new(
       text: choice.dig('message', 'content').to_s,
       model: response['model'] || payload[:model],
       provider: self.class.name,
