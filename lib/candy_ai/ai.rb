@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 # Define the namespace before loading files that declare CandyAI::AI classes.
-module CandyAI
-  module AI
-  end
+module CandyAI::AI
 end
 
 require_relative 'ai/provider'
@@ -13,38 +11,36 @@ require_relative 'ai/openai_compatible_provider'
 require_relative 'ai/router'
 require_relative 'ai/orchestrator'
 
-module CandyAI
-  module AI
-    def self.registry
-      @registry ||= ProviderRegistry.new
+module CandyAI::AI
+  def self.registry
+    @registry ||= ProviderRegistry.new
     end
 
-    def self.register_provider(name, provider)
-      registry.register(name, provider)
+  def self.register_provider(name, provider)
+    registry.register(name, provider)
     end
 
-    def self.provider(name = nil)
-      registry.fetch(name || CandyAI.config.default_ai_provider)
+  def self.provider(name = nil)
+    registry.fetch(name || CandyAI.config.default_ai_provider)
     end
 
-    def self.register_openai_compatible(name:, api_key: nil, base_url: nil, model: nil, **options)
-      provider = OpenAICompatibleProvider.new(
-        options.merge(
-          api_key: api_key,
-          base_url: base_url,
-          model: model
-        ).compact
+  def self.register_openai_compatible(name:, api_key: nil, base_url: nil, model: nil, **options)
+    provider = OpenAICompatibleProvider.new(
+      options.merge(
+        api_key: api_key,
+        base_url: base_url,
+        model: model
+      ).compact
       )
-      register_provider(name, provider)
-      provider
+    register_provider(name, provider)
+    provider
     end
 
-    def self.router
-      @router ||= Router.new
+  def self.router
+    @router ||= Router.new
     end
 
-    def self.orchestrator
-      @orchestrator ||= Orchestrator.new
+  def self.orchestrator
+    @orchestrator ||= Orchestrator.new
     end
-  end
 end
