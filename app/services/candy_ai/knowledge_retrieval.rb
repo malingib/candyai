@@ -59,7 +59,7 @@ class CandyAI::KnowledgeRetrieval
   end
 
   def searchable_documents
-    relation = KnowledgeDocument.active.where(account: @account)
+    relation = CandyAI::KnowledgeDocument.active.where(account: @account)
     @inbox ? relation.for_inbox(@inbox) : relation
   end
 
