@@ -14,7 +14,7 @@ class CandyAI::KnowledgeIngestion
     raise ArgumentError, 'content is required' if content.blank?
     raise ArgumentError, 'content is too large' if content.bytesize > MAX_CONTENT_BYTES
 
-    KnowledgeDocument.create!(
+    CandyAI::KnowledgeDocument.create!(
       account: account,
       inbox: inbox,
       source_type: source_url.present? ? 'url' : 'text',
