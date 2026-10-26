@@ -14,7 +14,7 @@ class CandyAI::ConversationOrchestrator
     @message = message
     @inbox = conversation.inbox
     @account = conversation.account
-    @config = AccountConfiguration.effective(@inbox)
+    @config = CandyAI::AccountConfiguration.effective(@inbox)
   end
 
   def process
@@ -36,7 +36,7 @@ class CandyAI::ConversationOrchestrator
   end
 
   def generate_grounded_response
-    grounded = GroundingContext.for(
+    grounded = CandyAI::GroundingContext.for(
       account: @account,
       conversation: @conversation,
       inbox: @inbox,
