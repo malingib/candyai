@@ -141,7 +141,7 @@ onMounted(load);
           type="url"
           required
           class="w-full rounded-md border border-n-slate-6 bg-n-slate-1 px-3 py-2 text-sm"
-           :placeholder="t('CANDY_AI.KNOWLEDGE.URL_PLACEHOLDER')"
+          :placeholder="t('CANDY_AI.KNOWLEDGE.URL_PLACEHOLDER')"
         />
         <span class="text-xs text-n-slate-11">{{
           t('CANDY_AI.KNOWLEDGE.URL_HELP')
