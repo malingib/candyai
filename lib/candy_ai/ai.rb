@@ -14,15 +14,15 @@ require_relative 'ai/orchestrator'
 module CandyAI::AI
   def self.registry
     @registry ||= ProviderRegistry.new
-    end
+  end
 
   def self.register_provider(name, provider)
     registry.register(name, provider)
-    end
+  end
 
   def self.provider(name = nil)
     registry.fetch(name || CandyAI.config.default_ai_provider)
-    end
+  end
 
   def self.register_openai_compatible(name:, api_key: nil, base_url: nil, model: nil, **options)
     provider = OpenAICompatibleProvider.new(
@@ -31,16 +31,16 @@ module CandyAI::AI
         base_url: base_url,
         model: model
       ).compact
-      )
+    )
     register_provider(name, provider)
     provider
-    end
+  end
 
   def self.router
     @router ||= Router.new
-    end
+  end
 
   def self.orchestrator
     @orchestrator ||= Orchestrator.new
-    end
+  end
 end
