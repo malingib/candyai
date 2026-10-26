@@ -6,7 +6,7 @@ class CandyAIListener < BaseListener
   def message_created(event)
     return unless CandyAI.config.enabled
 
-    message = extract_message_and_account(event)[0]
+    message = event.data[:message]
     return unless eligible_message?(message)
 
     configuration = CandyAI::AccountConfiguration.effective(message.inbox)
