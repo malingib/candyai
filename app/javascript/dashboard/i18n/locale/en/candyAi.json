@@ -1,0 +1,82 @@
+{
+  "CANDY_AI": {
+    "LOADING": "Loading CandyAI settings...",
+    "DESCRIPTION": "Configure CandyAI for AI-assisted customer conversations.",
+    "GENERAL": {
+      "TITLE": "General",
+      "DESCRIPTION": "Control whether CandyAI is available to your account.",
+      "ENABLE": "Enable CandyAI",
+      "ENABLE_HELP": "Allow CandyAI to assist with conversations."
+    },
+    "PROVIDER": {
+      "TITLE": "AI Provider",
+      "DESCRIPTION": "Choose the model provider and model used for CandyAI responses.",
+      "LABEL": "Provider",
+      "OPENAI": "OpenAI",
+      "ANTHROPIC": "Anthropic",
+      "GEMINI": "Google Gemini",
+      "CUSTOM": "Custom / OpenAI-compatible",
+      "MODEL": "Model",
+      "MODEL_PLACEHOLDER": "gpt-4o-mini"
+    },
+    "BEHAVIOR": {
+      "TITLE": "Behavior",
+      "DESCRIPTION": "Tune how CandyAI responds to customers.",
+      "SYSTEM_PROMPT": "System prompt",
+      "SYSTEM_PROMPT_PLACEHOLDER": "You are CandyAI, a helpful customer support assistant...",
+      "TEMPERATURE": "Temperature",
+      "MAX_TOKENS": "Maximum tokens"
+    },
+    "HANDOFF": {
+      "TITLE": "Human Handoff",
+      "DESCRIPTION": "Give customers a clear path to a human agent when AI should stop.",
+      "ENABLE": "Enable human handoff",
+      "ENABLE_HELP": "Allow CandyAI to signal that a human agent should take over.",
+      "MESSAGE": "Handoff message"
+    },
+    "ERROR": {
+      "SAVE": "Unable to save CandyAI settings. Please try again.",
+      "LOAD": "Unable to load CandyAI settings."
+    },
+    "SAVED": "CandyAI settings saved.",
+    "RESET": "Reset",
+    "SAVING": "Saving...",
+    "SAVE": "Save settings",
+    "TITLE": "CandyAI",
+    "KNOWLEDGE": {
+      "TITLE": "Knowledge sources",
+      "DESCRIPTION": "Add trusted help content for CandyAI to use when answering customers. Sources are scoped to this account.",
+      "TYPE": "Source type",
+      "URL": "Web page URL",
+      "TEXT": "Text content",
+      "DOCUMENT_TITLE": "Title",
+      "TITLE_PLACEHOLDER": "e.g. Refund policy",
+      "SOURCE_URL": "Source URL",
+      "URL_HELP": "Only public HTTP(S) pages are allowed. Private network destinations are blocked.",
+      "CONTENT": "Content",
+      "CONTENT_PLACEHOLDER": "Paste your policy, FAQ, or help article here.",
+      "ADD": "Add source",
+      "ADDING": "Adding…",
+      "SOURCES": "Your sources",
+      "LOADING": "Loading…",
+      "REFRESH_LIST": "Reload list",
+      "EMPTY": "No knowledge sources yet.",
+      "LOAD_ERROR": "Unable to load knowledge sources.",
+      "SAVE_ERROR": "Unable to add this source.",
+      "ACTION_ERROR": "Unable to complete this action.",
+      "ADDED": "Knowledge source added.",
+      "REFRESHED": "Source refreshed.",
+      "ARCHIVED": "Source archived.",
+      "DELETED": "Source deleted.",
+      "REFRESH_SOURCE": "Refresh",
+      "ARCHIVE": "Archive",
+      "DELETE": "Delete",
+      "CONFIRM_DELETE": "Delete permanently",
+      "CANCEL": "Cancel",
+      "EDIT": "Edit",
+      "UPDATED": "Knowledge source updated.",
+      "SAVE_CHANGES": "Save changes",
+      "URL_PLACEHOLDER": "https://docs.example.com/help"
+    }
+  }
+}

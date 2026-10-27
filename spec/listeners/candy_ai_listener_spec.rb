@@ -8,6 +8,12 @@ RSpec.describe CandyAIListener do
   let(:config) do
     instance_double(CandyAI::Configuration, enabled: true)
   end
+  let(:inbox_configuration) do
+    {
+      'enabled' => true,
+      'mode' => 'autonomous'
+    }
+  end
   let(:message) do
     instance_double(
       Message,
@@ -24,13 +30,6 @@ RSpec.describe CandyAIListener do
   before do
     allow(CandyAI).to receive(:config).and_return(config)
     allow(CandyAI::AccountConfiguration).to receive(:effective).with(inbox).and_return(inbox_configuration)
-  end
-
-  let(:inbox_configuration) do
-    {
-      'enabled' => true,
-      'mode' => 'autonomous'
-    }
   end
 
   it 'queues an AI response for an enabled autonomous inbox' do

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateCandyAiKnowledgeDocuments < ActiveRecord::Migration[7.0]
+class CreateCandyAIKnowledgeDocuments < ActiveRecord::Migration[7.0]
   def change
     create_table :candy_ai_knowledge_documents do |t|
       t.references :account, null: false, foreign_key: true

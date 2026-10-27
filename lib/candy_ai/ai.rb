@@ -1,44 +1,46 @@
 # frozen_string_literal: true
 
-require_relative "ai/provider"
-require_relative "ai/response"
-require_relative "ai/provider_registry"
-require_relative "ai/openai_compatible_provider"
-require_relative "ai/router"
-require_relative "ai/orchestrator"
+# Define the namespace before loading files that declare CandyAI::AI classes.
+module CandyAI::AI
+end
 
-module CandyAI
-  module AI
-    def self.registry
-      @registry ||= ProviderRegistry.new
-    end
+require_relative 'ai/provider'
+require_relative 'ai/response'
+require_relative 'ai/provider_registry'
+require_relative 'ai/openai_compatible_provider'
+require_relative 'ai/router'
+require_relative 'ai/orchestrator'
 
-    def self.register_provider(name, provider)
-      registry.register(name, provider)
-    end
+module CandyAI::AI
+  def self.registry
+    @registry ||= CandyAI::AI::ProviderRegistry.new
+  end
 
-    def self.provider(name = nil)
-      registry.fetch(name || CandyAI.config.default_ai_provider)
-    end
+  def self.register_provider(name, provider)
+    registry.register(name, provider)
+  end
 
-    def self.register_openai_compatible(name:, api_key: nil, base_url: nil, model: nil, **options)
-      provider = OpenAICompatibleProvider.new(
-        options.merge(
-          api_key: api_key,
-          base_url: base_url,
-          model: model
-        ).compact
-      )
-      register_provider(name, provider)
-      provider
-    end
+  def self.provider(name = nil)
+    registry.fetch(name || CandyAI.config.default_ai_provider)
+  end
 
-    def self.router
-      @router ||= Router.new
-    end
+  def self.register_openai_compatible(name:, api_key: nil, base_url: nil, model: nil, **options)
+    provider = CandyAI::AI::OpenAICompatibleProvider.new(
+      options.merge(
+        api_key: api_key,
+        base_url: base_url,
+        model: model
+      ).compact
+    )
+    register_provider(name, provider)
+    provider
+  end
 
-    def self.orchestrator
-      @orchestrator ||= Orchestrator.new
-    end
+  def self.router
+    @router ||= CandyAI::AI::Router.new
+  end
+
+  def self.orchestrator
+    @orchestrator ||= CandyAI::AI::Orchestrator.new
   end
 end
