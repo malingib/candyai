@@ -124,7 +124,7 @@ gem 'google-cloud-translate-v3', '>= 0.7.0'
 ##-- apm and error monitoring ---#
 # loaded only when environment variables are set.
 # ref application.rb
-gem 'datadog', '~> 2.0', require: false
+gem 'datadog', '>= 2.45.0', '< 3.0', require: false
 gem 'elastic-apm', require: false
 gem 'newrelic_rpm', require: false
 gem 'newrelic-sidekiq-metrics', '>= 1.6.2', require: false
@@ -201,7 +201,7 @@ gem 'ruby-openai'
 gem 'ai-agents', '>= 0.12.0'
 
 # TODO: Move this gem as a dependency of ai-agents
-gem 'ruby_llm', '>= 1.14.1'
+gem 'ruby_llm', '>= 2.0.0', '< 3.0'
 gem 'ruby_llm-schema'
 
 gem 'cld3', '~> 3.7'
