@@ -1,0 +1,35 @@
+name: Refresh Scout APM lockfile
+on:
+  push:
+    branches:
+      - candyai/implementation-hardening
+    paths:
+      - .github/workflows/refresh-scout-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: candyai/implementation-hardening
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.4.12
+          bundler-cache: false
+      - name: Resolve Scout APM and update lockfile
+        run: bundle lock --update scout_apm
+      - name: Commit resolved lockfile
+        run: |
+          if git diff --quiet -- Gemfile.lock; then
+            echo "Gemfile.lock did not change"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Gemfile.lock
+          git commit -m "fix: lock Ruby-compatible Scout APM release"
+          git push origin HEAD:candyai/implementation-hardening
