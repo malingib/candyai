@@ -25,11 +25,10 @@ class Team < ApplicationRecord
   has_many :members, through: :team_members, source: :user
   has_many :conversations, dependent: :nullify
 
-  before_destroy :capture_filtered_unread_count_member_ids, prepend: true
-  after_destroy_commit :invalidate_filtered_unread_counts_after_destroy
-
+  # Resolve the translation at validation time, not while the model class is
+  # being loaded. Initializers may load models before the I18n backend is ready.
   validates :name,
-            presence: { message: I18n.t('errors.validations.presence') },
+            presence: { message: ->(_record, _data) { I18n.t('errors.validations.presence') } },
             uniqueness: { scope: :account_id }
 
   before_validation do
@@ -37,7 +36,7 @@ class Team < ApplicationRecord
   end
 
   # Adds multiple members to the team
-  # @param user_ids [Array<Integer>] Array of user IDs to add as members
+  # @param user_ids [Array<Integer>] Array of user IDs to add to the team
   # @return [Array<User>] Array of newly added members
   def add_members(user_ids)
     team_members_to_create = user_ids.map { |user_id| { user_id: user_id } }
