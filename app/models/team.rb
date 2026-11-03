@@ -25,6 +25,9 @@ class Team < ApplicationRecord
   has_many :members, through: :team_members, source: :user
   has_many :conversations, dependent: :nullify
 
+  before_destroy :capture_filtered_unread_count_member_ids, prepend: true
+  after_destroy_commit :invalidate_filtered_unread_counts_after_destroy
+
   # Resolve the translation at validation time, not while the model class is
   # being loaded. Initializers may load models before the I18n backend is ready.
   validates :name,
