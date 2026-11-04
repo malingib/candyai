@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateCandyAiSuggestions < ActiveRecord::Migration[7.2]
+class CreateCandyAiSuggestions < ActiveRecord::Migration[7.0]
   def change
     create_table :candy_ai_suggestions do |t|
       t.bigint :account_id, null: false
