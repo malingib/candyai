@@ -9,7 +9,8 @@ RSpec.describe Captain::RewriteService do
   let(:service) { described_class.new(account: account, content: content, operation: operation, conversation_display_id: conversation.display_id) }
   let(:mock_chat) { instance_double(RubyLLM::Chat) }
   let(:mock_context) { instance_double(RubyLLM::Context, chat: mock_chat) }
-  let(:mock_response) { instance_double(RubyLLM::Message, content: 'Rewritten text', input_tokens: 10, output_tokens: 5) }
+  let(:mock_tokens) { instance_double(RubyLLM::Tokens, input: 10, output: 5) }
+  let(:mock_response) { instance_double(RubyLLM::Message, content: 'Rewritten text', tokens: mock_tokens) }
 
   before do
     create(:installation_config, name: 'CAPTAIN_OPEN_AI_API_KEY', value: 'test-key')
