@@ -63,15 +63,21 @@ class Api::V1::Accounts::CandyAiSuggestionsController < Api::V1::Accounts::BaseC
   end
 
   def source_message
-    @source_message ||= begin
-      record = conversation.messages.find(params[:message_id]) if params[:message_id].present?
-      record ||= conversation.messages.incoming.order(created_at: :desc).first
-      raise ActiveRecord::RecordNotFound unless record&.incoming? && !record.private?
-      raise ActiveRecord::RecordNotFound unless record.account_id == @current_account.id
-      raise ActiveRecord::RecordNotFound unless record.inbox_id == conversation.inbox_id
-
-      record
+    @source_message ||= requested_or_latest_message.tap do |record|
+      validate_source_message!(record)
     end
+  end
+
+  def requested_or_latest_message
+    return conversation.messages.find(params[:message_id]) if params[:message_id].present?
+
+    conversation.messages.incoming.order(created_at: :desc).first
+  end
+
+  def validate_source_message!(record)
+    raise ActiveRecord::RecordNotFound unless record&.incoming? && !record.private?
+    raise ActiveRecord::RecordNotFound unless record.account_id == @current_account.id
+    raise ActiveRecord::RecordNotFound unless record.inbox_id == conversation.inbox_id
   end
 
   def current_suggestion
