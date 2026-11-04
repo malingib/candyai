@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
-# CandyAI is kept isolated from the upstream Chatwoot routes so the feature can
-# be removed or upstreamed without editing the large generated routes file.
+# CandyAI routes are isolated from the upstream Chatwoot routes.
 Rails.application.routes.append do
   get '/api/v1/accounts/:account_id/candy_ai',
       to: 'api/v1/accounts/candy_ai#show'
@@ -24,4 +23,15 @@ Rails.application.routes.append do
        to: 'api/v1/accounts/candy_ai_knowledge_documents#refresh'
   delete '/api/v1/accounts/:account_id/candy_ai/knowledge_documents/:id',
          to: 'api/v1/accounts/candy_ai_knowledge_documents#destroy'
+
+  get '/api/v1/accounts/:account_id/candy_ai_suggestions',
+      to: 'api/v1/accounts/candy_ai_suggestions#index'
+  post '/api/v1/accounts/:account_id/candy_ai_suggestions',
+       to: 'api/v1/accounts/candy_ai_suggestions#create'
+  get '/api/v1/accounts/:account_id/candy_ai_suggestions/:id',
+      to: 'api/v1/accounts/candy_ai_suggestions#show'
+  patch '/api/v1/accounts/:account_id/candy_ai_suggestions/:id',
+        to: 'api/v1/accounts/candy_ai_suggestions#update'
+  post '/api/v1/accounts/:account_id/candy_ai_suggestions/:id/regenerate',
+       to: 'api/v1/accounts/candy_ai_suggestions#regenerate'
 end
