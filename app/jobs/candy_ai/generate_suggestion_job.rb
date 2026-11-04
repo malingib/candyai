@@ -49,7 +49,14 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     response = request_completion(configuration, message, suggestion, messages, grounding)
     return mark_failed(suggestion, 'provider_error', 'AI provider did not return a suggestion') if response.blank?
 
-    persist_suggestion(suggestion, configuration, messages, grounding, response, started_at)
+    persist_suggestion(
+      suggestion,
+      configuration,
+      messages,
+      grounding,
+      response,
+      started_at
+    )
   end
 
   def assist_configuration(inbox)
