@@ -51,11 +51,13 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
 
     persist_suggestion(
       suggestion,
-      configuration,
-      messages,
-      grounding,
-      response,
-      started_at
+      generation: {
+        configuration: configuration,
+        messages: messages,
+        grounding: grounding,
+        response: response,
+        started_at: started_at
+      }
     )
   end
 
@@ -77,7 +79,7 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
 
   def conversation_messages(message)
     history = message.conversation.messages.chat.where(private: false)
-                    .order(created_at: :desc).limit(12).to_a.reverse
+    history = history.order(created_at: :desc).limit(12).to_a.reverse
     history.filter_map do |item|
       content = item.content_for_llm.to_s.strip
       next if content.blank?
@@ -116,7 +118,13 @@ class CandyAI::GenerateSuggestionJob < ApplicationJob
     ].compact_blank.join("\n\n")
   end
 
-  def persist_suggestion(suggestion, configuration, messages, grounding, response, started_at)
+  def persist_suggestion(suggestion, generation:)
+    configuration = generation[:configuration]
+    messages = generation[:messages]
+    grounding = generation[:grounding]
+    response = generation[:response]
+    started_at = generation[:started_at]
+
     suggestion.update!(
       status: 'generated',
       content: response.to_s.first(12_000),
