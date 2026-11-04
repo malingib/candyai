@@ -34,8 +34,9 @@ const draft = ref('');
 let pollTimer;
 
 const latest = computed(() => suggestions.value[0] || null);
-const busy = computed(() =>
-  ['pending', 'generating'].includes(latest.value?.status)
+const busy = computed(
+  () =>
+    ['pending', 'generating'].includes(latest.value?.status)
 );
 const canUse = computed(
   () => latest.value?.status === 'generated' && draft.value.trim().length > 0
