@@ -5,8 +5,6 @@ class CandyAI::RespondToMessageJob < ApplicationJob
 
   retry_on StandardError, wait: :exponentially_longer, attempts: 3
 
-  MAX_CONTEXT_MESSAGES = 20
-
   def perform(message_id)
     message = Message.includes(:conversation, :account, :inbox).find_by(id: message_id)
     return if message.blank? || !eligible_message?(message)
@@ -23,27 +21,36 @@ class CandyAI::RespondToMessageJob < ApplicationJob
     return unless autonomous_enabled?(configuration)
     return if bot_id.blank? || response_already_delivered?(message)
 
-    response = generate_response(message, configuration)
-    deliver_response(message.conversation, response.text) if response.text.present?
+    result = CandyAI::ConversationOrchestrator.process(
+      conversation: message.conversation,
+      message: message
+    )
+
+    case result.status
+    when :reply
+      deliver_response(message.conversation, result.reply) if result.reply.present?
+    when :handoff
+      # Do not send a handoff promise until Chatwoot assignment and agent
+      # notification have actually succeeded. Keep the reason observable.
+      Rails.logger.info(
+        "[CandyAI] handoff requested reason=#{result.reason} " \
+        "conversation_id=#{message.conversation_id}"
+      )
+    when :assist
+      Rails.logger.debug(
+        "[CandyAI] assist result requires agent suggestion UI " \
+        "conversation_id=#{message.conversation_id}"
+      )
+    end
   end
 
   def autonomous_enabled?(configuration)
     configuration['enabled'] == true && configuration['mode'] == 'autonomous'
   end
 
-  def generate_response(message, configuration)
-    CandyAI::AI.orchestrator.respond(
-      messages: conversation_messages(message.conversation),
-      provider: configuration['provider'].presence || CandyAI.config.default_ai_provider,
-      model: configuration['model'].presence || ENV['CANDYAI_AI_MODEL'].presence,
-      system_prompt: configuration['system_prompt'].presence,
-      temperature: configuration['temperature'],
-      max_tokens: configuration['max_tokens']
-    )
-  end
-
   def eligible_message?(message)
-    message.incoming? && !message.private? && message.content_for_llm.present?
+    message.incoming? && !message.private? && message.content_for_llm.present? &&
+      message.conversation.present? && message.inbox.present?
   end
 
   def bot_id
@@ -54,27 +61,6 @@ class CandyAI::RespondToMessageJob < ApplicationJob
     message.conversation.messages
            .where(message_type: 'outgoing', sender_type: 'AgentBot', sender_id: bot_id)
            .exists?(['created_at >= ?', message.created_at])
-  end
-
-  def conversation_messages(conversation)
-    conversation.messages
-                .chat
-                .where(private: false)
-                .order(created_at: :desc)
-                .limit(MAX_CONTEXT_MESSAGES)
-                .to_a
-                .reverse
-                .filter_map { |message| llm_message(message) }
-  end
-
-  def llm_message(message)
-    content = message.content_for_llm
-    return if content.blank?
-
-    {
-      role: message.incoming? ? 'user' : 'assistant',
-      content: content.to_s
-    }
   end
 
   def deliver_response(conversation, content)
