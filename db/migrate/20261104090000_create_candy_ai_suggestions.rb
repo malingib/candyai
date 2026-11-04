@@ -53,9 +53,13 @@ class CreateCandyAISuggestions < ActiveRecord::Migration[7.0]
     add_index :candy_ai_suggestions, [:conversation_id, :status, :created_at],
               name: 'idx_candy_ai_suggestions_conversation_status'
     add_index :candy_ai_suggestions, :request_id, unique: true, where: 'request_id IS NOT NULL'
-    add_index :candy_ai_suggestions, :message_id, unique: true,
-                                                   where: "status IN ('pending', 'generating')",
-                                                   name: 'idx_candy_ai_suggestions_active_message'
+    add_index(
+      :candy_ai_suggestions,
+      :message_id,
+      unique: true,
+      where: "status IN ('pending', 'generating')",
+      name: 'idx_candy_ai_suggestions_active_message'
+    )
   end
 
   def add_suggestion_foreign_keys
