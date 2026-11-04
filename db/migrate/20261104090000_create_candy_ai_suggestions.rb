@@ -11,28 +11,40 @@ class CreateCandyAISuggestions < ActiveRecord::Migration[7.0]
 
   def create_suggestions_table
     create_table :candy_ai_suggestions do |t|
-      t.bigint :account_id, null: false
-      t.bigint :inbox_id, null: false
-      t.bigint :conversation_id, null: false
-      t.bigint :message_id, null: false
-      t.string :status, null: false, default: 'pending'
-      t.string :source, null: false, default: 'message_created'
-      t.text :content
-      t.string :provider
-      t.string :model
-      t.string :failure_category
-      t.text :error_message
-      t.jsonb :usage, null: false, default: {}
-      t.jsonb :context_metadata, null: false, default: {}
-      t.datetime :generation_started_at
-      t.datetime :generated_at
-      t.datetime :expires_at
-      t.datetime :accepted_at
-      t.datetime :rejected_at
-      t.integer :duration_ms
-      t.string :request_id
+      add_identity_columns(t)
+      add_content_columns(t)
+      add_metadata_columns(t)
       t.timestamps
     end
+  end
+
+  def add_identity_columns(table)
+    table.bigint :account_id, null: false
+    table.bigint :inbox_id, null: false
+    table.bigint :conversation_id, null: false
+    table.bigint :message_id, null: false
+    table.string :status, null: false, default: 'pending'
+    table.string :source, null: false, default: 'message_created'
+  end
+
+  def add_content_columns(table)
+    table.text :content
+    table.string :provider
+    table.string :model
+    table.string :failure_category
+    table.text :error_message
+  end
+
+  def add_metadata_columns(table)
+    table.jsonb :usage, null: false, default: {}
+    table.jsonb :context_metadata, null: false, default: {}
+    table.datetime :generation_started_at
+    table.datetime :generated_at
+    table.datetime :expires_at
+    table.datetime :accepted_at
+    table.datetime :rejected_at
+    table.integer :duration_ms
+    table.string :request_id
   end
 
   def add_suggestion_indexes
