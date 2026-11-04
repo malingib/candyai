@@ -25,22 +25,27 @@ class CandyAI::RespondToMessageJob < ApplicationJob
       conversation: message.conversation,
       message: message
     )
+    handle_result(message.conversation, result)
+  end
 
+  def handle_result(conversation, result)
     case result.status
     when :reply
-      deliver_response(message.conversation, result.reply) if result.reply.present?
+      deliver_response(conversation, result.reply) if result.reply.present?
     when :handoff
-      # Do not send a handoff promise until Chatwoot assignment and agent
-      # notification have actually succeeded. Keep the reason observable.
-      Rails.logger.info(
-        "[CandyAI] handoff requested reason=#{result.reason} " \
-        "conversation_id=#{message.conversation_id}"
-      )
+      log_handoff(conversation, result)
     when :assist
-      Rails.logger.debug(
-        "[CandyAI] assist result requires agent suggestion UI " \
-        "conversation_id=#{message.conversation_id}"
-      )
+      Rails.logger.debug do
+        '[CandyAI] assist result requires agent suggestion UI ' \
+          "conversation_id=#{conversation.id}"
+      end
+    end
+  end
+
+  def log_handoff(conversation, result)
+    Rails.logger.info do
+      "[CandyAI] handoff requested reason=#{result.reason} " \
+        "conversation_id=#{conversation.id}"
     end
   end
 
