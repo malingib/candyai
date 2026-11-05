@@ -5,7 +5,7 @@ ruby '>= 3.4.4', '< 3.5'
 ##-- base gems for rails --##
 
 gem 'rack-cors', '2.0.0', require: 'rack/cors'
-gem 'rails', '7.2.3.1'
+gem 'rails', '8.0.5.2'
 
 # Reduces boot times through caching; required in config/boot.rb
 gem 'bootsnap', require: false
@@ -86,7 +86,7 @@ gem 'devise', '>= 4.9.4'
 # 2.2.3 requires Devise 5; Chatwoot remains on Devise 4 for this upgrade stack.
 gem 'devise-secure_password', '2.2.1'
 gem 'devise_token_auth', '>= 1.2.3'
-gem 'rails-i18n', '~> 7.0'
+gem 'rails-i18n', '~> 8.0.0'
 # two-factor authentication
 gem 'devise-two-factor', '>= 5.0.0'
 # authorization
@@ -94,9 +94,8 @@ gem 'jwt', '~> 2.10', '>= 2.10.3'
 gem 'pundit'
 
 # super admin
-gem 'administrate', '>= 0.20.1'
-gem 'administrate-field-active_storage', '>= 1.0.3'
-gem 'administrate-field-belongs_to_search', '>= 0.10.0'
+gem 'administrate', '~> 1.0'
+gem 'administrate-field-active_storage', '>= 1.0.6'
 
 ##--- gems for pubsub service ---##
 # https://karolgalanciak.com/blog/2019/11/30/from-activerecord-callbacks-to-publish-slash-subscribe-pattern-and-event-driven-design/
