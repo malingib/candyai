@@ -18,8 +18,10 @@ const copy = {
   ariaLabel: 'AI suggested reply',
   insert: 'Insert into reply',
   dismiss: 'Dismiss',
-  controlNote: 'Inserting does not send the message. The agent remains in control.',
-  failed: 'Suggestion generation failed. Check provider configuration and try again.',
+  controlNote:
+    'Inserting does not send the message. The agent remains in control.',
+  failed:
+    'Suggestion generation failed. Check provider configuration and try again.',
   refreshError: 'Could not refresh the suggestion status.',
   loadError: 'Could not load AI suggestions.',
   generateError: 'Could not generate a suggestion.',
@@ -35,8 +37,7 @@ let pollTimer;
 
 const latest = computed(() => suggestions.value[0] || null);
 const busy = computed(
-  () =>
-    ['pending', 'generating'].includes(latest.value?.status)
+  () => ['pending', 'generating'].includes(latest.value?.status)
 );
 const canUse = computed(
   () => latest.value?.status === 'generated' && draft.value.trim().length > 0
