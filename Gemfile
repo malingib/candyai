@@ -1,11 +1,11 @@
 source 'https://rubygems.org'
 
-ruby '3.4.4'
+ruby '>= 3.4.4', '< 3.5'
 
-##-- base gems for rails --##
+##-- base gems for patched Rails 8 (security maintenance) --##
 
 gem 'rack-cors', '2.0.0', require: 'rack/cors'
-gem 'rails', '7.2.3.1'
+gem 'rails', '8.1.4.1'
 
 # Reduces boot times through caching; required in config/boot.rb
 gem 'bootsnap', require: false
@@ -86,7 +86,7 @@ gem 'devise', '>= 4.9.4'
 # 2.2.3 requires Devise 5; Chatwoot remains on Devise 4 for this upgrade stack.
 gem 'devise-secure_password', '2.2.1'
 gem 'devise_token_auth', '>= 1.2.3'
-gem 'rails-i18n', '~> 7.0'
+gem 'rails-i18n', '~> 8.1.0'
 # two-factor authentication
 gem 'devise-two-factor', '>= 5.0.0'
 # authorization
@@ -94,9 +94,8 @@ gem 'jwt', '~> 2.10', '>= 2.10.3'
 gem 'pundit'
 
 # super admin
-gem 'administrate', '>= 0.20.1'
-gem 'administrate-field-active_storage', '>= 1.0.3'
-gem 'administrate-field-belongs_to_search', '>= 0.10.0'
+gem 'administrate', '~> 1.0'
+gem 'administrate-field-active_storage', '>= 1.0.6'
 
 ##--- gems for pubsub service ---##
 # https://karolgalanciak.com/blog/2019/11/30/from-activerecord-callbacks-to-publish-slash-subscribe-pattern-and-event-driven-design/
@@ -124,11 +123,11 @@ gem 'google-cloud-translate-v3', '>= 0.7.0'
 ##-- apm and error monitoring ---#
 # loaded only when environment variables are set.
 # ref application.rb
-gem 'datadog', '~> 2.0', require: false
+gem 'datadog', '>= 2.45.0', '< 3.0', require: false
 gem 'elastic-apm', require: false
 gem 'newrelic_rpm', require: false
 gem 'newrelic-sidekiq-metrics', '>= 1.6.2', require: false
-gem 'scout_apm', require: false
+gem 'scout_apm', '~> 6.3.1', require: false
 gem 'sentry-rails', '>= 5.19.0', require: false
 gem 'sentry-ruby', require: false
 gem 'sentry-sidekiq', '>= 5.19.0', require: false
@@ -201,7 +200,7 @@ gem 'ruby-openai'
 gem 'ai-agents', '>= 0.12.0'
 
 # TODO: Move this gem as a dependency of ai-agents
-gem 'ruby_llm', '>= 1.14.1'
+gem 'ruby_llm', '>= 2.0.0', '< 3.0'
 gem 'ruby_llm-schema'
 
 gem 'cld3', '~> 3.7'
