@@ -2,7 +2,7 @@ source 'https://rubygems.org'
 
 ruby '>= 3.4.4', '< 3.5'
 
-##-- base gems for patched Rails 8 --##
+##-- base gems for patched Rails 8 (security maintenance) --##
 
 gem 'rack-cors', '2.0.0', require: 'rack/cors'
 gem 'rails', '8.0.5.2'
