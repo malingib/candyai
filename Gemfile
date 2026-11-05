@@ -5,7 +5,7 @@ ruby '>= 3.4.4', '< 3.5'
 ##-- base gems for patched Rails 8 (security maintenance) --##
 
 gem 'rack-cors', '2.0.0', require: 'rack/cors'
-gem 'rails', '8.0.5.2'
+gem 'rails', '8.1.4.1'
 
 # Reduces boot times through caching; required in config/boot.rb
 gem 'bootsnap', require: false
@@ -86,7 +86,7 @@ gem 'devise', '>= 4.9.4'
 # 2.2.3 requires Devise 5; Chatwoot remains on Devise 4 for this upgrade stack.
 gem 'devise-secure_password', '2.2.1'
 gem 'devise_token_auth', '>= 1.2.3'
-gem 'rails-i18n', '~> 8.0.0'
+gem 'rails-i18n', '~> 8.1.0'
 # two-factor authentication
 gem 'devise-two-factor', '>= 5.0.0'
 # authorization
