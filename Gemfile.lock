@@ -933,6 +933,14 @@ GEM
     spring-watcher-listen (2.1.0)
       listen (>= 2.7, < 4.0)
       spring (>= 4)
+    sprockets (4.4.1)
+      concurrent-ruby (~> 1.1)
+      logger
+      rack (>= 2.2.4, < 4)
+    sprockets-rails (3.5.2)
+      actionpack (>= 6.1)
+      activesupport (>= 6.1)
+      sprockets (>= 3.0.0)
     squasher (0.7.2)
     ssrf_filter (1.5.0)
     stackprof (0.2.25)
@@ -1158,6 +1166,7 @@ DEPENDENCIES
   speedshop-cloudwatch (~> 0.2.1)
   spring
   spring-watcher-listen
+  sprockets-rails
   squasher
   ssrf_filter (~> 1.5)
   stackprof
