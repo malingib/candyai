@@ -6,6 +6,7 @@ on:
     branches:
       - develop
       - master
+      - candyai/implementation-hardening
   pull_request:
   workflow_dispatch:
 
