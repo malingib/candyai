@@ -10,6 +10,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ce-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Separate linting jobs for faster feedback
   lint-backend:
