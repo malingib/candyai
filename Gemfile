@@ -77,6 +77,7 @@ gem 'faraday_middleware-aws-sigv4'
 gem 'dotenv-rails', '>= 3.0.0'
 gem 'foreman'
 gem 'puma', '~> 7.2', '>= 7.2.1'
+gem 'sprockets-rails'
 gem 'vite_rails'
 # metrics on heroku
 gem 'barnes'
