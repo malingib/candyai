@@ -41,6 +41,10 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --binary -- Gemfile.lock > /tmp/gemfile-lock.patch
+          git fetch origin "${GITHUB_REF_NAME}"
+          git reset --hard "origin/${GITHUB_REF_NAME}"
+          git apply /tmp/gemfile-lock.patch
           git add Gemfile.lock
           git commit -m "Resolve patched Rails 8.1 dependency lockfile"
           git push origin "HEAD:${GITHUB_REF_NAME}"
