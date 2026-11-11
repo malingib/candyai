@@ -9,7 +9,8 @@ class Api::V1::Accounts::CandyAiController < Api::V1::Accounts::BaseController
 
   def update
     current = CandyAI::AccountConfiguration.account(@current_account)
-    @current_account.settings = (@current_account.settings || {}).merge('candy_ai' => current.merge(CandyAI::AccountConfiguration.normalize(candy_ai_params)))
+    updated = current.merge(CandyAI::AccountConfiguration.normalize(candy_ai_params))
+    @current_account.settings = (@current_account.settings || {}).merge('candy_ai' => updated)
     @current_account.save!
     render json: { settings: CandyAI::AccountConfiguration.account(@current_account) }
   end

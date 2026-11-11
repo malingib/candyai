@@ -1,0 +1,45 @@
+name: Rails 8 strong parameters autocorrection
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - candyai/implementation-hardening
+    paths:
+      - Gemfile.lock
+
+concurrency:
+  group: strong-params-autocorrect-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  autocorrect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4.12'
+          bundler-cache: true
+      - name: Apply Rails 8 strong-parameter API corrections
+        run: |
+          bundle exec rubocop --autocorrect --only Rails/StrongParametersExpect --parallel
+          bundle exec rubocop --only Rails/StrongParametersExpect --parallel
+          git diff --check
+      - name: Commit reviewed autocorrections
+        run: |
+          if git diff --quiet; then
+            echo "No autocorrections required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "Adopt Rails 8 strong parameter expect API"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

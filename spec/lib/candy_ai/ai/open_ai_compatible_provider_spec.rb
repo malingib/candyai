@@ -13,6 +13,7 @@ RSpec.describe CandyAI::AI::OpenAICompatibleProvider do
 
   describe '#chat' do
     it 'normalizes an OpenAI-compatible response' do
+      # rubocop:disable RSpec/SubjectStub -- isolates response normalization from HTTP transport.
       allow(provider).to receive(:request).and_return(
         {
           'id' => 'chatcmpl-test',
@@ -22,6 +23,7 @@ RSpec.describe CandyAI::AI::OpenAICompatibleProvider do
         }
       )
 
+      # rubocop:enable RSpec/SubjectStub
       result = provider.chat(messages: [{ role: 'user', content: 'Hello' }])
 
       expect(result.text).to eq('Hello from CandyAI.')

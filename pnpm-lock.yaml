@@ -350,8 +350,8 @@ importers:
         specifier: 6.4.2
         version: 6.4.2(@types/node@22.7.0)(jiti@1.21.6)(lightningcss@1.32.0)(sass@1.79.3)(terser@5.33.0)(yaml@2.8.2)
       vite-plugin-ruby:
-        specifier: ^5.2.1
-        version: 5.2.1(vite@6.4.2(@types/node@22.7.0)(jiti@1.21.6)(lightningcss@1.32.0)(sass@1.79.3)(terser@5.33.0)(yaml@2.8.2))
+        specifier: ^5.2.6
+        version: 5.2.6(vite@6.4.2(@types/node@22.7.0)(jiti@1.21.6)(lightningcss@1.32.0)(sass@1.79.3)(terser@5.33.0)(yaml@2.8.2))
       vitest:
         specifier: 3.0.5
         version: 3.0.5(@types/node@22.7.0)(jiti@1.21.6)(jsdom@27.2.0)(lightningcss@1.32.0)(sass@1.79.3)(terser@5.33.0)(yaml@2.8.2)
@@ -4642,8 +4642,8 @@ packages:
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
 
-  vite-plugin-ruby@5.2.1:
-    resolution: {integrity: sha512-wI3F/Yr4e4mEwiMff/cvNwGu8nZok5wrwUjHxO8we+h3y9+qCluO3Y5dzvz6vHJDBya9fKXkltoMwoJhaB2SRg==}
+  vite-plugin-ruby@5.2.6:
+    resolution: {integrity: sha512-bGIPoUWHwH4Ym5o5PacFUBaCGaftcUOYptdyPkyIvLfefdu0HbqIuT5aKPrFAp2p8wUMHmC4SqXF8yxtZuk6Tg==}
     peerDependencies:
       vite: 6.4.2
 
@@ -9796,7 +9796,7 @@ snapshots:
       - tsx
       - yaml
 
-  vite-plugin-ruby@5.2.1(vite@6.4.2(@types/node@22.7.0)(jiti@1.21.6)(lightningcss@1.32.0)(sass@1.79.3)(terser@5.33.0)(yaml@2.8.2)):
+  vite-plugin-ruby@5.2.6(vite@6.4.2(@types/node@22.7.0)(jiti@1.21.6)(lightningcss@1.32.0)(sass@1.79.3)(terser@5.33.0)(yaml@2.8.2)):
     dependencies:
       obug: 2.1.1
       tinyglobby: 0.2.16

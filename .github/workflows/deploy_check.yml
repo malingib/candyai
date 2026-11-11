@@ -1,12 +1,9 @@
-## github action to check deployment success
-## curl the deployment url and check for 200 status
-## deployment url will be of the form chatwoot-pr-<pr_number>.herokuapp.com
+## Verify a configured PR review deployment; do not assume a Heroku app exists.
 name: Deploy Check
 
 on:
   pull_request:
 
-# If two pushes happen within a short time in the same PR, cancel the run of the oldest push
 concurrency:
   group: pr-${{ github.workflow }}-${{ github.head_ref }}
   cancel-in-progress: true
@@ -19,35 +16,19 @@ jobs:
     name: Check Deployment
     runs-on: ubuntu-latest
     steps:
-      - name: Install jq
-        run: sudo apt-get install -y jq
-      - name: Print Deployment URL
-        run: echo "https://chatwoot-pr-${{ github.event.pull_request.number }}.herokuapp.com"
-      - name: Check Deployment Status
+      - name: Skip when no review deployment is configured
+        if: ${{ vars.PR_REVIEW_DEPLOYMENT_URL == '' }}
+        run: echo "No PR_REVIEW_DEPLOYMENT_URL configured; external deployment verification is skipped."
+      - name: Verify configured review deployment
+        if: ${{ vars.PR_REVIEW_DEPLOYMENT_URL != '' }}
+        env:
+          DEPLOYMENT_URL: ${{ vars.PR_REVIEW_DEPLOYMENT_URL }}
         run: |
-          max_attempts=10
-          attempt=1
-          status_code=0
-          echo "Waiting for review app to be deployed/redeployed, trying in  10 minutes..."
-          sleep 600
-          while [ $attempt -le $max_attempts ]; do
-            response=$(curl -s -o /dev/null -w "%{http_code}" https://chatwoot-pr-${{ github.event.pull_request.number }}.herokuapp.com/api)
-            status_code=$(echo $response | head -n   1)
-            if [ $status_code -eq   200 ]; then
-              body=$(curl -s https://chatwoot-pr-${{ github.event.pull_request.number }}.herokuapp.com/api)
-              if echo "$body" | jq -e '.version and .timestamp and .queue_services == "ok" and .data_services == "ok"' > /dev/null; then
-                echo "Deployment successful"
-                exit 0
-              else
-                echo "Deployment status unknown, retrying in   3 minutes..."
-                sleep 180
-              fi
-            else
-              echo "Waiting for review app to be ready, retrying in  3 minutes..."
-              sleep 180
-              attempt=$((attempt +  1))
-            fi
-          done
-          echo "Deployment failed after $max_attempts attempts"
-          exit  1
-          fi
+          set -euo pipefail
+          url="${DEPLOYMENT_URL%/}/api"
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status_code="$(curl --silent --show-error --location --retry 5 --retry-delay 10 --retry-all-errors --output "$response_file" --write-out '%{http_code}' "$url")"
+          test "$status_code" = "200"
+          jq -e '.version and .timestamp and .queue_services == "ok" and .data_services == "ok"' "$response_file"
+          echo "Configured review deployment is healthy."
